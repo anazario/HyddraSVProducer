@@ -33,8 +33,8 @@
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 
 // HYDDRA
-#include "KUCMSNtupleizer/HYDDRA/interface/LeptonicHYDDRA.h"
-#include "KUCMSNtupleizer/HYDDRA/interface/HadronicHYDDRA.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/LeptonicHYDDRA.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/HadronicHYDDRA.h"
 
 class HyddraSVsProducer : public edm::stream::EDProducer<> {
 

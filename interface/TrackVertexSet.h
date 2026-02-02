@@ -1,5 +1,4 @@
-#ifndef KUCMSNtupleizer_KUCMSNtupleizer_TrackVertexSet_h
-#define KUCMSNtupleizer_KUCMSNtupleizer_TrackVertexSet_h
+#pragma once
 
 #include <unordered_map>
 #include <limits>
@@ -12,10 +11,8 @@
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/SharedTrack.h"
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchingTools.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/VertexHelper.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackHelper.h"
 
 class TrackVertexSet : public std::set<reco::TrackRef> {
  public:
@@ -94,4 +91,4 @@ class TrackVertexSet : public std::set<reco::TrackRef> {
   double calculateChiSquaredPValue(double chiSquaredValue, int degreesOfFreedom) const;
 };
 
-#endif
+

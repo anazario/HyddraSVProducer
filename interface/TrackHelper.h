@@ -1,5 +1,4 @@
-#ifndef KUCMSNtupleizer_KUCMSNtupleizer_TrackHelper_h
-#define KUCMSNtupleizer_KUCMSNtupleizer_TrackHelper_h
+#pragma once
 
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
@@ -155,4 +154,4 @@ inline bool TrackHelper::AreTrackCollectionsIdentical(const reco::TrackCollectio
   return true;
 }
 
-#endif
+

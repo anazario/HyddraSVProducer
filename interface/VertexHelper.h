@@ -1,5 +1,4 @@
-#ifndef KUCMSNtupleizer_KUCMSNtupleizer_VertexHelper_h
-#define KUCMSNtupleizer_KUCMSNtupleizer_VertexHelper_h
+#pragma once
 
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
@@ -10,7 +9,6 @@
 
 #include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
 
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
 #include <Math/Vector4D.h>
 #include <TLorentzVector.h>
 
@@ -85,4 +83,3 @@ bool VertexHelper::isInVertex(const reco::Vertex &vertex, const T &track) {
   return isInVertex;
 }
 
-#endif
