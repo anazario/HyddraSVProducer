@@ -1,0 +1,10 @@
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="FWCore/Utilities"/>
+<use name="DataFormats/TrackReco"/>
+<use name="DataFormats/VertexReco"/>
+<use name="TrackingTools/TransientTrack"/>
+<use name="TrackingTools/Records"/>
+<use name="KUCMSNtupleizer/HyddraSVProducer"/>
+<flags EDM_PLUGIN="1"/>

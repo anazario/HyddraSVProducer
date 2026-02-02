@@ -1,0 +1,12 @@
+<use name="DataFormats/GeometryVector"/>
+<use name="DataFormats/HepMCCandidate"/>
+<use name="DataFormats/TrackReco"/>
+<use name="DataFormats/VertexReco"/>
+<use name="RecoVertex/KalmanVertexFit"/>
+<use name="RecoVertex/VertexPrimitives"/>
+<use name="TrackingTools/Records"/>
+<use name="TrackingTools/TransientTrack"/>
+<use name="boost"/>
+<export>
+  <lib name="1"/>
+</export>
