@@ -45,15 +45,15 @@
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 
 // Helper classes from KUCMSNtupleizer
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchedTrackSCPair.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 
 // Local helper classes
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackHelper.h"
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/VertexHelper.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
 
 // ROOT
 #include "TTree.h"
@@ -751,7 +751,7 @@ void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descript
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"));
   desc.add<edm::InputTag>("muonTracks", edm::InputTag("displacedGlobalMuons"));
-  desc.add<edm::InputTag>("mergedSCs", edm::InputTag("mergedSuperClusters"));
+  desc.add<edm::InputTag>("mergedSCs", edm::InputTag("ecalTracks", "displacedElectronSCs"));
   desc.add<edm::InputTag>("genParticles", edm::InputTag("genParticles"));
 
   // Track associator parameters

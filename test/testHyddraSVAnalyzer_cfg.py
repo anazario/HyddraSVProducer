@@ -34,6 +34,13 @@ process.source = cms.Source("PoolSource",
 process.load("Configuration.Geometry.GeometryRecoDB_cff")
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+if 'CASTOR' in process.CaloGeometryBuilder.SelectedCalos:
+    process.CaloGeometryBuilder.SelectedCalos.remove('CASTOR')
+
+process.load("TrackingTools.TrackAssociator.DetIdAssociatorESProducer_cff")
+
+# Load TransientTrackBuilder (required for MuonEnhancedTracksProducer and vertex fitting)
+process.load("TrackingTools.TransientTrack.TransientTrackBuilder_cfi")
 
 # Set the GlobalTag - modify for your data/MC era
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -53,6 +60,11 @@ process.TFileService = cms.Service("TFileService",
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 
 # ============================================================================
+# ECALTracks Producer (produces displacedElectronSCs for SC matching)
+# ============================================================================
+process.load("KUCMSNtupleizer.KUCMSNtupleizer.ECALTracks_cfi")
+
+# ============================================================================
 # HYDDRA SV Producer (uses sip2DMuonEnhancedTracks by default)
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi")
@@ -62,12 +74,14 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi")
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi")
 process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
+process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs")
 
 # ============================================================================
 # Path: Run producer sequence then analyzer
 # ============================================================================
 process.p = cms.Path(
     process.muonEnhancedTracks +  # Produces sip2DMuonEnhancedTracks (and others)
+    process.ecalTracks +          # Produces displacedElectronSCs for SC matching
     process.hyddraSVs +           # Produces leptonic/hadronic vertices
     process.hyddraSVAnalyzer      # Writes TTree output
 )
