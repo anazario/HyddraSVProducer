@@ -8,7 +8,7 @@
 #include "TrackHelper.h"
 
 // Debug output toggle. Comment out to disable.
-#define HYDDRA_DEBUG_ENABLED
+//#define HYDDRA_DEBUG_ENABLED
 
 #ifdef HYDDRA_DEBUG_ENABLED
     #define HYDDRA_DBG(x) std::cout << x
