@@ -8,6 +8,7 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 
 #include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
+#include "RecoVertex/VertexPrimitives/interface/CachingVertex.h"
 
 #include <Math/Vector4D.h>
 #include <TLorentzVector.h>

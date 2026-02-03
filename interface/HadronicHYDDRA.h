@@ -40,7 +40,9 @@ class HadronicHYDDRA : public HYDDRABase<HadronicHYDDRA> {
     }
 
     this->clear();
-    this->insert(validCandidates.begin(), validCandidates.end());
+    for (const auto& v : validCandidates) {
+      this->add(v);
+    }
   }
 
   // Stage 4: Disambiguation
@@ -94,11 +96,13 @@ class HadronicHYDDRA : public HYDDRABase<HadronicHYDDRA> {
       TrackVertexSetCollection survivors;
       for (const auto& vtx : *this) {
 	if (rejectedPtrs.find(&vtx) == rejectedPtrs.end()) {
-	  survivors.insert(vtx);
+	  survivors.add(vtx);
 	}
       }
       this->clear();
-      this->insert(survivors.begin(), survivors.end());
+      for (const auto& v : survivors) {
+	this->add(v);
+      }
     }
   }
 
@@ -120,7 +124,9 @@ class HadronicHYDDRA : public HYDDRABase<HadronicHYDDRA> {
     }
 
     this->clear();
-    this->insert(finalVertices.begin(), finalVertices.end());
+    for (const auto& v : finalVertices) {
+      this->add(v);
+    }
   }
 
  private:

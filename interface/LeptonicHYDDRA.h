@@ -82,7 +82,9 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     }
 
     this->clear();
-    this->insert(cleanedVertices.begin(), cleanedVertices.end());
+    for (const auto& v : cleanedVertices) {
+      this->add(v);
+    }
   }
 
   // Stage 4: Disambiguation
@@ -137,11 +139,13 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
       TrackVertexSetCollection survivors;
       for (const auto& vtx : *this) {
 	if (rejectedPtrs.find(&vtx) == rejectedPtrs.end()) {
-	  survivors.insert(vtx);
+	  survivors.add(vtx);
 	}
       }
       this->clear();
-      this->insert(survivors.begin(), survivors.end());
+      for (const auto& v : survivors) {
+	this->add(v);
+      }
     }
   }
 
@@ -187,7 +191,9 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     }
 
     this->clear();
-    this->insert(finalVertices.begin(), finalVertices.end());
+    for (const auto& v : finalVertices) {
+      this->add(v);
+    }
 
     HYDDRA_DBG("[Leptonic] Final count: " << this->size() << "\n");
   }

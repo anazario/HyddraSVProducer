@@ -36,6 +36,23 @@ class HYDDRABase : public TrackVertexSetCollection {
   const TransientTrackBuilder* ttBuilder_ = nullptr;
   const reco::Vertex* primaryVertex_ = nullptr;
 
+  // Master list to track all vertices ever created (prevents duplicates across iterations)
+  TrackVertexSetCollection masterList_;
+
+  // Diagnostic counters
+  struct DiagnosticCounters {
+    size_t nSeeds = 0;
+    size_t nAfterMerge = 0;
+    size_t nAfterClean = 0;
+    size_t nAfterDisambiguate = 0;
+    size_t nAfterFilter = 0;
+    size_t nMergeIterations = 0;
+    size_t nTotalMerges = 0;
+    size_t nMergeFailed = 0;
+    size_t nMergeAlreadyExists = 0;
+  };
+  DiagnosticCounters diagnostics_;
+
  public:
 
   HYDDRABase(const edm::ParameterSet& pset) {
@@ -46,6 +63,9 @@ class HYDDRABase : public TrackVertexSetCollection {
     minDxySignificance_ = pset.getParameter<double>("minDxySignificance");
   }
 
+  // Access diagnostics
+  const DiagnosticCounters& getDiagnostics() const { return diagnostics_; }
+
   // Main entry point. Runs the full 5-stage pipeline on the given tracks.
   void run_reconstruction(const std::vector<reco::TrackRef>& tracks,
 			  const TransientTrackBuilder* builder,
@@ -53,13 +73,31 @@ class HYDDRABase : public TrackVertexSetCollection {
     ttBuilder_ = builder;
     primaryVertex_ = &pv;
     this->clear();
+    masterList_.clear();
+    diagnostics_ = DiagnosticCounters();
 
     Derived& self = static_cast<Derived&>(*this);
+
     self.seedingImpl(tracks);
+    diagnostics_.nSeeds = this->size();
+
     self.mergingImpl();
+    diagnostics_.nAfterMerge = this->size();
+
     self.cleaningImpl();
+    diagnostics_.nAfterClean = this->size();
+
     self.disambiguationImpl();
+    diagnostics_.nAfterDisambiguate = this->size();
+
     self.filteringImpl();
+    diagnostics_.nAfterFilter = this->size();
+
+    HYDDRA_DBG("[HYDDRA] Pipeline summary: seeds=" << diagnostics_.nSeeds
+               << " -> merge=" << diagnostics_.nAfterMerge
+               << " -> clean=" << diagnostics_.nAfterClean
+               << " -> disambig=" << diagnostics_.nAfterDisambiguate
+               << " -> filter=" << diagnostics_.nAfterFilter << "\n");
   }
 
  protected:
@@ -101,7 +139,9 @@ class HYDDRABase : public TrackVertexSetCollection {
 	  }
 	}
 
-	this->insert(seed);
+	// Use add() to properly handle subsets
+	this->add(seed);
+	masterList_.add(seed);
       }
     }
 
@@ -122,32 +162,38 @@ class HYDDRABase : public TrackVertexSetCollection {
     int iteration = 0;
     bool madeChange = true;
 
-    while (madeChange) {
+    while (madeChange && iteration < 30) {
       madeChange = false;
 
-      TrackVertexSetCollection deadList;
-      TrackVertexSetCollection mergedVertices;
-      int nMerged = 0, nMergeFailed = 0;
+      TrackVertexSetCollection ignoreList;
+      TrackVertexSetCollection mergedList;
+      int nMerged = 0, nMergeFailed = 0, nAlreadyExists = 0;
 
       // Snapshot to vector for safe pairwise iteration
       std::vector<TrackVertexSet> vtxVec(this->begin(), this->end());
 
       for (size_t i = 0; i < vtxVec.size(); ++i) {
-	if (deadList.contains(vtxVec[i])) continue;
+	if (ignoreList.contains(vtxVec[i])) continue;
 
 	for (size_t j = i + 1; j < vtxVec.size(); ++j) {
-	  if (deadList.contains(vtxVec[j]) || deadList.contains(vtxVec[i])) continue;
+	  if (ignoreList.contains(vtxVec[j]) || ignoreList.contains(vtxVec[i])) continue;
 	  if ((vtxVec[i] & vtxVec[j]) == 0) continue;
 
 	  if (vtxVec[i].distanceSignificance(vtxVec[j]) < 4) {
 	    TrackVertexSet mergedVertex(vtxVec[i] + vtxVec[j]);
 
-	    if (isValidVertex(mergedVertex)) {
-	      deadList.insert(vtxVec[i]);
-	      deadList.insert(vtxVec[j]);
-	      mergedVertices.add(mergedVertex);
+	    if (isValidVertex(mergedVertex) && masterList_.doesNotContain(mergedVertex)) {
+	      ignoreList.add(vtxVec[i]);
+	      ignoreList.add(vtxVec[j]);
+	      masterList_.add(mergedVertex);
+	      mergedList.add(mergedVertex);
 	      madeChange = true;
 	      nMerged++;
+	    } else if (masterList_.contains(mergedVertex)) {
+	      // Merged vertex already exists - still mark parents for removal
+	      ignoreList.add(vtxVec[i]);
+	      ignoreList.add(vtxVec[j]);
+	      nAlreadyExists++;
 	    } else {
 	      nMergeFailed++;
 	    }
@@ -158,22 +204,30 @@ class HYDDRABase : public TrackVertexSetCollection {
       // Build updated collection: survivors + newly merged
       TrackVertexSetCollection updated;
       for (const auto& v : vtxVec) {
-	if (!deadList.contains(v)) {
-	  updated.insert(v);
+	if (!ignoreList.contains(v)) {
+	  updated.add(v);
 	}
       }
-      updated += mergedVertices;
+      updated += mergedList;
 
       iteration++;
+      diagnostics_.nTotalMerges += nMerged;
+      diagnostics_.nMergeFailed += nMergeFailed;
+      diagnostics_.nMergeAlreadyExists += nAlreadyExists;
+
       HYDDRA_DBG("[HYDDRA] Merge iter " << iteration << ": "
 		 << this->size() << " -> " << updated.size()
 		 << " | merged=" << nMerged
-		 << " failed=" << nMergeFailed << "\n");
+		 << " failed=" << nMergeFailed
+		 << " exists=" << nAlreadyExists << "\n");
 
       this->clear();
-      this->insert(updated.begin(), updated.end());
+      for (const auto& v : updated) {
+	this->add(v);
+      }
     }
 
+    diagnostics_.nMergeIterations = iteration;
     HYDDRA_DBG("[HYDDRA] Merge result: " << this->size() << " vertices, "
 	       << iteration << " iterations\n");
   }
