@@ -8,6 +8,7 @@
 <use name="DataFormats/VertexReco"/>
 <use name="DataFormats/HepMCCandidate"/>
 <use name="DataFormats/EgammaReco"/>
+<use name="DataFormats/PatCandidates"/>
 <use name="TrackingTools/TransientTrack"/>
 <use name="TrackingTools/Records"/>
 <use name="TrackingTools/TrackAssociator"/>

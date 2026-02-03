@@ -8,6 +8,11 @@ options.register('hasGenInfo',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.bool,
                  "Process gen-level information (set False for data)")
+options.register('processMode',
+                 'both',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "Processing mode: both (default), leptonic, or hadronic")
 options.setDefault('maxEvents', -1)
 options.setDefault('outputFile', 'hyddraSV_ntuple.root')
 options.parseArguments()
@@ -75,6 +80,15 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi")
 process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs")
+
+# Configure processing mode: both (default), leptonic, or hadronic
+if options.processMode == 'leptonic':
+    # Only process leptonic vertices
+    process.hyddraSVAnalyzer.hadronicVertices = cms.InputTag("")
+elif options.processMode == 'hadronic':
+    # Only process hadronic vertices
+    process.hyddraSVAnalyzer.leptonicVertices = cms.InputTag("")
+# else: process both (default)
 
 # ============================================================================
 # Path: Run producer sequence then analyzer
