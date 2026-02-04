@@ -155,39 +155,70 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   void filteringImpl() {
     if (this->empty() || !primaryVertex_ || !primaryVertex_->isValid()) return;
 
-    HYDDRA_DBG("[Leptonic] Final Filtering on " << this->size() << " vertices...\n");
+    const size_t nInput = this->size();
+    HYDDRA_DBG("[Leptonic] Final Filtering on " << nInput << " vertices...\n");
+
+    // Cut counters
+    size_t nFailSize = 0;
+    size_t nFailTrackCosTheta = 0;
+    size_t nFailTrackCosThetaCMSlope = 0;
+    size_t nFailTrackCosThetaCMLimit = 0;
+    size_t nFailCharge = 0;
+    size_t nFailDxyError = 0;
+    size_t nFailDxySignificance = 0;
 
     TrackVertexSetCollection finalVertices;
 
     for (const auto& vertex : *this) {
-      if (vertex.size() != 2) continue;
+      if (vertex.size() != 2) {
+        nFailSize++;
+        continue;
+      }
 
       // Track angular cuts
       bool passAngular = true;
       for (const auto& trackRef : vertex) {
-	const double trackCosTheta   = vertex.trackCosTheta(*primaryVertex_, trackRef);
-	const double trackCosThetaCM = vertex.trackDecayAngleCM(trackRef);
+        const double trackCosTheta   = vertex.trackCosTheta(*primaryVertex_, trackRef);
+        const double trackCosThetaCM = vertex.trackDecayAngleCM(trackRef);
 
-	if (trackCosTheta < minTrackCosTheta_ ||
-	    std::fabs(trackCosThetaCM) > (maxTrackCosThetaCM_Slope_ - trackCosTheta) ||
-	    std::fabs(trackCosThetaCM) > maxTrackCosThetaCM_Limit_) {
-	  passAngular = false;
-	  break;
-	}
+        if (trackCosTheta < minTrackCosTheta_) {
+          nFailTrackCosTheta++;
+          passAngular = false;
+          break;
+        }
+        if (std::fabs(trackCosThetaCM) > (maxTrackCosThetaCM_Slope_ - trackCosTheta)) {
+          nFailTrackCosThetaCMSlope++;
+          passAngular = false;
+          break;
+        }
+        if (std::fabs(trackCosThetaCM) > maxTrackCosThetaCM_Limit_) {
+          nFailTrackCosThetaCMLimit++;
+          passAngular = false;
+          break;
+        }
       }
       if (!passAngular) continue;
 
       // Charge neutrality
-      if (VertexHelper::CalculateTotalCharge(vertex) != 0) continue;
+      if (VertexHelper::CalculateTotalCharge(vertex) != 0) {
+        nFailCharge++;
+        continue;
+      }
 
       // Displacement significance
       const double dxy      = VertexHelper::CalculateDxy(vertex, *primaryVertex_);
       const double dxyError = VertexHelper::CalculateDxyError(vertex, *primaryVertex_);
-      if (dxyError <= 0) continue;
-
-      if (dxy / dxyError > minDxySignificance_) {
-	finalVertices.add(vertex);
+      if (dxyError <= 0) {
+        nFailDxyError++;
+        continue;
       }
+
+      if (dxy / dxyError <= minDxySignificance_) {
+        nFailDxySignificance++;
+        continue;
+      }
+
+      finalVertices.add(vertex);
     }
 
     this->clear();
@@ -195,7 +226,15 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
       this->add(v);
     }
 
-    HYDDRA_DBG("[Leptonic] Final count: " << this->size() << "\n");
+    HYDDRA_DBG("[Leptonic] Filtering summary (" << nInput << " -> " << this->size() << "):\n"
+               << "  size != 2:              " << nFailSize << " failed\n"
+               << "  trackCosTheta:          " << nFailTrackCosTheta << " failed (cut: " << minTrackCosTheta_ << ")\n"
+               << "  trackCosThetaCM slope:  " << nFailTrackCosThetaCMSlope << " failed (cut: slope " << maxTrackCosThetaCM_Slope_ << ")\n"
+               << "  trackCosThetaCM limit:  " << nFailTrackCosThetaCMLimit << " failed (cut: " << maxTrackCosThetaCM_Limit_ << ")\n"
+               << "  charge neutrality:      " << nFailCharge << " failed\n"
+               << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
+               << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
+               << "  PASSED:                 " << this->size() << "\n");
   }
 
  private:

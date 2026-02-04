@@ -111,22 +111,40 @@ class HadronicHYDDRA : public HYDDRABase<HadronicHYDDRA> {
   void filteringImpl() {
     if (this->empty() || !primaryVertex_ || !primaryVertex_->isValid()) return;
 
+    const size_t nInput = this->size();
+    HYDDRA_DBG("[Hadronic] Final Filtering on " << nInput << " vertices...\n");
+
+    // Cut counters
+    size_t nFailDxyError = 0;
+    size_t nFailDxySignificance = 0;
+
     TrackVertexSetCollection finalVertices;
 
     for (const auto& vertex : *this) {
       const double dxy      = VertexHelper::CalculateDxy(vertex, *primaryVertex_);
       const double dxyError = VertexHelper::CalculateDxyError(vertex, *primaryVertex_);
-      if (dxyError <= 0) continue;
-
-      if (dxy / dxyError > minDxySignificance_) {
-	finalVertices.add(vertex);
+      if (dxyError <= 0) {
+        nFailDxyError++;
+        continue;
       }
+
+      if (dxy / dxyError <= minDxySignificance_) {
+        nFailDxySignificance++;
+        continue;
+      }
+
+      finalVertices.add(vertex);
     }
 
     this->clear();
     for (const auto& v : finalVertices) {
       this->add(v);
     }
+
+    HYDDRA_DBG("[Hadronic] Filtering summary (" << nInput << " -> " << this->size() << "):\n"
+               << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
+               << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
+               << "  PASSED:                 " << this->size() << "\n");
   }
 
  private:
