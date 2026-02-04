@@ -119,6 +119,7 @@ private:
   GenVertices genVertices_;
   std::map<GenVertex, GenMatches> chargedMatches_;
   reco::TrackCollection signalTracks_;
+  PairedObjectCollection<reco::Track, reco::GenParticle> allGenMatches_;  // All matches before deltaR cut
 
   // TTree
   TTree* tree_;
@@ -179,6 +180,16 @@ private:
   std::vector<bool> track_isSignalTrack_;
   std::vector<bool> track_isSignalElectron_;
   std::vector<bool> track_isSignalMuon_;
+  std::vector<float> track_genMatchDeltaR_;  // deltaR to matched gen particle
+
+  // Gen matching diagnostic branches (all track-to-gen matches, before cuts)
+  std::vector<float> genMatch_deltaR_;
+  std::vector<float> genMatch_trackPt_;
+  std::vector<float> genMatch_trackEta_;
+  std::vector<float> genMatch_genPt_;
+  std::vector<float> genMatch_genEta_;
+  std::vector<int> genMatch_genPdgId_;
+  std::vector<int> genMatch_genMotherPdgId_;
 
   // Gen vertex branches
   unsigned int genVertex_nTotal_;
@@ -290,6 +301,16 @@ void HyddraSVAnalyzer::beginJob() {
     tree_->Branch("HyddraSVTrack_isSignalTrack", &track_isSignalTrack_);
     tree_->Branch("HyddraSVTrack_isSignalElectron", &track_isSignalElectron_);
     tree_->Branch("HyddraSVTrack_isSignalMuon", &track_isSignalMuon_);
+    tree_->Branch("HyddraSVTrack_genMatchDeltaR", &track_genMatchDeltaR_);
+
+    // Gen matching diagnostics (all track-to-gen matches before deltaR cut)
+    tree_->Branch("HyddraGenMatch_deltaR", &genMatch_deltaR_);
+    tree_->Branch("HyddraGenMatch_trackPt", &genMatch_trackPt_);
+    tree_->Branch("HyddraGenMatch_trackEta", &genMatch_trackEta_);
+    tree_->Branch("HyddraGenMatch_genPt", &genMatch_genPt_);
+    tree_->Branch("HyddraGenMatch_genEta", &genMatch_genEta_);
+    tree_->Branch("HyddraGenMatch_genPdgId", &genMatch_genPdgId_);
+    tree_->Branch("HyddraGenMatch_genMotherPdgId", &genMatch_genMotherPdgId_);
 
     tree_->Branch("HyddraGenVertex_nTotal", &genVertex_nTotal_);
     tree_->Branch("HyddraGenVertex_nTracks", &genVertex_nTracks_);
@@ -370,6 +391,15 @@ void HyddraSVAnalyzer::clearBranches() {
     track_isSignalTrack_.clear();
     track_isSignalElectron_.clear();
     track_isSignalMuon_.clear();
+    track_genMatchDeltaR_.clear();
+
+    genMatch_deltaR_.clear();
+    genMatch_trackPt_.clear();
+    genMatch_trackEta_.clear();
+    genMatch_genPt_.clear();
+    genMatch_genEta_.clear();
+    genMatch_genPdgId_.clear();
+    genMatch_genMotherPdgId_.clear();
 
     genVertex_nTotal_ = 0;
     genVertex_nTracks_.clear();
@@ -414,6 +444,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
   signalTracks_.clear();
   electronTracks_.clear();
   trackSCPairs_.clear();
+  allGenMatches_.clear();
 
   const TransientTrackBuilder* ttBuilder = &iSetup.getData(transientTrackBuilder_);
   const edm::ESTransientHandle<MagneticField> magfield = iSetup.getTransientHandle(magneticFieldToken_);
@@ -457,6 +488,27 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
     // Build gen vertices using the same approach as KUCMSDisplacedVertex
     GenVertices allSignalSVs(*genHandle_);
     DeltaRGenMatchHungarian<reco::TransientTrack> assigner(ttracks, allSignalSVs.getAllGenParticles());
+
+    // Do a separate matching with reco::Track for diagnostics (no deltaR cut applied here)
+    std::vector<reco::Track> trackVec(muonEnhancedTracksHandle_->begin(), muonEnhancedTracksHandle_->end());
+    DeltaRGenMatchHungarian<reco::Track> trackAssigner(trackVec, allSignalSVs.getAllGenParticles());
+    allGenMatches_ = trackAssigner.GetPairedObjects();
+
+    // Fill gen match diagnostic branches (all matches, no deltaR cut)
+    for(const auto &pair : allGenMatches_) {
+      genMatch_deltaR_.push_back(float(pair.GetDeltaR()));
+      genMatch_trackPt_.push_back(float(pair.GetObjectA().pt()));
+      genMatch_trackEta_.push_back(float(pair.GetObjectA().eta()));
+      genMatch_genPt_.push_back(float(pair.GetObjectB().pt()));
+      genMatch_genEta_.push_back(float(pair.GetObjectB().eta()));
+      genMatch_genPdgId_.push_back(int(pair.GetObjectB().pdgId()));
+      // Get mother pdgId
+      int motherPdgId = 0;
+      if(pair.GetObjectB().mother()) {
+        motherPdgId = pair.GetObjectB().mother()->pdgId();
+      }
+      genMatch_genMotherPdgId_.push_back(motherPdgId);
+    }
 
     genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), 0.02);
     allSignalSVs += genVertices_;
@@ -639,6 +691,16 @@ void HyddraSVAnalyzer::fillVertexBranches(const reco::Vertex& vertex, const reco
       track_isSignalTrack_.push_back(isSignal);
       track_isSignalElectron_.push_back(isSignal ? genVertices_.getGenVertexFromTrack(track).isGenElectron() : false);
       track_isSignalMuon_.push_back(isSignal ? genVertices_.getGenVertexFromTrack(track).isGenMuon() : false);
+
+      // Find deltaR for this track from the gen matching
+      float matchDeltaR = -1.0;
+      for(const auto &pair : allGenMatches_) {
+        if(TrackHelper::SameTrack(track, pair.GetObjectA())) {
+          matchDeltaR = float(pair.GetDeltaR());
+          break;
+        }
+      }
+      track_genMatchDeltaR_.push_back(matchDeltaR);
     }
   }
 }
