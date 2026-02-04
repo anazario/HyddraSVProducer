@@ -86,21 +86,12 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi")
 process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs")
 
-# Set track collection based on option
-trackCollectionMap = {
-    'general': cms.InputTag("generalTracks"),
-    'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
-    'muon': cms.InputTag("displacedGlobalMuons"),
-    'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
-    'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
-    'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
-}
-
-if options.trackCollection in trackCollectionMap:
-    process.hyddraSVAnalyzer.tracks = trackCollectionMap[options.trackCollection]
-    print(f"Using track collection: {options.trackCollection}")
-else:
-    print(f"Warning: Unknown track collection '{options.trackCollection}'. Using default (sip2DMuonEnhanced).")
+# ============================================================================
+# Configure track collection for BOTH producer and analyzer
+# ============================================================================
+# IMPORTANT: Producer and analyzer MUST use the same track collection!
+from KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi import configureTrackCollection
+configureTrackCollection(process, options.trackCollection)
 
 # Configure processing mode: both (default), leptonic, or hadronic
 if options.processMode == 'leptonic':
@@ -142,10 +133,10 @@ process.schedule = cms.Schedule(process.p)
 # ============================================================================
 # Usage examples:
 # ============================================================================
-# Default (sip2DMuonEnhanced tracks):
+# Default (sip2DMuonEnhanced tracks for both producer and analyzer):
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root
 #
-# General tracks:
+# General tracks (configures BOTH producer and analyzer):
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=general
 #
 # Muon-enhanced tracks (before sip2D cut):
@@ -159,3 +150,7 @@ process.schedule = cms.Schedule(process.p)
 #
 # For data (no gen info):
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root hasGenInfo=False
+#
+# NOTE: The trackCollection option configures BOTH the SV producer (hyddraSVs)
+# and the analyzer (hyddraSVAnalyzer) to use the same track collection. This is
+# required for gen-matching to work correctly.
