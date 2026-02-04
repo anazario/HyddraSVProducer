@@ -68,23 +68,16 @@ process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 # Track Analyzer
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.trackAnalyzer_cfi")
+from KUCMSNtupleizer.HyddraSVProducer.trackAnalyzer_cfi import TRACK_COLLECTION_CONFIG
 
 # Configure based on command line options
 process.trackAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.trackAnalyzer.genMatchDeltaRCut = cms.double(options.genMatchDeltaRCut)
 
 # Set track collection based on option
-trackCollectionMap = {
-    'general': cms.InputTag("generalTracks"),
-    'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
-    'muon': cms.InputTag("displacedGlobalMuons"),
-    'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
-    'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
-    'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
-}
-
-if options.trackCollection in trackCollectionMap:
-    process.trackAnalyzer.tracks = trackCollectionMap[options.trackCollection]
+if options.trackCollection in TRACK_COLLECTION_CONFIG:
+    process.trackAnalyzer.tracks = TRACK_COLLECTION_CONFIG[options.trackCollection]
+    print(f"Using track collection: {options.trackCollection}")
 else:
     print(f"Warning: Unknown track collection '{options.trackCollection}'. Using default.")
 

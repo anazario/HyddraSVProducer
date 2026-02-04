@@ -78,35 +78,6 @@ hyddraSVAnalyzerData = hyddraSVAnalyzer.clone(
 )
 
 # =============================================================================
-# Pre-configured analyzers for different track collections
-# =============================================================================
-
-# General tracks (no selection)
-hyddraSVAnalyzerGeneral = hyddraSVAnalyzer.clone(
-    tracks = TRACK_COLLECTION_CONFIG['general'],
-)
-
-# Selected tracks (pt > 1 GeV)
-hyddraSVAnalyzerSelected = hyddraSVAnalyzer.clone(
-    tracks = TRACK_COLLECTION_CONFIG['selected'],
-)
-
-# Muon tracks (displaced global muons)
-hyddraSVAnalyzerMuon = hyddraSVAnalyzer.clone(
-    tracks = TRACK_COLLECTION_CONFIG['muon'],
-)
-
-# Sip2D tracks (sip2D > 3)
-hyddraSVAnalyzerSip2D = hyddraSVAnalyzer.clone(
-    tracks = TRACK_COLLECTION_CONFIG['sip2D'],
-)
-
-# Muon-enhanced tracks (before sip2D cut)
-hyddraSVAnalyzerMuonEnhanced = hyddraSVAnalyzer.clone(
-    tracks = TRACK_COLLECTION_CONFIG['muonEnhanced'],
-)
-
-# =============================================================================
 # Leptonic-only and Hadronic-only variants
 # =============================================================================
 hyddraSVAnalyzerLeptonic = hyddraSVAnalyzer.clone(
