@@ -13,6 +13,11 @@ options.register('processMode',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
                  "Processing mode: both (default), leptonic, or hadronic")
+options.register('trackCollection',
+                 'sip2DMuonEnhanced',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "Track collection: general, selected, muon, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.setDefault('maxEvents', -1)
 options.setDefault('outputFile', 'hyddraSV_ntuple.root')
 options.parseArguments()
@@ -81,6 +86,22 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi")
 process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs")
 
+# Set track collection based on option
+trackCollectionMap = {
+    'general': cms.InputTag("generalTracks"),
+    'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
+    'muon': cms.InputTag("displacedGlobalMuons"),
+    'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
+    'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
+    'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
+}
+
+if options.trackCollection in trackCollectionMap:
+    process.hyddraSVAnalyzer.tracks = trackCollectionMap[options.trackCollection]
+    print(f"Using track collection: {options.trackCollection}")
+else:
+    print(f"Warning: Unknown track collection '{options.trackCollection}'. Using default (sip2DMuonEnhanced).")
+
 # Configure processing mode: both (default), leptonic, or hadronic
 if options.processMode == 'leptonic':
     # Only process leptonic vertices
@@ -117,3 +138,24 @@ process.schedule = cms.Schedule(process.p)
 # process.hyddraSVAnalyzer.muonTracks = cms.InputTag("displacedGlobalMuons")
 # process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("mergedSuperClusters")
 # process.hyddraSVAnalyzer.genParticles = cms.InputTag("genParticles")
+
+# ============================================================================
+# Usage examples:
+# ============================================================================
+# Default (sip2DMuonEnhanced tracks):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root
+#
+# General tracks:
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=general
+#
+# Muon-enhanced tracks (before sip2D cut):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=muonEnhanced
+#
+# Sip2D tracks only:
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=sip2D
+#
+# Leptonic only with general tracks:
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=general processMode=leptonic
+#
+# For data (no gen info):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root hasGenInfo=False

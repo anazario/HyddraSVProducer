@@ -14,19 +14,76 @@ tkAssocParamBlock.TrackAssociatorParameters.EBRecHitCollectionLabel = cms.InputT
 tkAssocParamBlock.TrackAssociatorParameters.HBHERecHitCollectionLabel = cms.InputTag("reducedHcalRecHits", "hbhereco")
 tkAssocParamBlock.TrackAssociatorParameters.HORecHitCollectionLabel = cms.InputTag("reducedHcalRecHits", "horeco")
 
+# =============================================================================
+# Track Collection Configuration
+# =============================================================================
+TRACK_COLLECTION_CONFIG = {
+    'general': cms.InputTag("generalTracks"),
+    'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
+    'muon': cms.InputTag("displacedGlobalMuons"),
+    'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
+    'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
+    'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
+}
+
+# =============================================================================
+# Default analyzer (sip2DMuonEnhanced tracks)
+# =============================================================================
 hyddraSVAnalyzer = cms.EDAnalyzer("HyddraSVAnalyzer",
     hasGenInfo = cms.bool(True),
     leptonicVertices = cms.InputTag("hyddraSVs", "leptonicVertices"),
     hadronicVertices = cms.InputTag("hyddraSVs", "hadronicVertices"),
     pvCollection = cms.InputTag("offlinePrimaryVertices"),
-    tracks = cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
+    tracks = TRACK_COLLECTION_CONFIG['sip2DMuonEnhanced'],
     muonTracks = cms.InputTag("displacedGlobalMuons"),
     mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs"),
     genParticles = cms.InputTag("genParticles"),
     TrackAssociatorParameters = tkAssocParamBlock.TrackAssociatorParameters.clone(),
 )
 
+# =============================================================================
 # Alternative configuration for data (no gen info)
+# =============================================================================
 hyddraSVAnalyzerData = hyddraSVAnalyzer.clone(
     hasGenInfo = cms.bool(False),
+)
+
+# =============================================================================
+# Pre-configured analyzers for different track collections
+# =============================================================================
+
+# General tracks (no selection)
+hyddraSVAnalyzerGeneral = hyddraSVAnalyzer.clone(
+    tracks = TRACK_COLLECTION_CONFIG['general'],
+)
+
+# Selected tracks (pt > 1 GeV)
+hyddraSVAnalyzerSelected = hyddraSVAnalyzer.clone(
+    tracks = TRACK_COLLECTION_CONFIG['selected'],
+)
+
+# Muon tracks (displaced global muons)
+hyddraSVAnalyzerMuon = hyddraSVAnalyzer.clone(
+    tracks = TRACK_COLLECTION_CONFIG['muon'],
+)
+
+# Sip2D tracks (sip2D > 3)
+hyddraSVAnalyzerSip2D = hyddraSVAnalyzer.clone(
+    tracks = TRACK_COLLECTION_CONFIG['sip2D'],
+)
+
+# Muon-enhanced tracks (before sip2D cut)
+hyddraSVAnalyzerMuonEnhanced = hyddraSVAnalyzer.clone(
+    tracks = TRACK_COLLECTION_CONFIG['muonEnhanced'],
+)
+
+# =============================================================================
+# Leptonic-only and Hadronic-only variants
+# =============================================================================
+hyddraSVAnalyzerLeptonic = hyddraSVAnalyzer.clone(
+    hadronicVertices = cms.InputTag(""),  # Empty tag disables hadronic
+)
+
+hyddraSVAnalyzerHadronic = hyddraSVAnalyzer.clone(
+    leptonicVertices = cms.InputTag(""),  # Empty tag disables leptonic
 )
