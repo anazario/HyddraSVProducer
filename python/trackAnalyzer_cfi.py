@@ -7,6 +7,7 @@ TRACK_COLLECTION_CONFIG = {
     'general': cms.InputTag("generalTracks"),
     'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
     'muon': cms.InputTag("displacedGlobalMuons"),
+    'muonGlobal': cms.InputTag("muonGlobalTrackProducer", "globalTracks"),
     'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
     'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),

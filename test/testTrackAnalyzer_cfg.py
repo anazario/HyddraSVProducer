@@ -12,7 +12,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection to analyze: general, selected, muon, sip2D, sip2DMuonEnhanced, muonEnhanced")
+                 "Track collection to analyze: general, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced, muonEnhanced")
 options.register('genMatchDeltaRCut',
                  0.02,
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -65,6 +65,11 @@ process.TFileService = cms.Service("TFileService",
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 
 # ============================================================================
+# MuonGlobalTrackProducer (extracts global tracks from AOD muon collection)
+# ============================================================================
+process.load("KUCMSNtupleizer.HyddraSVProducer.muonGlobalTrackProducer_cfi")
+
+# ============================================================================
 # Track Analyzer
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.trackAnalyzer_cfi")
@@ -86,8 +91,14 @@ else:
 # ============================================================================
 # Build the path based on track collection
 if options.trackCollection in ['general', 'muon']:
-    # These collections don't need muonEnhancedTracks producer
+    # These collections don't need any producer
     process.p = cms.Path(process.trackAnalyzer)
+elif options.trackCollection == 'muonGlobal':
+    # muonGlobal needs the muonGlobalTrackProducer
+    process.p = cms.Path(
+        process.muonGlobalTrackProducer +
+        process.trackAnalyzer
+    )
 else:
     # Most collections need the muonEnhancedTracks producer
     process.p = cms.Path(

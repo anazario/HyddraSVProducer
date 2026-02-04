@@ -17,7 +17,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: general, selected, muon, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
+                 "Track collection: general, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.setDefault('maxEvents', -1)
 options.setDefault('outputFile', 'hyddraSV_ntuple.root')
 options.parseArguments()
@@ -70,6 +70,11 @@ process.TFileService = cms.Service("TFileService",
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 
 # ============================================================================
+# MuonGlobalTrackProducer (extracts global tracks from AOD muon collection)
+# ============================================================================
+process.load("KUCMSNtupleizer.HyddraSVProducer.muonGlobalTrackProducer_cfi")
+
+# ============================================================================
 # ECALTracks Producer (produces displacedElectronSCs for SC matching)
 # ============================================================================
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.ECALTracks_cfi")
@@ -105,12 +110,30 @@ elif options.processMode == 'hadronic':
 # ============================================================================
 # Path: Run producer sequence then analyzer
 # ============================================================================
-process.p = cms.Path(
-    process.muonEnhancedTracks +  # Produces sip2DMuonEnhancedTracks (and others)
-    process.ecalTracks +          # Produces displacedElectronSCs for SC matching
-    process.hyddraSVs +           # Produces leptonic/hadronic vertices
-    process.hyddraSVAnalyzer      # Writes TTree output
-)
+# Build the path based on track collection
+if options.trackCollection == 'muonGlobal':
+    # muonGlobal needs the muonGlobalTrackProducer instead of muonEnhancedTracks
+    process.p = cms.Path(
+        process.muonGlobalTrackProducer +  # Produces globalTracks from muons
+        process.ecalTracks +               # Produces displacedElectronSCs for SC matching
+        process.hyddraSVs +                # Produces leptonic/hadronic vertices
+        process.hyddraSVAnalyzer           # Writes TTree output
+    )
+elif options.trackCollection in ['general', 'muon']:
+    # These collections don't need muonEnhancedTracks producer
+    process.p = cms.Path(
+        process.ecalTracks +          # Produces displacedElectronSCs for SC matching
+        process.hyddraSVs +           # Produces leptonic/hadronic vertices
+        process.hyddraSVAnalyzer      # Writes TTree output
+    )
+else:
+    # Most collections need the muonEnhancedTracks producer
+    process.p = cms.Path(
+        process.muonEnhancedTracks +  # Produces sip2DMuonEnhancedTracks (and others)
+        process.ecalTracks +          # Produces displacedElectronSCs for SC matching
+        process.hyddraSVs +           # Produces leptonic/hadronic vertices
+        process.hyddraSVAnalyzer      # Writes TTree output
+    )
 
 process.schedule = cms.Schedule(process.p)
 
