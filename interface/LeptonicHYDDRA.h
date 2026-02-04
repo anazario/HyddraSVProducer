@@ -14,9 +14,6 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     maxCompatibility_ = pset.getParameter<double>("maxCompatibility");
     minCleanCosTheta_ = pset.getParameter<double>("minCleanCosTheta");
 
-    // Post-cleaning kinematic cut
-    minPostCosTheta_ = pset.getParameter<double>("minPostCosTheta");
-
     // Final filtering cuts (post-disambiguation, 2-track only)
     minTrackCosTheta_         = pset.getParameter<double>("minTrackCosTheta");
     maxTrackCosThetaCM_Limit_ = pset.getParameter<double>("maxTrackCosThetaCM_Limit");
@@ -243,9 +240,6 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   double maxCompatibility_;
   double minCleanCosTheta_;
 
-  // Post-cleaning kinematic cut (leptonic-specific)
-  double minPostCosTheta_;
-
   // Final filtering thresholds
   double minTrackCosTheta_;
   double maxTrackCosThetaCM_Limit_;
@@ -255,7 +249,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   // Checked after cleaning and before disambiguation.
   bool failsKinematics(const TrackVertexSet& v) const {
     if (v.vertex().normalizedChi2() > maxNormChi2_) return true;
-    if (v.cosTheta(*primaryVertex_) < minPostCosTheta_) return true;
+    if (v.cosTheta(*primaryVertex_) < seedCosThetaCut_) return true;
 
     auto p4 = VertexHelper::GetVertex4Vector(v);
     double mass = p4.M();

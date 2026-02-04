@@ -1,5 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 import FWCore.ParameterSet.VarParsing as VarParsing
+import os
 
 # Setup command line options
 options = VarParsing.VarParsing('analysis')
@@ -18,9 +19,38 @@ options.register('trackCollection',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
                  "Track collection: general, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
+options.register('inputFileList',
+                 '',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "Path to text file containing list of input files (one per line)")
 options.setDefault('maxEvents', -1)
 options.setDefault('outputFile', 'hyddraSV_ntuple.root')
 options.parseArguments()
+
+# Build input file list
+def getInputFiles():
+    files = []
+    # First check if a file list was provided
+    if options.inputFileList:
+        if os.path.exists(options.inputFileList):
+            with open(options.inputFileList, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        files.append(line)
+            print(f"Loaded {len(files)} files from {options.inputFileList}")
+        else:
+            raise FileNotFoundError(f"Input file list not found: {options.inputFileList}")
+    # Then add any files from inputFiles option
+    if options.inputFiles:
+        files.extend(options.inputFiles)
+    # Default fallback
+    if not files:
+        files = ['file:input.root']
+    return files
+
+inputFiles = getInputFiles()
 
 process = cms.Process("HYDDRAANALYSIS")
 
@@ -33,11 +63,9 @@ process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(options.maxEvents)
 )
 
-# Input source - modify this path to your input file
+# Input source
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring(
-        options.inputFiles if options.inputFiles else ['file:input.root']
-    )
+    fileNames = cms.untracked.vstring(inputFiles)
 )
 
 # Load geometry and magnetic field (required for track-SC matching and track building)
@@ -156,8 +184,17 @@ process.schedule = cms.Schedule(process.p)
 # ============================================================================
 # Usage examples:
 # ============================================================================
-# Default (sip2DMuonEnhanced tracks for both producer and analyzer):
+# Single file:
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root
+#
+# Multiple files (comma-separated):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:file1.root,file:file2.root,file:file3.root
+#
+# Multiple files (repeated option):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:file1.root inputFiles=file:file2.root
+#
+# From a file list (text file with one path per line):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFileList=myfiles.txt
 #
 # General tracks (configures BOTH producer and analyzer):
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=general

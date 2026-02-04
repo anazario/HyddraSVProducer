@@ -117,7 +117,6 @@ void HyddraSVsProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
   leptonicDesc.add<double>("minDxySignificance", 25.0);
   leptonicDesc.add<double>("maxCompatibility", 1.5);
   leptonicDesc.add<double>("minCleanCosTheta", 0.5);
-  leptonicDesc.add<double>("minPostCosTheta", 0.75);
   leptonicDesc.add<double>("minTrackCosTheta", 0.5);
   leptonicDesc.add<double>("maxTrackCosThetaCM_Limit", 0.95);
   leptonicDesc.add<double>("maxTrackCosThetaCM_Slope", 1.8);

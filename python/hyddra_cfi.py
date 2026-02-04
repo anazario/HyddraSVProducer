@@ -14,9 +14,6 @@ leptonicHYDDRA = cms.PSet(
     maxCompatibility = cms.double(1.5),
     minCleanCosTheta = cms.double(0.5),
 
-    # Post-cleaning kinematic cuts
-    minPostCosTheta = cms.double(0.75),
-
     # Final filtering (post-disambiguation, 2-track vertices only)
     minTrackCosTheta         = cms.double(0.5),
     maxTrackCosThetaCM_Limit = cms.double(0.95),
