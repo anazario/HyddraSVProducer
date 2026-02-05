@@ -11,6 +11,7 @@
 #   ./parallelRun.sh myfiles.txt
 #   ./parallelRun.sh myfiles.txt -j 8 -c testHyddraSVAnalyzer_cfg.py
 #   ./parallelRun.sh myfiles.txt -j 4 -o my_output --track-collection general
+#   ./parallelRun.sh myfiles.txt -c testTrackAnalyzer_miniAOD_cfg.py --apply-cuts --min-pt 2.0
 #
 
 set -e
@@ -44,10 +45,17 @@ print_usage() {
     echo "  --no-merge            Skip hadd merge step"
     echo "  -h, --help            Show this help message"
     echo ""
+    echo "Track cut options (for MiniAOD configs):"
+    echo "  --apply-cuts          Enable track quality cuts"
+    echo "  --min-pt VALUE        Minimum track pT in GeV (default: 1.0)"
+    echo "  --min-abs-sip2d VALUE Minimum |sip2D| for displaced selection (default: 4.0)"
+    echo "  --max-chi2 VALUE      Maximum normalized chi2 (default: 5.0)"
+    echo ""
     echo "Examples:"
     echo "  $0 files.txt"
     echo "  $0 files.txt -j 4 -o results"
     echo "  $0 files.txt --track-collection general --no-gen"
+    echo "  $0 files.txt -c testTrackAnalyzer_miniAOD_cfg.py --apply-cuts --min-pt 2.0"
 }
 
 # Check for GNU parallel
@@ -101,6 +109,22 @@ while [[ $# -gt 0 ]]; do
         --no-merge)
             DO_MERGE=false
             shift
+            ;;
+        --apply-cuts)
+            EXTRA_ARGS="$EXTRA_ARGS applyCuts=True"
+            shift
+            ;;
+        --min-pt)
+            EXTRA_ARGS="$EXTRA_ARGS minPt=$2"
+            shift 2
+            ;;
+        --min-abs-sip2d)
+            EXTRA_ARGS="$EXTRA_ARGS minAbsSip2D=$2"
+            shift 2
+            ;;
+        --max-chi2)
+            EXTRA_ARGS="$EXTRA_ARGS maxNormalizedChi2=$2"
+            shift 2
             ;;
         -h|--help)
             print_usage
