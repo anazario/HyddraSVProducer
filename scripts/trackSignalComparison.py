@@ -523,6 +523,9 @@ def main():
     c_summary = ROOT.TCanvas('c_summary', 'Summary (N-1 plots)', 1200, 800)
     c_summary.Divide(3, 2)
 
+    # Keep references to all objects so they don't get garbage collected
+    summary_objects = []
+
     for i, (var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir) in enumerate(plots):
         c_summary.cd(i + 1)
         if logy:
@@ -542,6 +545,7 @@ def main():
         h_sig, h_bkg = create_comparison_histogram(
             sig_data, bkg_data, f'{name}_sum', title, nbins, xmin, xmax, xlabel
         )
+        summary_objects.extend([h_sig, h_bkg])
 
         max_val = max(h_sig.GetMaximum(), h_bkg.GetMaximum())
         h_sig.SetMaximum(max_val * 1.5)
@@ -559,12 +563,14 @@ def main():
             line.SetLineStyle(2)
             line.SetLineWidth(2)
             line.Draw()
+            summary_objects.append(line)
             if cut_dir in ['abs<', 'abs>=']:
                 line2 = ROOT.TLine(-cut_val, ymin, -cut_val, ymax)
                 line2.SetLineColor(ROOT.kBlack)
                 line2.SetLineStyle(2)
                 line2.SetLineWidth(2)
                 line2.Draw()
+                summary_objects.append(line2)
 
         leg = ROOT.TLegend(0.55, 0.75, 0.88, 0.88)
         leg.SetBorderSize(0)
@@ -573,6 +579,7 @@ def main():
         leg.AddEntry(h_sig, 'Signal', 'f')
         leg.AddEntry(h_bkg, 'Background', 'f')
         leg.Draw()
+        summary_objects.append(leg)
 
     c_summary.Write()
 
