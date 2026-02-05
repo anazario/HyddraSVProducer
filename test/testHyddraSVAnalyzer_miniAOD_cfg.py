@@ -147,6 +147,12 @@ process.hyddraSVAnalyzer.muonTracks = cms.InputTag("slimmedMuons")
 # Use reduced superclusters available in MiniAOD
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 
+# Override TrackAssociatorParameters for MiniAOD rechit collections
+process.hyddraSVAnalyzer.TrackAssociatorParameters.EBRecHitCollectionLabel = cms.InputTag("reducedEgamma", "reducedEBRecHits")
+process.hyddraSVAnalyzer.TrackAssociatorParameters.EERecHitCollectionLabel = cms.InputTag("reducedEgamma", "reducedEERecHits")
+process.hyddraSVAnalyzer.TrackAssociatorParameters.HBHERecHitCollectionLabel = cms.InputTag("reducedEgamma", "reducedHBHEHits")
+process.hyddraSVAnalyzer.TrackAssociatorParameters.HORecHitCollectionLabel = cms.InputTag("reducedEgamma", "reducedHORecHits")
+
 # ============================================================================
 # Configure track collection for BOTH producer and analyzer
 # ============================================================================
