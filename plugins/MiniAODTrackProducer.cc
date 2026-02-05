@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <vector>
+#include <cmath>
 
 // CMSSW framework
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -24,10 +25,17 @@
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
+// Tracking tools
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "TrackingTools/IPTools/interface/IPTools.h"
+
 // Data formats
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
 
 class MiniAODTrackProducer : public edm::stream::EDProducer<> {
 
@@ -40,14 +48,24 @@ public:
 private:
   void produce(edm::Event&, const edm::EventSetup&) override;
 
-  // Helper to extract tracks from a PackedCandidateCollection
+  // Helper to extract tracks from a PackedCandidateCollection (with optional cuts)
   void extractTracks(const pat::PackedCandidateCollection& candidates,
-                     reco::TrackCollection& outputTracks) const;
+                     reco::TrackCollection& outputTracks,
+                     const TransientTrackBuilder* ttBuilder,
+                     const reco::Vertex* pv) const;
 
   // Input tokens
   edm::EDGetTokenT<pat::PackedCandidateCollection> pfCandidatesToken_;
   edm::EDGetTokenT<pat::PackedCandidateCollection> lostTracksToken_;
   edm::EDGetTokenT<pat::PackedCandidateCollection> eleLostTracksToken_;
+  edm::EDGetTokenT<reco::VertexCollection> pvToken_;
+  edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> ttBuilderToken_;
+
+  // Cut parameters
+  bool applyCuts_;
+  double minPt_;
+  double minAbsSip2D_;
+  double maxNormalizedChi2_;
 };
 
 MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
@@ -56,7 +74,14 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
       lostTracksToken_(consumes<pat::PackedCandidateCollection>(
           iConfig.getParameter<edm::InputTag>("lostTracks"))),
       eleLostTracksToken_(consumes<pat::PackedCandidateCollection>(
-          iConfig.getParameter<edm::InputTag>("eleLostTracks"))) {
+          iConfig.getParameter<edm::InputTag>("eleLostTracks"))),
+      pvToken_(consumes<reco::VertexCollection>(
+          iConfig.getParameter<edm::InputTag>("pvCollection"))),
+      ttBuilderToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
+      applyCuts_(iConfig.getParameter<bool>("applyCuts")),
+      minPt_(iConfig.getParameter<double>("minPt")),
+      minAbsSip2D_(iConfig.getParameter<double>("minAbsSip2D")),
+      maxNormalizedChi2_(iConfig.getParameter<double>("maxNormalizedChi2")) {
 
   // Individual collections
   produces<reco::TrackCollection>("pfCandidateTracks");
@@ -70,7 +95,9 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
 
 void MiniAODTrackProducer::extractTracks(
     const pat::PackedCandidateCollection& candidates,
-    reco::TrackCollection& outputTracks) const {
+    reco::TrackCollection& outputTracks,
+    const TransientTrackBuilder* ttBuilder,
+    const reco::Vertex* pv) const {
 
   for (const auto& cand : candidates) {
     // Must have a track
@@ -78,8 +105,39 @@ void MiniAODTrackProducer::extractTracks(
       continue;
     }
 
-    // Get the pseudo-track and add to output
-    outputTracks.push_back(cand.pseudoTrack());
+    // Get the pseudo-track
+    const reco::Track track = cand.pseudoTrack();
+
+    // Apply cuts if enabled
+    if (applyCuts_) {
+      // pT cut
+      if (track.pt() <= minPt_) {
+        continue;
+      }
+
+      // Normalized chi2 cut
+      if (track.normalizedChi2() >= maxNormalizedChi2_) {
+        continue;
+      }
+
+      // sip2D cut (requires transient track and PV)
+      if (ttBuilder != nullptr && pv != nullptr) {
+        reco::TransientTrack ttrack = ttBuilder->build(track);
+        auto ip2dResult = IPTools::signedTransverseImpactParameter(
+            ttrack, GlobalVector(track.px(), track.py(), track.pz()), *pv);
+
+        if (ip2dResult.first) {
+          double sip2D = ip2dResult.second.significance();
+          // Keep tracks with |sip2D| >= minAbsSip2D (displaced tracks)
+          if (std::fabs(sip2D) < minAbsSip2D_) {
+            continue;
+          }
+        }
+      }
+    }
+
+    // Track passed all cuts (or cuts disabled)
+    outputTracks.push_back(track);
   }
 }
 
@@ -95,6 +153,20 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   edm::Handle<pat::PackedCandidateCollection> eleLostTracksHandle;
   iEvent.getByToken(eleLostTracksToken_, eleLostTracksHandle);
 
+  // Get PV and TransientTrackBuilder for sip2D calculation (if cuts enabled)
+  const TransientTrackBuilder* ttBuilder = nullptr;
+  const reco::Vertex* pv = nullptr;
+
+  if (applyCuts_) {
+    ttBuilder = &iSetup.getData(ttBuilderToken_);
+
+    edm::Handle<reco::VertexCollection> pvHandle;
+    iEvent.getByToken(pvToken_, pvHandle);
+    if (pvHandle.isValid() && !pvHandle->empty()) {
+      pv = &pvHandle->at(0);
+    }
+  }
+
   // Create output collections
   auto pfCandidateTracks = std::make_unique<reco::TrackCollection>();
   auto lostTracks = std::make_unique<reco::TrackCollection>();
@@ -104,15 +176,15 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
 
   // Extract tracks from each source
   if (pfCandidatesHandle.isValid()) {
-    extractTracks(*pfCandidatesHandle, *pfCandidateTracks);
+    extractTracks(*pfCandidatesHandle, *pfCandidateTracks, ttBuilder, pv);
   }
 
   if (lostTracksHandle.isValid()) {
-    extractTracks(*lostTracksHandle, *lostTracks);
+    extractTracks(*lostTracksHandle, *lostTracks, ttBuilder, pv);
   }
 
   if (eleLostTracksHandle.isValid()) {
-    extractTracks(*eleLostTracksHandle, *eleLostTracks);
+    extractTracks(*eleLostTracksHandle, *eleLostTracks, ttBuilder, pv);
   }
 
   // Build merged collections
@@ -157,6 +229,13 @@ void MiniAODTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& desc
   desc.add<edm::InputTag>("pfCandidates", edm::InputTag("packedPFCandidates"));
   desc.add<edm::InputTag>("lostTracks", edm::InputTag("lostTracks"));
   desc.add<edm::InputTag>("eleLostTracks", edm::InputTag("lostTracks", "eleTracks"));
+  desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlineSlimmedPrimaryVertices"));
+
+  // Cut configuration
+  desc.add<bool>("applyCuts", false);  // Disabled by default for backwards compatibility
+  desc.add<double>("minPt", 1.0);
+  desc.add<double>("minAbsSip2D", 4.0);  // Keep |sip2D| >= this value (displaced tracks)
+  desc.add<double>("maxNormalizedChi2", 5.0);
 
   descriptions.add("miniAODTrackProducer", desc);
 }

@@ -24,6 +24,26 @@ options.register('inputFileList',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
                  "Path to text file containing list of input files (one per line)")
+options.register('applyCuts',
+                 False,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.bool,
+                 "Apply track quality cuts (default: False)")
+options.register('minPt',
+                 1.0,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.float,
+                 "Minimum track pT in GeV (default: 1.0)")
+options.register('minAbsSip2D',
+                 4.0,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.float,
+                 "Minimum |sip2D| for displaced track selection (default: 4.0)")
+options.register('maxNormalizedChi2',
+                 5.0,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.float,
+                 "Maximum normalized chi2 (default: 5.0)")
 options.setDefault('maxEvents', -1)
 options.setDefault('outputFile', 'hyddraSV_miniAOD_ntuple.root')
 options.parseArguments()
@@ -97,6 +117,15 @@ process.TFileService = cms.Service("TFileService",
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODTrackProducer_cfi")
 
+# Configure track cuts
+process.miniAODTrackProducer.applyCuts = cms.bool(options.applyCuts)
+process.miniAODTrackProducer.minPt = cms.double(options.minPt)
+process.miniAODTrackProducer.minAbsSip2D = cms.double(options.minAbsSip2D)
+process.miniAODTrackProducer.maxNormalizedChi2 = cms.double(options.maxNormalizedChi2)
+
+if options.applyCuts:
+    print(f"Track cuts enabled: pT > {options.minPt} GeV, |sip2D| >= {options.minAbsSip2D}, chi2/ndof < {options.maxNormalizedChi2}")
+
 # ============================================================================
 # HYDDRA SV Producer
 # ============================================================================
@@ -161,6 +190,12 @@ process.schedule = cms.Schedule(process.p)
 #   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root trackCollection=lost
 #   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root trackCollection=merged
 #   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root trackCollection=mergedWithEle
+#
+# With track cuts enabled (selects displaced tracks):
+#   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root applyCuts=True
+#
+# With custom cut values:
+#   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root applyCuts=True minPt=2.0 minAbsSip2D=3.0
 #
 # Leptonic only:
 #   cmsRun testHyddraSVAnalyzer_miniAOD_cfg.py inputFiles=file:myMiniAOD.root processMode=leptonic
