@@ -472,19 +472,27 @@ def main():
 
     print("\n" + "=" * 70)
 
-    # Summary canvas with all distributions
+    # Summary canvas with all distributions (N-1 selection applied)
     print("\nCreating summary canvas...")
 
-    c_summary = ROOT.TCanvas('c_summary', 'Summary', 1200, 800)
+    c_summary = ROOT.TCanvas('c_summary', 'Summary (N-1 plots)', 1200, 800)
     c_summary.Divide(3, 2)
 
-    for i, (var, name, title, nbins, xmin, xmax, xlabel, logy) in enumerate(plots):
+    for i, (var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir) in enumerate(plots):
         c_summary.cd(i + 1)
         if logy:
             ROOT.gPad.SetLogy()
 
-        sig_data = var[is_signal]
-        bkg_data = var[is_bkg]
+        # Apply N-1 selection
+        n_minus_1_sig = np.ones(n_sig, dtype=bool)
+        n_minus_1_bkg = np.ones(n_bkg, dtype=bool)
+        for other_name, masks in cut_masks.items():
+            if other_name != name:
+                n_minus_1_sig &= masks['signal']
+                n_minus_1_bkg &= masks['background']
+
+        sig_data = var[is_signal][n_minus_1_sig]
+        bkg_data = var[is_bkg][n_minus_1_bkg]
 
         h_sig, h_bkg = create_comparison_histogram(
             sig_data, bkg_data, f'{name}_sum', title, nbins, xmin, xmax, xlabel
@@ -492,9 +500,26 @@ def main():
 
         max_val = max(h_sig.GetMaximum(), h_bkg.GetMaximum())
         h_sig.SetMaximum(max_val * 1.5)
+        h_sig.SetMinimum(0.0001 if logy else 0)
         h_sig.SetTitle(title)
         h_sig.Draw('HIST')
         h_bkg.Draw('HIST SAME')
+
+        # Draw cut line
+        if cut_val is not None:
+            ymax = max_val * 1.3
+            ymin = 0.0001 if logy else 0
+            line = ROOT.TLine(cut_val, ymin, cut_val, ymax)
+            line.SetLineColor(ROOT.kBlack)
+            line.SetLineStyle(2)
+            line.SetLineWidth(2)
+            line.Draw()
+            if cut_dir == 'abs<':
+                line2 = ROOT.TLine(-cut_val, ymin, -cut_val, ymax)
+                line2.SetLineColor(ROOT.kBlack)
+                line2.SetLineStyle(2)
+                line2.SetLineWidth(2)
+                line2.Draw()
 
         leg = ROOT.TLegend(0.55, 0.75, 0.88, 0.88)
         leg.SetBorderSize(0)
