@@ -3,6 +3,7 @@
 Track Signal vs Background Comparison Script
 
 Compares Track_isSignal vs !Track_isSignal distributions for key variables.
+Zooms into relevant regions to help identify optimal cut values.
 Designed for large files - uses chunked reading and basic ROOT styling (no cmsstyle).
 
 Usage:
@@ -102,8 +103,7 @@ def load_data_chunked(filename, tree_path=None, chunk_size=500000):
     return all_data
 
 
-def create_comparison_histogram(sig_data, bkg_data, name, title, nbins, xmin, xmax,
-                                 x_label, cut_value=None, cut_direction=None):
+def create_comparison_histogram(sig_data, bkg_data, name, title, nbins, xmin, xmax, x_label):
     """Create signal vs background comparison histogram"""
 
     # Create histograms
@@ -139,43 +139,11 @@ def create_comparison_histogram(sig_data, bkg_data, name, title, nbins, xmin, xm
     h_bkg.GetXaxis().SetTitle(x_label)
     h_bkg.GetYaxis().SetTitle('Normalized')
 
-    # Calculate cut efficiencies if cut is specified
-    cut_info = None
-    if cut_value is not None and cut_direction is not None:
-        n_sig = len(sig_data)
-        n_bkg = len(bkg_data)
-
-        if cut_direction == '<':
-            sig_pass = np.sum(sig_data < cut_value)
-            bkg_pass = np.sum(bkg_data < cut_value)
-        elif cut_direction == '>':
-            sig_pass = np.sum(sig_data > cut_value)
-            bkg_pass = np.sum(bkg_data > cut_value)
-        elif cut_direction == 'abs<':
-            sig_pass = np.sum(np.abs(sig_data) < cut_value)
-            bkg_pass = np.sum(np.abs(bkg_data) < cut_value)
-
-        sig_eff = sig_pass / n_sig if n_sig > 0 else 0
-        bkg_eff = bkg_pass / n_bkg if n_bkg > 0 else 0
-        bkg_rej = 1 - bkg_eff
-
-        cut_info = {
-            'cut_value': cut_value,
-            'cut_direction': cut_direction,
-            'sig_eff': sig_eff,
-            'bkg_eff': bkg_eff,
-            'bkg_rej': bkg_rej,
-            'n_sig': n_sig,
-            'n_bkg': n_bkg,
-            'sig_pass': sig_pass,
-            'bkg_pass': bkg_pass,
-        }
-
-    return h_sig, h_bkg, cut_info
+    return h_sig, h_bkg
 
 
-def draw_comparison_canvas(h_sig, h_bkg, name, cut_info=None, logy=False):
-    """Draw comparison canvas with legend and cut line"""
+def draw_comparison_canvas(h_sig, h_bkg, name, logy=False):
+    """Draw comparison canvas with legend"""
 
     canvas = ROOT.TCanvas(name, name, 800, 600)
     canvas.SetLeftMargin(0.12)
@@ -203,40 +171,6 @@ def draw_comparison_canvas(h_sig, h_bkg, name, cut_info=None, logy=False):
     legend.AddEntry(h_bkg, f'Background ({h_bkg.GetEntries():.0f})', 'f')
     legend.Draw()
 
-    # Cut line and efficiency text
-    line = None
-    cut_text = None
-    if cut_info is not None:
-        # Draw cut line
-        cut_val = cut_info['cut_value']
-        if cut_info['cut_direction'] == 'abs<':
-            # Draw two lines for absolute value cut
-            line = ROOT.TLine(cut_val, 0, cut_val, max_val * 1.2)
-            line.SetLineColor(ROOT.kBlack)
-            line.SetLineStyle(2)
-            line.SetLineWidth(2)
-            line.Draw()
-            line2 = ROOT.TLine(-cut_val, 0, -cut_val, max_val * 1.2)
-            line2.SetLineColor(ROOT.kBlack)
-            line2.SetLineStyle(2)
-            line2.SetLineWidth(2)
-            line2.Draw()
-        else:
-            line = ROOT.TLine(cut_val, 0, cut_val, max_val * 1.2)
-            line.SetLineColor(ROOT.kBlack)
-            line.SetLineStyle(2)
-            line.SetLineWidth(2)
-            line.Draw()
-
-        # Efficiency text
-        cut_text = ROOT.TLatex()
-        cut_text.SetNDC()
-        cut_text.SetTextSize(0.032)
-        cut_text.SetTextFont(42)
-        cut_text.DrawLatex(0.15, 0.85, f"Cut: {cut_info['cut_direction']} {cut_val}")
-        cut_text.DrawLatex(0.15, 0.80, f"Signal eff: {cut_info['sig_eff']*100:.1f}%")
-        cut_text.DrawLatex(0.15, 0.75, f"Bkg rejection: {cut_info['bkg_rej']*100:.1f}%")
-
     # CMS label
     cms_label = ROOT.TLatex()
     cms_label.SetNDC()
@@ -247,7 +181,7 @@ def draw_comparison_canvas(h_sig, h_bkg, name, cut_info=None, logy=False):
     cms_label.SetTextSize(0.04)
     cms_label.DrawLatex(0.22, 0.93, "Simulation")
 
-    return canvas, [h_sig, h_bkg, legend, line, cut_text, cms_label]
+    return canvas, [h_sig, h_bkg, legend, cms_label]
 
 
 def main():
@@ -285,13 +219,22 @@ def main():
     sip2d = data['Track_sip2D']
     eta = data['Track_eta']
 
-    # Define plots: (variable, name, title, nbins, xmin, xmax, xlabel, cut_val, cut_dir, logy)
+    # Define plots: (variable, name, title, nbins, xmin, xmax, xlabel, logy)
     plots = [
-        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', 5, '<', True),
-        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', 0.1, '<', True),
-        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', 10, '<', True),
-        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', 10, 'abs<', True),
-        (eta, 'eta', 'Track #eta', 100, -3, 3, '#eta', None, None, False),
+        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', True),
+        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', True),
+        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', True),
+        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', False),
+        (eta, 'eta', 'Track #eta', 100, -3, 3, '#eta', False),
+    ]
+
+    # Define cuts: (variable, name, cut_value, cut_direction)
+    # cut_direction: '>' means keep if var > cut, '<' means keep if var < cut, 'abs<' means keep if |var| < cut
+    cuts = [
+        (pt, 'pt', 5, '>'),
+        (pt_res, 'ptResolution', 0.08, '<'),
+        (norm_chi2, 'normalizedChi2', 5, '<'),
+        (sip2d, 'sip2D', 5, 'abs<'),
     ]
 
     # Create output file
@@ -300,29 +243,22 @@ def main():
     all_canvases = []
     all_objects = []
 
-    print("\n=== Cut Efficiency Summary ===")
-    print(f"{'Variable':<20} {'Cut':<15} {'Sig Eff':<12} {'Bkg Rej':<12}")
-    print("-" * 60)
+    print("\nCreating comparison plots...")
 
-    for var, name, title, nbins, xmin, xmax, xlabel, cut_val, cut_dir, logy in plots:
+    for var, name, title, nbins, xmin, xmax, xlabel, logy in plots:
         # Get signal and background data
         sig_data = var[is_signal]
         bkg_data = var[is_bkg]
 
         # Create histograms
-        h_sig, h_bkg, cut_info = create_comparison_histogram(
-            sig_data, bkg_data, name, title, nbins, xmin, xmax, xlabel, cut_val, cut_dir
+        h_sig, h_bkg = create_comparison_histogram(
+            sig_data, bkg_data, name, title, nbins, xmin, xmax, xlabel
         )
 
         # Draw canvas
-        canvas, objects = draw_comparison_canvas(h_sig, h_bkg, f'c_{name}', cut_info, logy)
+        canvas, objects = draw_comparison_canvas(h_sig, h_bkg, f'c_{name}', logy)
 
-        # Print summary
-        if cut_info:
-            cut_str = f"{cut_dir} {cut_val}"
-            print(f"{name:<20} {cut_str:<15} {cut_info['sig_eff']*100:>6.1f}%      {cut_info['bkg_rej']*100:>6.1f}%")
-        else:
-            print(f"{name:<20} {'N/A':<15} {'N/A':<12} {'N/A':<12}")
+        print(f"  {name}: range [{xmin}, {xmax}]")
 
         # Save to file
         canvas.Write()
@@ -332,16 +268,101 @@ def main():
         all_canvases.append(canvas)
         all_objects.extend(objects)
 
-    print("-" * 60)
+    # =========================================================================
+    # Cut Efficiency Analysis
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("  CUT EFFICIENCY ANALYSIS")
+    print("=" * 70)
 
-    # Create combined efficiency plot
-    print("\nCreating ROC-style summary...")
+    print(f"\nTotal tracks: {n_sig + n_bkg:,}")
+    print(f"  Signal:     {n_sig:,} ({100*n_sig/(n_sig+n_bkg):.2f}%)")
+    print(f"  Background: {n_bkg:,} ({100*n_bkg/(n_sig+n_bkg):.2f}%)")
+
+    # Individual cut efficiencies
+    print("\n--- Individual Cut Efficiencies ---")
+    print(f"{'Cut':<25} {'Sig Eff':<12} {'Bkg Eff':<12} {'Bkg Rej':<12} {'Sig Yield':<12} {'Bkg Yield':<12}")
+    print("-" * 85)
+
+    cut_masks_sig = {}
+    cut_masks_bkg = {}
+
+    for var, name, cut_val, cut_dir in cuts:
+        sig_data = var[is_signal]
+        bkg_data = var[is_bkg]
+
+        if cut_dir == '>':
+            sig_pass = sig_data > cut_val
+            bkg_pass = bkg_data > cut_val
+            cut_str = f"{name} > {cut_val}"
+        elif cut_dir == '<':
+            sig_pass = sig_data < cut_val
+            bkg_pass = bkg_data < cut_val
+            cut_str = f"{name} < {cut_val}"
+        elif cut_dir == 'abs<':
+            sig_pass = np.abs(sig_data) < cut_val
+            bkg_pass = np.abs(bkg_data) < cut_val
+            cut_str = f"|{name}| < {cut_val}"
+
+        cut_masks_sig[name] = sig_pass
+        cut_masks_bkg[name] = bkg_pass
+
+        n_sig_pass = np.sum(sig_pass)
+        n_bkg_pass = np.sum(bkg_pass)
+        sig_eff = n_sig_pass / n_sig if n_sig > 0 else 0
+        bkg_eff = n_bkg_pass / n_bkg if n_bkg > 0 else 0
+        bkg_rej = 1 - bkg_eff
+
+        print(f"{cut_str:<25} {sig_eff*100:>6.2f}%      {bkg_eff*100:>6.2f}%      {bkg_rej*100:>6.2f}%      {n_sig_pass:>10,}  {n_bkg_pass:>10,}")
+
+    # Combined cut efficiency
+    print("\n--- Combined Cut Efficiency (All Cuts Applied) ---")
+
+    # Build combined mask
+    combined_sig_mask = np.ones(n_sig, dtype=bool)
+    combined_bkg_mask = np.ones(n_bkg, dtype=bool)
+
+    for name in cut_masks_sig:
+        combined_sig_mask &= cut_masks_sig[name]
+        combined_bkg_mask &= cut_masks_bkg[name]
+
+    n_sig_combined = np.sum(combined_sig_mask)
+    n_bkg_combined = np.sum(combined_bkg_mask)
+    sig_eff_combined = n_sig_combined / n_sig if n_sig > 0 else 0
+    bkg_eff_combined = n_bkg_combined / n_bkg if n_bkg > 0 else 0
+    bkg_rej_combined = 1 - bkg_eff_combined
+
+    print(f"\nCuts applied:")
+    for var, name, cut_val, cut_dir in cuts:
+        if cut_dir == '>':
+            print(f"  - {name} > {cut_val}")
+        elif cut_dir == '<':
+            print(f"  - {name} < {cut_val}")
+        elif cut_dir == 'abs<':
+            print(f"  - |{name}| < {cut_val}")
+
+    print(f"\n{'Metric':<25} {'Signal':<20} {'Background':<20}")
+    print("-" * 65)
+    print(f"{'Initial yield':<25} {n_sig:>15,}      {n_bkg:>15,}")
+    print(f"{'Final yield':<25} {n_sig_combined:>15,}      {n_bkg_combined:>15,}")
+    print(f"{'Efficiency':<25} {sig_eff_combined*100:>14.2f}%      {bkg_eff_combined*100:>14.2f}%")
+    print(f"{'Rejection':<25} {(1-sig_eff_combined)*100:>14.2f}%      {bkg_rej_combined*100:>14.2f}%")
+
+    # Signal purity after cuts
+    total_after_cuts = n_sig_combined + n_bkg_combined
+    purity = n_sig_combined / total_after_cuts if total_after_cuts > 0 else 0
+    print(f"\n{'Signal purity after cuts':<25} {purity*100:>14.2f}%")
+    print(f"{'S/sqrt(B)':<25} {n_sig_combined/np.sqrt(max(1,n_bkg_combined)):>14.2f}")
+
+    print("\n" + "=" * 70)
 
     # Summary canvas with all distributions
+    print("\nCreating summary canvas...")
+
     c_summary = ROOT.TCanvas('c_summary', 'Summary', 1200, 800)
     c_summary.Divide(3, 2)
 
-    for i, (var, name, title, nbins, xmin, xmax, xlabel, cut_val, cut_dir, logy) in enumerate(plots):
+    for i, (var, name, title, nbins, xmin, xmax, xlabel, logy) in enumerate(plots):
         c_summary.cd(i + 1)
         if logy:
             ROOT.gPad.SetLogy()
@@ -349,7 +370,7 @@ def main():
         sig_data = var[is_signal]
         bkg_data = var[is_bkg]
 
-        h_sig, h_bkg, _ = create_comparison_histogram(
+        h_sig, h_bkg = create_comparison_histogram(
             sig_data, bkg_data, f'{name}_sum', title, nbins, xmin, xmax, xlabel
         )
 
