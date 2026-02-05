@@ -18,7 +18,7 @@ options.register('trackCollection',
                  'merged',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: pf, lost, eleLost, merged (default), mergedWithEle")
+                 "Track collection: pf, lost, eleLost, merged (default), mergedWithEle, muonGlobal, displacedMuonGlobal")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -142,8 +142,8 @@ process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.hyddraSVAnalyzer.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 # Use pruned genParticles for MiniAOD
 process.hyddraSVAnalyzer.genParticles = cms.InputTag("prunedGenParticles")
-# Use slimmed muons for MiniAOD
-process.hyddraSVAnalyzer.muonTracks = cms.InputTag("slimmedMuons")
+# Use muon global tracks extracted by miniAODTrackProducer
+process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
 # Use reduced superclusters available in MiniAOD
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 

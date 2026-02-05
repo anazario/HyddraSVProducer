@@ -7,11 +7,15 @@ import FWCore.ParameterSet.Config as cms
 # Use with MiniAOD/NanoAOD input files.
 
 MINIAOD_TRACK_COLLECTION_CONFIG = {
+    # From packed candidates
     'pf': cms.InputTag("miniAODTrackProducer", "pfCandidateTracks"),
     'lost': cms.InputTag("miniAODTrackProducer", "lostTracks"),
     'eleLost': cms.InputTag("miniAODTrackProducer", "eleLostTracks"),
     'merged': cms.InputTag("miniAODTrackProducer", "merged"),
     'mergedWithEle': cms.InputTag("miniAODTrackProducer", "mergedWithEle"),
+    # From muons (global tracks)
+    'muonGlobal': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
+    'displacedMuonGlobal': cms.InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"),
 }
 
 def configureMiniAODTrackCollection(process, trackCollection):
