@@ -184,6 +184,93 @@ def draw_comparison_canvas(h_sig, h_bkg, name, logy=False):
     return canvas, [h_sig, h_bkg, legend, cms_label]
 
 
+def draw_comparison_canvas_with_cut(h_sig, h_bkg, name, cut_val, cut_dir, logy=False):
+    """Draw comparison canvas with legend and cut line"""
+
+    canvas = ROOT.TCanvas(name, name, 800, 600)
+    canvas.SetLeftMargin(0.12)
+    canvas.SetRightMargin(0.08)
+    canvas.SetTopMargin(0.08)
+    canvas.SetBottomMargin(0.12)
+
+    if logy:
+        canvas.SetLogy()
+
+    # Get max for y-axis
+    max_val = max(h_sig.GetMaximum(), h_bkg.GetMaximum())
+    h_sig.SetMaximum(max_val * 1.5)
+    h_sig.SetMinimum(0.0001 if logy else 0)
+
+    h_sig.Draw('HIST')
+    h_bkg.Draw('HIST SAME')
+
+    # Draw cut line(s)
+    lines = []
+    if cut_val is not None:
+        ymin = 0.0001 if logy else 0
+        ymax = max_val * 1.3
+
+        if cut_dir == 'abs<':
+            # Two lines for absolute value cut
+            line1 = ROOT.TLine(cut_val, ymin, cut_val, ymax)
+            line1.SetLineColor(ROOT.kBlack)
+            line1.SetLineStyle(2)
+            line1.SetLineWidth(2)
+            line1.Draw()
+            lines.append(line1)
+
+            line2 = ROOT.TLine(-cut_val, ymin, -cut_val, ymax)
+            line2.SetLineColor(ROOT.kBlack)
+            line2.SetLineStyle(2)
+            line2.SetLineWidth(2)
+            line2.Draw()
+            lines.append(line2)
+        else:
+            line = ROOT.TLine(cut_val, ymin, cut_val, ymax)
+            line.SetLineColor(ROOT.kBlack)
+            line.SetLineStyle(2)
+            line.SetLineWidth(2)
+            line.Draw()
+            lines.append(line)
+
+    # Legend
+    legend = ROOT.TLegend(0.55, 0.70, 0.88, 0.90)
+    legend.SetBorderSize(0)
+    legend.SetFillStyle(0)
+    legend.SetTextSize(0.035)
+    legend.AddEntry(h_sig, f'Signal ({h_sig.GetEntries():.0f})', 'f')
+    legend.AddEntry(h_bkg, f'Background ({h_bkg.GetEntries():.0f})', 'f')
+    if lines:
+        legend.AddEntry(lines[0], 'Cut', 'l')
+    legend.Draw()
+
+    # Cut label
+    cut_label = None
+    if cut_val is not None:
+        cut_label = ROOT.TLatex()
+        cut_label.SetNDC()
+        cut_label.SetTextSize(0.035)
+        cut_label.SetTextFont(42)
+        if cut_dir == '>':
+            cut_label.DrawLatex(0.15, 0.85, f"Cut: > {cut_val}")
+        elif cut_dir == '<':
+            cut_label.DrawLatex(0.15, 0.85, f"Cut: < {cut_val}")
+        elif cut_dir == 'abs<':
+            cut_label.DrawLatex(0.15, 0.85, f"Cut: |x| < {cut_val}")
+
+    # CMS label
+    cms_label = ROOT.TLatex()
+    cms_label.SetNDC()
+    cms_label.SetTextSize(0.05)
+    cms_label.SetTextFont(61)
+    cms_label.DrawLatex(0.12, 0.93, "CMS")
+    cms_label.SetTextFont(52)
+    cms_label.SetTextSize(0.04)
+    cms_label.DrawLatex(0.22, 0.93, "Simulation (N-1)")
+
+    return canvas, [h_sig, h_bkg, legend, cms_label, cut_label] + lines
+
+
 def main():
     parser = argparse.ArgumentParser(description='Track signal vs background comparison')
     parser.add_argument('-i', '--input', required=True,
@@ -219,23 +306,34 @@ def main():
     sip2d = data['Track_sip2D']
     eta = data['Track_eta']
 
-    # Define plots: (variable, name, title, nbins, xmin, xmax, xlabel, logy)
+    # Define plots: (variable, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir)
+    # cut_dir: '>' means keep if var > cut, '<' means keep if var < cut, 'abs<' means keep if |var| < cut
     plots = [
-        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', True),
-        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', True),
-        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', True),
-        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', False),
-        (eta, 'eta', 'Track #eta', 100, -3, 3, '#eta', False),
+        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', True, 5, '>'),
+        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', True, 0.08, '<'),
+        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', True, 5, '<'),
+        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', False, 5, 'abs<'),
+        (eta, 'eta', 'Track #eta', 100, -3, 3, '#eta', False, None, None),
     ]
 
-    # Define cuts: (variable, name, cut_value, cut_direction)
-    # cut_direction: '>' means keep if var > cut, '<' means keep if var < cut, 'abs<' means keep if |var| < cut
-    cuts = [
-        (pt, 'pt', 5, '>'),
-        (pt_res, 'ptResolution', 0.08, '<'),
-        (norm_chi2, 'normalizedChi2', 5, '<'),
-        (sip2d, 'sip2D', 5, 'abs<'),
-    ]
+    # Build cut masks for each variable
+    def apply_cut(var_data, cut_val, cut_dir):
+        if cut_dir == '>':
+            return var_data > cut_val
+        elif cut_dir == '<':
+            return var_data < cut_val
+        elif cut_dir == 'abs<':
+            return np.abs(var_data) < cut_val
+        return np.ones(len(var_data), dtype=bool)
+
+    # Pre-compute all cut masks
+    cut_masks = {}
+    for var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir in plots:
+        if cut_val is not None:
+            cut_masks[name] = {
+                'signal': apply_cut(var[is_signal], cut_val, cut_dir),
+                'background': apply_cut(var[is_bkg], cut_val, cut_dir),
+            }
 
     # Create output file
     output_file = ROOT.TFile(args.output, 'RECREATE')
@@ -243,22 +341,35 @@ def main():
     all_canvases = []
     all_objects = []
 
-    print("\nCreating comparison plots...")
+    print("\nCreating N-1 plots (each variable with all OTHER cuts applied)...")
 
-    for var, name, title, nbins, xmin, xmax, xlabel, logy in plots:
-        # Get signal and background data
-        sig_data = var[is_signal]
-        bkg_data = var[is_bkg]
+    for var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir in plots:
+        # Build N-1 mask: apply all cuts EXCEPT the current variable
+        n_minus_1_sig = np.ones(n_sig, dtype=bool)
+        n_minus_1_bkg = np.ones(n_bkg, dtype=bool)
+
+        for other_name, masks in cut_masks.items():
+            if other_name != name:  # Skip the current variable's cut
+                n_minus_1_sig &= masks['signal']
+                n_minus_1_bkg &= masks['background']
+
+        # Get signal and background data with N-1 selection
+        sig_data = var[is_signal][n_minus_1_sig]
+        bkg_data = var[is_bkg][n_minus_1_bkg]
 
         # Create histograms
         h_sig, h_bkg = create_comparison_histogram(
-            sig_data, bkg_data, name, title, nbins, xmin, xmax, xlabel
+            sig_data, bkg_data, f'{name}_Nminus1', f'{title} (N-1)', nbins, xmin, xmax, xlabel
         )
 
-        # Draw canvas
-        canvas, objects = draw_comparison_canvas(h_sig, h_bkg, f'c_{name}', logy)
+        # Draw canvas with cut line
+        canvas, objects = draw_comparison_canvas_with_cut(
+            h_sig, h_bkg, f'c_{name}_Nminus1', cut_val, cut_dir, logy
+        )
 
-        print(f"  {name}: range [{xmin}, {xmax}]")
+        n_sig_nminus1 = len(sig_data)
+        n_bkg_nminus1 = len(bkg_data)
+        print(f"  {name}: {n_sig_nminus1:,} sig, {n_bkg_nminus1:,} bkg after other cuts")
 
         # Save to file
         canvas.Write()
@@ -284,10 +395,13 @@ def main():
     print(f"{'Cut':<25} {'Sig Eff':<12} {'Bkg Eff':<12} {'Bkg Rej':<12} {'Sig Yield':<12} {'Bkg Yield':<12}")
     print("-" * 85)
 
-    cut_masks_sig = {}
-    cut_masks_bkg = {}
+    eff_cut_masks_sig = {}
+    eff_cut_masks_bkg = {}
 
-    for var, name, cut_val, cut_dir in cuts:
+    for var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir in plots:
+        if cut_val is None:
+            continue
+
         sig_data = var[is_signal]
         bkg_data = var[is_bkg]
 
@@ -304,8 +418,8 @@ def main():
             bkg_pass = np.abs(bkg_data) < cut_val
             cut_str = f"|{name}| < {cut_val}"
 
-        cut_masks_sig[name] = sig_pass
-        cut_masks_bkg[name] = bkg_pass
+        eff_cut_masks_sig[name] = sig_pass
+        eff_cut_masks_bkg[name] = bkg_pass
 
         n_sig_pass = np.sum(sig_pass)
         n_bkg_pass = np.sum(bkg_pass)
@@ -322,9 +436,9 @@ def main():
     combined_sig_mask = np.ones(n_sig, dtype=bool)
     combined_bkg_mask = np.ones(n_bkg, dtype=bool)
 
-    for name in cut_masks_sig:
-        combined_sig_mask &= cut_masks_sig[name]
-        combined_bkg_mask &= cut_masks_bkg[name]
+    for name in eff_cut_masks_sig:
+        combined_sig_mask &= eff_cut_masks_sig[name]
+        combined_bkg_mask &= eff_cut_masks_bkg[name]
 
     n_sig_combined = np.sum(combined_sig_mask)
     n_bkg_combined = np.sum(combined_bkg_mask)
@@ -333,7 +447,9 @@ def main():
     bkg_rej_combined = 1 - bkg_eff_combined
 
     print(f"\nCuts applied:")
-    for var, name, cut_val, cut_dir in cuts:
+    for var, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir in plots:
+        if cut_val is None:
+            continue
         if cut_dir == '>':
             print(f"  - {name} > {cut_val}")
         elif cut_dir == '<':
