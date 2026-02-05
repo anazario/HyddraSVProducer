@@ -144,8 +144,8 @@ process.hyddraSVAnalyzer.pvCollection = cms.InputTag("offlineSlimmedPrimaryVerti
 process.hyddraSVAnalyzer.genParticles = cms.InputTag("prunedGenParticles")
 # Use slimmed muons for MiniAOD
 process.hyddraSVAnalyzer.muonTracks = cms.InputTag("slimmedMuons")
-# Disable SC matching for now (would need MiniAOD-compatible producer)
-process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("")
+# Use reduced superclusters available in MiniAOD
+process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 
 # ============================================================================
 # Configure track collection for BOTH producer and analyzer
