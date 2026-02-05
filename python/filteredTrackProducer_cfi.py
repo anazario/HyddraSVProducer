@@ -7,5 +7,8 @@ filteredTrackProducer = cms.EDProducer("FilteredTrackProducer",
     minPt = cms.double(5.0),
     maxPtResolution = cms.double(0.08),
     maxNormalizedChi2 = cms.double(5.0),
-    maxAbsSip2D = cms.double(5.0),
+    # sip2D cut: invertSip2DCut=False keeps |sip2D| < sip2DCut (prompt-like)
+    #            invertSip2DCut=True keeps |sip2D| >= sip2DCut (displaced)
+    sip2DCut = cms.double(5.0),
+    invertSip2DCut = cms.bool(False),
 )

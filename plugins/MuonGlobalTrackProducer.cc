@@ -40,28 +40,36 @@ public:
 private:
   void produce(edm::Event&, const edm::EventSetup&) override;
 
-  // Input token
+  // Input tokens
   edm::EDGetTokenT<reco::MuonCollection> muonsToken_;
+  edm::EDGetTokenT<reco::MuonCollection> displacedMuonsToken_;
 };
 
 MuonGlobalTrackProducer::MuonGlobalTrackProducer(const edm::ParameterSet& iConfig)
     : muonsToken_(consumes<reco::MuonCollection>(
-          iConfig.getParameter<edm::InputTag>("muons"))) {
+          iConfig.getParameter<edm::InputTag>("muons"))),
+      displacedMuonsToken_(consumes<reco::MuonCollection>(
+          iConfig.getParameter<edm::InputTag>("displacedMuons"))) {
 
-  // Output collection
+  // Output collections
   produces<reco::TrackCollection>("globalTracks");
+  produces<reco::TrackCollection>("displacedGlobalTracks");
 }
 
 void MuonGlobalTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
-  // Get input collection
+  // Get input collections
   edm::Handle<reco::MuonCollection> muonsHandle;
   iEvent.getByToken(muonsToken_, muonsHandle);
 
-  // Create output collection
-  auto globalTracks = std::make_unique<reco::TrackCollection>();
+  edm::Handle<reco::MuonCollection> displacedMuonsHandle;
+  iEvent.getByToken(displacedMuonsToken_, displacedMuonsHandle);
 
-  // Extract global tracks from muons
+  // Create output collections
+  auto globalTracks = std::make_unique<reco::TrackCollection>();
+  auto displacedGlobalTracks = std::make_unique<reco::TrackCollection>();
+
+  // Extract global tracks from standard muons
   if (muonsHandle.isValid()) {
     for (const auto& muon : *muonsHandle) {
       // Check if muon has a valid global track
@@ -71,20 +79,36 @@ void MuonGlobalTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup&
     }
   }
 
+  // Extract global tracks from displaced muons
+  if (displacedMuonsHandle.isValid()) {
+    for (const auto& muon : *displacedMuonsHandle) {
+      // Check if muon has a valid global track
+      if (muon.globalTrack().isNonnull()) {
+        displacedGlobalTracks->push_back(*muon.globalTrack());
+      }
+    }
+  }
+
   // Log some stats
   edm::LogInfo("MuonGlobalTrackProducer")
       << "Extracted " << globalTracks->size() << " global tracks from "
       << (muonsHandle.isValid() ? muonsHandle->size() : 0) << " muons";
 
-  // Put collection into the event
+  edm::LogInfo("MuonGlobalTrackProducer")
+      << "Extracted " << displacedGlobalTracks->size() << " global tracks from "
+      << (displacedMuonsHandle.isValid() ? displacedMuonsHandle->size() : 0) << " displaced muons";
+
+  // Put collections into the event
   iEvent.put(std::move(globalTracks), "globalTracks");
+  iEvent.put(std::move(displacedGlobalTracks), "displacedGlobalTracks");
 }
 
 void MuonGlobalTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
-  // Input collection (AOD default)
+  // Input collections (AOD defaults)
   desc.add<edm::InputTag>("muons", edm::InputTag("muons"));
+  desc.add<edm::InputTag>("displacedMuons", edm::InputTag("displacedMuons"));
 
   descriptions.add("muonGlobalTrackProducer", desc);
 }

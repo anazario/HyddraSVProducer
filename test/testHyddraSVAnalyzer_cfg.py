@@ -18,7 +18,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: general, generalFiltered, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
+                 "Track collection: general, generalFiltered, selected, muon, muonGlobal, displacedMuonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -144,10 +144,10 @@ elif options.processMode == 'hadronic':
 # Path: Run producer sequence then analyzer
 # ============================================================================
 # Build the path based on track collection
-if options.trackCollection == 'muonGlobal':
-    # muonGlobal needs the muonGlobalTrackProducer instead of muonEnhancedTracks
+if options.trackCollection in ['muonGlobal', 'displacedMuonGlobal']:
+    # muonGlobal/displacedMuonGlobal need the muonGlobalTrackProducer
     process.p = cms.Path(
-        process.muonGlobalTrackProducer +  # Produces globalTracks from muons
+        process.muonGlobalTrackProducer +  # Produces globalTracks and displacedGlobalTracks from muons
         process.ecalTracks +               # Produces displacedElectronSCs for SC matching
         process.hyddraSVs +                # Produces leptonic/hadronic vertices
         process.hyddraSVAnalyzer           # Writes TTree output

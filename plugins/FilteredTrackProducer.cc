@@ -55,7 +55,8 @@ private:
   double minPt_;
   double maxPtResolution_;
   double maxNormalizedChi2_;
-  double maxAbsSip2D_;
+  double sip2DCut_;
+  bool invertSip2DCut_;
 };
 
 FilteredTrackProducer::FilteredTrackProducer(const edm::ParameterSet& iConfig)
@@ -67,7 +68,8 @@ FilteredTrackProducer::FilteredTrackProducer(const edm::ParameterSet& iConfig)
       minPt_(iConfig.getParameter<double>("minPt")),
       maxPtResolution_(iConfig.getParameter<double>("maxPtResolution")),
       maxNormalizedChi2_(iConfig.getParameter<double>("maxNormalizedChi2")),
-      maxAbsSip2D_(iConfig.getParameter<double>("maxAbsSip2D")) {
+      sip2DCut_(iConfig.getParameter<double>("sip2DCut")),
+      invertSip2DCut_(iConfig.getParameter<bool>("invertSip2DCut")) {
 
   produces<reco::TrackCollection>("filteredTracks");
 }
@@ -120,12 +122,15 @@ void FilteredTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
     }
 
     // sip2D cut (requires transient track)
+    // invertSip2DCut = false (default): keep tracks with |sip2D| < sip2DCut (prompt-like)
+    // invertSip2DCut = true: keep tracks with |sip2D| >= sip2DCut (displaced)
     reco::TransientTrack ttrack = ttBuilder->build(track);
     auto ip2dResult = IPTools::signedTransverseImpactParameter(ttrack, GlobalVector(track.px(), track.py(), track.pz()), pv);
 
     if (ip2dResult.first) {
       double sip2D = ip2dResult.second.significance();
-      if (std::fabs(sip2D) >= maxAbsSip2D_) {
+      bool passesSip2D = invertSip2DCut_ ? (std::fabs(sip2D) >= sip2DCut_) : (std::fabs(sip2D) < sip2DCut_);
+      if (!passesSip2D) {
         nFailSip2D++;
         continue;
       }
@@ -153,7 +158,8 @@ void FilteredTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& des
   desc.add<double>("minPt", 5.0);
   desc.add<double>("maxPtResolution", 0.08);
   desc.add<double>("maxNormalizedChi2", 5.0);
-  desc.add<double>("maxAbsSip2D", 5.0);
+  desc.add<double>("sip2DCut", 5.0);
+  desc.add<bool>("invertSip2DCut", false);  // false: keep |sip2D| < cut, true: keep |sip2D| >= cut
 
   descriptions.add("filteredTrackProducer", desc);
 }
