@@ -5,6 +5,7 @@ import FWCore.ParameterSet.Config as cms
 # =============================================================================
 TRACK_COLLECTION_CONFIG = {
     'general': cms.InputTag("generalTracks"),
+    'generalFiltered': cms.InputTag("filteredTrackProducer", "filteredTracks"),
     'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
     'muon': cms.InputTag("displacedGlobalMuons"),
     'muonGlobal': cms.InputTag("muonGlobalTrackProducer", "globalTracks"),

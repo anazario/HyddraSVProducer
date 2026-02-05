@@ -18,7 +18,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: general, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
+                 "Track collection: general, generalFiltered, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -103,6 +103,11 @@ process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.muonGlobalTrackProducer_cfi")
 
 # ============================================================================
+# FilteredTrackProducer (applies quality cuts to general tracks)
+# ============================================================================
+process.load("KUCMSNtupleizer.HyddraSVProducer.filteredTrackProducer_cfi")
+
+# ============================================================================
 # ECALTracks Producer (produces displacedElectronSCs for SC matching)
 # ============================================================================
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.ECALTracks_cfi")
@@ -147,8 +152,16 @@ if options.trackCollection == 'muonGlobal':
         process.hyddraSVs +                # Produces leptonic/hadronic vertices
         process.hyddraSVAnalyzer           # Writes TTree output
     )
+elif options.trackCollection == 'generalFiltered':
+    # generalFiltered needs the filteredTrackProducer
+    process.p = cms.Path(
+        process.filteredTrackProducer +  # Produces filtered general tracks
+        process.ecalTracks +             # Produces displacedElectronSCs for SC matching
+        process.hyddraSVs +              # Produces leptonic/hadronic vertices
+        process.hyddraSVAnalyzer         # Writes TTree output
+    )
 elif options.trackCollection in ['general', 'muon']:
-    # These collections don't need muonEnhancedTracks producer
+    # These collections don't need any track producer
     process.p = cms.Path(
         process.ecalTracks +          # Produces displacedElectronSCs for SC matching
         process.hyddraSVs +           # Produces leptonic/hadronic vertices

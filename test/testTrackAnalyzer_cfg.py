@@ -13,7 +13,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection to analyze: general, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced, muonEnhanced")
+                 "Track collection to analyze: general, generalFiltered, selected, muon, muonGlobal, sip2D, sip2DMuonEnhanced, muonEnhanced")
 options.register('genMatchDeltaRCut',
                  0.02,
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -98,6 +98,11 @@ process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.muonGlobalTrackProducer_cfi")
 
 # ============================================================================
+# FilteredTrackProducer (applies quality cuts to general tracks)
+# ============================================================================
+process.load("KUCMSNtupleizer.HyddraSVProducer.filteredTrackProducer_cfi")
+
+# ============================================================================
 # Track Analyzer
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.trackAnalyzer_cfi")
@@ -125,6 +130,12 @@ elif options.trackCollection == 'muonGlobal':
     # muonGlobal needs the muonGlobalTrackProducer
     process.p = cms.Path(
         process.muonGlobalTrackProducer +
+        process.trackAnalyzer
+    )
+elif options.trackCollection == 'generalFiltered':
+    # generalFiltered needs the filteredTrackProducer
+    process.p = cms.Path(
+        process.filteredTrackProducer +
         process.trackAnalyzer
     )
 else:
