@@ -9,6 +9,12 @@ Designed for large files - uses chunked reading and basic ROOT styling (no cmsst
 Usage:
     python trackSignalComparison.py -i track_ntuple.root
     python trackSignalComparison.py -i track_ntuple.root -o output.root --chunk-size 100000
+
+    # Custom cuts
+    python trackSignalComparison.py -i track_ntuple.root --pt-cut 10 --sip2d-cut 3
+
+    # Invert sip2D cut (keep displaced tracks)
+    python trackSignalComparison.py -i track_ntuple.root --sip2d-cut 3 --invert-sip2d
 """
 
 import argparse
@@ -210,7 +216,7 @@ def draw_comparison_canvas_with_cut(h_sig, h_bkg, name, cut_val, cut_dir, logy=F
         ymin = 0.0001 if logy else 0
         ymax = max_val * 1.3
 
-        if cut_dir == 'abs<':
+        if cut_dir in ['abs<', 'abs>=']:
             # Two lines for absolute value cut
             line1 = ROOT.TLine(cut_val, ymin, cut_val, ymax)
             line1.SetLineColor(ROOT.kBlack)
@@ -257,6 +263,8 @@ def draw_comparison_canvas_with_cut(h_sig, h_bkg, name, cut_val, cut_dir, logy=F
             cut_label.DrawLatex(0.15, 0.85, f"Cut: < {cut_val}")
         elif cut_dir == 'abs<':
             cut_label.DrawLatex(0.15, 0.85, f"Cut: |x| < {cut_val}")
+        elif cut_dir == 'abs>=':
+            cut_label.DrawLatex(0.15, 0.85, f"Cut: |x| #geq {cut_val}")
 
     # CMS label
     cms_label = ROOT.TLatex()
@@ -281,6 +289,19 @@ def main():
                         help='Path to tree in ROOT file (default: auto-detect)')
     parser.add_argument('--chunk-size', type=int, default=500000,
                         help='Chunk size for reading large files (default: 500000)')
+
+    # Configurable cuts
+    parser.add_argument('--pt-cut', type=float, default=5.0,
+                        help='Minimum track pT cut in GeV (default: 5.0)')
+    parser.add_argument('--pt-res-cut', type=float, default=0.08,
+                        help='Maximum pT resolution cut (default: 0.08)')
+    parser.add_argument('--chi2-cut', type=float, default=5.0,
+                        help='Maximum normalized chi2 cut (default: 5.0)')
+    parser.add_argument('--sip2d-cut', type=float, default=5.0,
+                        help='SIP2D cut value (default: 5.0)')
+    parser.add_argument('--invert-sip2d', action='store_true',
+                        help='Invert sip2D cut: keep |sip2D| >= cut instead of < cut (for displaced tracks)')
+
     args = parser.parse_args()
 
     setup_root_style()
@@ -306,13 +327,29 @@ def main():
     sip2d = data['Track_sip2D']
     eta = data['Track_eta']
 
+    # Determine sip2D cut direction based on --invert-sip2d flag
+    # Default (invert=False): keep |sip2D| < cut (prompt-like tracks)
+    # Inverted (invert=True): keep |sip2D| >= cut (displaced tracks)
+    sip2d_cut_dir = 'abs>=' if args.invert_sip2d else 'abs<'
+
+    # Print cut configuration
+    print(f"\n--- Cut Configuration ---")
+    print(f"  pT > {args.pt_cut} GeV")
+    print(f"  pT resolution < {args.pt_res_cut}")
+    print(f"  normalized chi2 < {args.chi2_cut}")
+    if args.invert_sip2d:
+        print(f"  |sip2D| >= {args.sip2d_cut} (inverted - selecting displaced)")
+    else:
+        print(f"  |sip2D| < {args.sip2d_cut} (default - selecting prompt-like)")
+
     # Define plots: (variable, name, title, nbins, xmin, xmax, xlabel, logy, cut_val, cut_dir)
-    # cut_dir: '>' means keep if var > cut, '<' means keep if var < cut, 'abs<' means keep if |var| < cut
+    # cut_dir: '>' means keep if var > cut, '<' means keep if var < cut,
+    #          'abs<' means keep if |var| < cut, 'abs>=' means keep if |var| >= cut
     plots = [
-        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', True, 5, '>'),
-        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', True, 0.08, '<'),
-        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', True, 5, '<'),
-        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', False, 5, 'abs<'),
+        (pt, 'pt', 'Track p_{T}', 100, 0, 50, 'p_{T} [GeV]', True, args.pt_cut, '>'),
+        (pt_res, 'ptResolution', 'Track p_{T} Resolution', 100, 0, 0.5, '#sigma_{p_{T}}/p_{T}', True, args.pt_res_cut, '<'),
+        (norm_chi2, 'normalizedChi2', 'Track #chi^{2}/ndof', 100, 0, 20, '#chi^{2}/ndof', True, args.chi2_cut, '<'),
+        (sip2d, 'sip2D', 'Track SIP_{2D}', 100, -50, 50, 'SIP_{2D}', False, args.sip2d_cut, sip2d_cut_dir),
         (eta, 'eta', 'Track #eta', 100, -3, 3, '#eta', False, None, None),
     ]
 
@@ -324,6 +361,8 @@ def main():
             return var_data < cut_val
         elif cut_dir == 'abs<':
             return np.abs(var_data) < cut_val
+        elif cut_dir == 'abs>=':
+            return np.abs(var_data) >= cut_val
         return np.ones(len(var_data), dtype=bool)
 
     # Pre-compute all cut masks
@@ -417,6 +456,10 @@ def main():
             sig_pass = np.abs(sig_data) < cut_val
             bkg_pass = np.abs(bkg_data) < cut_val
             cut_str = f"|{name}| < {cut_val}"
+        elif cut_dir == 'abs>=':
+            sig_pass = np.abs(sig_data) >= cut_val
+            bkg_pass = np.abs(bkg_data) >= cut_val
+            cut_str = f"|{name}| >= {cut_val}"
 
         eff_cut_masks_sig[name] = sig_pass
         eff_cut_masks_bkg[name] = bkg_pass
@@ -456,6 +499,8 @@ def main():
             print(f"  - {name} < {cut_val}")
         elif cut_dir == 'abs<':
             print(f"  - |{name}| < {cut_val}")
+        elif cut_dir == 'abs>=':
+            print(f"  - |{name}| >= {cut_val}")
 
     print(f"\n{'Metric':<25} {'Signal':<20} {'Background':<20}")
     print("-" * 65)
@@ -514,7 +559,7 @@ def main():
             line.SetLineStyle(2)
             line.SetLineWidth(2)
             line.Draw()
-            if cut_dir == 'abs<':
+            if cut_dir in ['abs<', 'abs>=']:
                 line2 = ROOT.TLine(-cut_val, ymin, -cut_val, ymax)
                 line2.SetLineColor(ROOT.kBlack)
                 line2.SetLineStyle(2)
