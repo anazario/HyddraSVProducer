@@ -16,6 +16,8 @@ MINIAOD_TRACK_COLLECTION_CONFIG = {
     # From muons (global tracks)
     'muonGlobal': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
     'displacedMuonGlobal': cms.InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"),
+    # From MiniAODMuonEnhancedTracksProducer (muon-enhanced with sip2D selection)
+    'sip2DMuonEnhanced': cms.InputTag("miniAODMuonEnhancedTracks", "sip2DMuonEnhancedTracks"),
 }
 
 def configureMiniAODTrackCollection(process, trackCollection):

@@ -3,7 +3,8 @@
 SV Efficiency Analysis Script
 
 Analyzes secondary vertex efficiency from HyddraSVAnalyzer output.
-Uses isGold matching exclusively for efficiency measurement.
+- Leptonic SVs: Uses isGold matching (exclusive to leptonic decays)
+- Hadronic SVs: Uses matchRatio thresholds (>=50% and >0%)
 Uses uproot for reading and ROOT/cmsstyle for plotting.
 
 Usage:
@@ -133,16 +134,22 @@ def draw_cms_labels():
 
 
 def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
-    """Analyze SV efficiency from gen vertex perspective using isGold matching"""
+    """Analyze SV efficiency from gen vertex perspective.
 
-    # Flatten jagged arrays for gen vertices, tracking gold matches from reco
+    Leptonic SVs: Uses isGold matching (exclusive to leptonic decays)
+    Hadronic SVs: Uses matchRatio thresholds (>=50% and >0%)
+    """
+
+    # Flatten jagged arrays for gen vertices, tracking matches from reco
     all_gen_dxy = []
     all_gen_pt = []
     all_gen_eta = []
     all_gen_isElectron = []
     all_gen_isMuon = []
     all_gen_isHadronic = []
-    all_gen_hasGoldMatch = []
+    all_gen_hasGoldMatch = []          # For leptonic (isGold)
+    all_gen_hasMatchRatio50 = []       # For hadronic (matchRatio >= 0.5)
+    all_gen_hasMatchRatioAny = []      # For hadronic (matchRatio > 0)
 
     n_events = len(data['HyddraGenVertex_dxy'])
 
@@ -154,15 +161,32 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
         gen_isMuon = data['HyddraGenVertex_isMuon'][event_idx]
         gen_isHadronic = data['HyddraGenVertex_isHadronic'][event_idx]
 
-        # Get reco vertex info for this event to check gold matches
+        # Get reco vertex info for this event
         reco_genVertexIndex = data['HyddraSV_genVertexIndex'][event_idx]
+        reco_nearestGenVertexIndex = data['HyddraSV_nearestGenVertexIndex'][event_idx]
         reco_isGold = data['HyddraSV_isGold'][event_idx]
+        reco_matchRatio = data['HyddraSV_matchRatio'][event_idx]
 
-        # Build set of gen vertex indices that have a gold-matched reco vertex
+        # Build sets of gen vertex indices for different matching criteria
         gold_matched_gen_indices = set()
+        matchRatio50_gen_indices = set()
+        matchRatioAny_gen_indices = set()
+
         for reco_idx in range(len(reco_genVertexIndex)):
-            if reco_isGold[reco_idx] and reco_genVertexIndex[reco_idx] >= 0:
-                gold_matched_gen_indices.add(reco_genVertexIndex[reco_idx])
+            # Gold matching uses genVertexIndex (for leptonic)
+            gen_idx = reco_genVertexIndex[reco_idx]
+            if gen_idx >= 0 and reco_isGold[reco_idx]:
+                gold_matched_gen_indices.add(gen_idx)
+
+            # matchRatio matching uses nearestGenVertexIndex (for hadronic)
+            nearest_gen_idx = reco_nearestGenVertexIndex[reco_idx]
+            if nearest_gen_idx >= 0:
+                # matchRatio >= 50%
+                if reco_matchRatio[reco_idx] >= 0.5:
+                    matchRatio50_gen_indices.add(nearest_gen_idx)
+                # matchRatio > 0%
+                if reco_matchRatio[reco_idx] > 0:
+                    matchRatioAny_gen_indices.add(nearest_gen_idx)
 
         for i in range(len(gen_dxy)):
             all_gen_dxy.append(gen_dxy[i])
@@ -172,6 +196,8 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
             all_gen_isMuon.append(gen_isMuon[i])
             all_gen_isHadronic.append(gen_isHadronic[i])
             all_gen_hasGoldMatch.append(i in gold_matched_gen_indices)
+            all_gen_hasMatchRatio50.append(i in matchRatio50_gen_indices)
+            all_gen_hasMatchRatioAny.append(i in matchRatioAny_gen_indices)
 
     all_gen_dxy = np.array(all_gen_dxy)
     all_gen_pt = np.array(all_gen_pt)
@@ -180,6 +206,8 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
     all_gen_isMuon = np.array(all_gen_isMuon)
     all_gen_isHadronic = np.array(all_gen_isHadronic)
     all_gen_hasGoldMatch = np.array(all_gen_hasGoldMatch)
+    all_gen_hasMatchRatio50 = np.array(all_gen_hasMatchRatio50)
+    all_gen_hasMatchRatioAny = np.array(all_gen_hasMatchRatioAny)
 
     # Define masks
     is_leptonic = all_gen_isElectron | all_gen_isMuon
@@ -194,19 +222,18 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
         'leptonic': {},
         'electron': {},
         'muon': {},
-        'hadronic': {},
+        'hadronic_50': {},      # matchRatio >= 50%
+        'hadronic_any': {},     # matchRatio > 0%
     }
 
-    # Calculate efficiencies for each category using isGold matching
-    categories = [
-        ('all', np.ones(len(all_gen_dxy), dtype=bool)),
+    # Calculate efficiencies for leptonic categories using isGold matching
+    leptonic_categories = [
         ('leptonic', is_leptonic),
         ('electron', all_gen_isElectron),
         ('muon', all_gen_isMuon),
-        ('hadronic', all_gen_isHadronic),
     ]
 
-    for label, mask in categories:
+    for label, mask in leptonic_categories:
         if np.sum(mask) == 0:
             continue
 
@@ -237,6 +264,37 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
             'n_total': n_total, 'n_pass': n_pass
         }
 
+    # Calculate efficiencies for hadronic using matchRatio thresholds
+    hadronic_mask = all_gen_isHadronic.astype(bool)
+    if np.sum(hadronic_mask) > 0:
+        # Hadronic with matchRatio >= 50%
+        for var_name, var_data, bins in [
+            ('dxy', all_gen_dxy, dxy_bins),
+            ('pt', all_gen_pt, pt_bins),
+            ('eta', all_gen_eta, eta_bins),
+        ]:
+            centers, eff, err, n_total, n_pass = calculate_efficiency(
+                var_data[hadronic_mask], all_gen_hasMatchRatio50[hadronic_mask], bins
+            )
+            results['hadronic_50'][var_name] = {
+                'centers': centers, 'efficiency': eff, 'error': err,
+                'n_total': n_total, 'n_pass': n_pass
+            }
+
+        # Hadronic with matchRatio > 0%
+        for var_name, var_data, bins in [
+            ('dxy', all_gen_dxy, dxy_bins),
+            ('pt', all_gen_pt, pt_bins),
+            ('eta', all_gen_eta, eta_bins),
+        ]:
+            centers, eff, err, n_total, n_pass = calculate_efficiency(
+                var_data[hadronic_mask], all_gen_hasMatchRatioAny[hadronic_mask], bins
+            )
+            results['hadronic_any'][var_name] = {
+                'centers': centers, 'efficiency': eff, 'error': err,
+                'n_total': n_total, 'n_pass': n_pass
+            }
+
     # Summary statistics
     n_total_gen = len(all_gen_dxy)
     n_leptonic = np.sum(is_leptonic)
@@ -244,19 +302,26 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
     n_electrons = np.sum(all_gen_isElectron)
     n_muons = np.sum(all_gen_isMuon)
 
+    # Leptonic uses isGold matching
     n_lep_gold = np.sum(all_gen_hasGoldMatch[is_leptonic])
-    n_had_gold = np.sum(all_gen_hasGoldMatch[all_gen_isHadronic])
     n_ele_gold = np.sum(all_gen_hasGoldMatch[all_gen_isElectron])
     n_mu_gold = np.sum(all_gen_hasGoldMatch[all_gen_isMuon])
 
-    print(f"\n=== SV Efficiency Summary (isGold matching) ===")
+    # Hadronic uses matchRatio thresholds
+    n_had_ratio50 = np.sum(all_gen_hasMatchRatio50[all_gen_isHadronic])
+    n_had_ratioAny = np.sum(all_gen_hasMatchRatioAny[all_gen_isHadronic])
+
+    print(f"\n=== SV Efficiency Summary ===")
     print(f"Total gen vertices: {n_total_gen}")
-    print(f"  Leptonic: {n_leptonic} (electrons: {n_electrons}, muons: {n_muons})")
+    print(f"\n  Leptonic: {n_leptonic} (electrons: {n_electrons}, muons: {n_muons})")
+    print(f"    [isGold matching]")
     print(f"    Gold matched: {n_lep_gold} ({100*n_lep_gold/max(1,n_leptonic):.1f}%)")
     print(f"    - Electrons: {n_ele_gold} ({100*n_ele_gold/max(1,n_electrons):.1f}%)")
     print(f"    - Muons: {n_mu_gold} ({100*n_mu_gold/max(1,n_muons):.1f}%)")
-    print(f"  Hadronic: {n_hadronic}")
-    print(f"    Gold matched: {n_had_gold} ({100*n_had_gold/max(1,n_hadronic):.1f}%)")
+    print(f"\n  Hadronic: {n_hadronic}")
+    print(f"    [matchRatio thresholds]")
+    print(f"    matchRatio >= 50%: {n_had_ratio50} ({100*n_had_ratio50/max(1,n_hadronic):.1f}%)")
+    print(f"    matchRatio > 0%:   {n_had_ratioAny} ({100*n_had_ratioAny/max(1,n_hadronic):.1f}%)")
 
     return results, {
         'all_gen_dxy': all_gen_dxy,
@@ -265,6 +330,8 @@ def analyze_sv_efficiency(data, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
         'is_leptonic': is_leptonic,
         'is_hadronic': all_gen_isHadronic,
         'hasGoldMatch': all_gen_hasGoldMatch,
+        'hasMatchRatio50': all_gen_hasMatchRatio50,
+        'hasMatchRatioAny': all_gen_hasMatchRatioAny,
     }
 
 
@@ -319,15 +386,20 @@ def analyze_reco_sv_properties(data):
 
 
 def create_efficiency_vs_dxy_plot(results, output_name, dxy_min=1e-5, dxy_max=1.0, dxy_nbins=21):
-    """Create efficiency vs gen dxy plot using isGold matching"""
+    """Create efficiency vs gen dxy plot.
+
+    Leptonic: uses isGold matching
+    Hadronic: uses matchRatio thresholds (>=50% and >0%)
+    """
 
     COLOR_LEPTONIC = ROOT.kOrange + 6
-    COLOR_HADRONIC = ROOT.kAzure + 1
+    COLOR_HADRONIC_50 = ROOT.kAzure + 1
+    COLOR_HADRONIC_ANY = ROOT.kAzure - 4
     COLOR_ELECTRON = ROOT.kRed + 1
     COLOR_MUON = ROOT.kGreen + 2
 
     x_label = 'd_{xy}^{gen} [cm]'
-    y_label = 'SV Reconstruction Efficiency (isGold)'
+    y_label = 'SV Reconstruction Efficiency'
 
     canvas = CMS.cmsCanvas(output_name, dxy_min, dxy_max, 0.0001, 1.5, x_label, y_label,
                            square=False, extraSpace=0.01, iPos=0)
@@ -359,14 +431,32 @@ def create_efficiency_vs_dxy_plot(results, output_name, dxy_min=1e-5, dxy_max=1.
 
     graphs = []
 
-    plot_configs = [
-        ('leptonic', 'Leptonic', COLOR_LEPTONIC, 20),
-        ('hadronic', 'Hadronic', COLOR_HADRONIC, 21),
-        ('electron', 'Electrons', COLOR_ELECTRON, 22),
-        ('muon', 'Muons', COLOR_MUON, 23),
+    # Leptonic categories (isGold matching)
+    plot_configs_leptonic = [
+        ('leptonic', 'Leptonic (isGold)', COLOR_LEPTONIC, 20),
+        ('electron', 'Electrons (isGold)', COLOR_ELECTRON, 22),
+        ('muon', 'Muons (isGold)', COLOR_MUON, 23),
     ]
 
-    for key, label, color, marker in plot_configs:
+    for key, label, color, marker in plot_configs_leptonic:
+        if key in results and 'dxy' in results[key]:
+            r = results[key]['dxy']
+            g = create_tgraph(r['centers'], r['efficiency'], r['error'],
+                              f'efficiency_vs_dxy_{key}', label)
+            g.SetMarkerStyle(marker)
+            g.SetMarkerSize(1.2)
+            g.SetMarkerColor(color)
+            g.SetLineColor(color)
+            g.Draw('P SAME')
+            graphs.append((label, g, color))
+
+    # Hadronic categories (matchRatio thresholds)
+    plot_configs_hadronic = [
+        ('hadronic_50', 'Hadronic (ratio #geq 50%)', COLOR_HADRONIC_50, 21),
+        ('hadronic_any', 'Hadronic (ratio > 0%)', COLOR_HADRONIC_ANY, 25),
+    ]
+
+    for key, label, color, marker in plot_configs_hadronic:
         if key in results and 'dxy' in results[key]:
             r = results[key]['dxy']
             g = create_tgraph(r['centers'], r['efficiency'], r['error'],
@@ -379,10 +469,11 @@ def create_efficiency_vs_dxy_plot(results, output_name, dxy_min=1e-5, dxy_max=1.
             graphs.append((label, g, color))
 
     n_entries = len(graphs)
-    legend_height = 0.05 * n_entries
-    legend = ROOT.TLegend(0.55, 0.91 - legend_height, 0.88, 0.91)
+    legend_height = 0.045 * n_entries
+    legend = ROOT.TLegend(0.45, 0.91 - legend_height, 0.88, 0.91)
     legend.SetBorderSize(0)
     legend.SetFillStyle(0)
+    legend.SetTextSize(0.032)
     for label, g, _ in graphs:
         legend.AddEntry(g, label, 'p')
     legend.Draw()
@@ -394,13 +485,18 @@ def create_efficiency_vs_dxy_plot(results, output_name, dxy_min=1e-5, dxy_max=1.
 
 
 def create_efficiency_vs_pt_plot(results, output_name):
-    """Create efficiency vs gen pt plot using isGold matching"""
+    """Create efficiency vs gen pt plot.
+
+    Leptonic: uses isGold matching
+    Hadronic: uses matchRatio thresholds (>=50% and >0%)
+    """
 
     COLOR_LEPTONIC = ROOT.kOrange + 6
-    COLOR_HADRONIC = ROOT.kAzure + 1
+    COLOR_HADRONIC_50 = ROOT.kAzure + 1
+    COLOR_HADRONIC_ANY = ROOT.kAzure - 4
 
     x_label = 'p_{T}^{gen} [GeV]'
-    y_label = 'SV Reconstruction Efficiency (isGold)'
+    y_label = 'SV Reconstruction Efficiency'
 
     canvas = CMS.cmsCanvas(output_name, 0, 200, 0.0, 1.2, x_label, y_label,
                            square=False, extraSpace=0.01, iPos=0)
@@ -426,8 +522,13 @@ def create_efficiency_vs_pt_plot(results, output_name):
 
     graphs = []
 
-    for label, key, color, marker in [('Leptonic', 'leptonic', COLOR_LEPTONIC, 20),
-                                       ('Hadronic', 'hadronic', COLOR_HADRONIC, 21)]:
+    plot_configs = [
+        ('Leptonic (isGold)', 'leptonic', COLOR_LEPTONIC, 20),
+        ('Hadronic (ratio #geq 50%)', 'hadronic_50', COLOR_HADRONIC_50, 21),
+        ('Hadronic (ratio > 0%)', 'hadronic_any', COLOR_HADRONIC_ANY, 25),
+    ]
+
+    for label, key, color, marker in plot_configs:
         if key in results and 'pt' in results[key]:
             r = results[key]['pt']
             g = create_tgraph(r['centers'], r['efficiency'], r['error'],
@@ -440,10 +541,11 @@ def create_efficiency_vs_pt_plot(results, output_name):
             graphs.append((label, g, color))
 
     n_entries = len(graphs)
-    legend_height = 0.05 * n_entries
-    legend = ROOT.TLegend(0.55, 0.25, 0.88, 0.25 + legend_height)
+    legend_height = 0.045 * n_entries
+    legend = ROOT.TLegend(0.45, 0.20, 0.88, 0.20 + legend_height)
     legend.SetBorderSize(0)
     legend.SetFillStyle(0)
+    legend.SetTextSize(0.032)
     for label, g, _ in graphs:
         legend.AddEntry(g, label, 'p')
     legend.Draw()

@@ -15,10 +15,10 @@ options.register('processMode',
                  VarParsing.VarParsing.varType.string,
                  "Processing mode: both (default), leptonic, or hadronic")
 options.register('trackCollection',
-                 'merged',
+                 'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: pf, lost, eleLost, merged (default), mergedWithEle, muonGlobal, displacedMuonGlobal")
+                 "Track collection: pf, lost, eleLost, merged, mergedWithEle, muonGlobal, displacedMuonGlobal, sip2DMuonEnhanced (default)")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -127,6 +127,11 @@ if options.applyCuts:
     print(f"Track cuts enabled: pT > {options.minPt} GeV, |sip2D| >= {options.minAbsSip2D}, chi2/ndof < {options.maxNormalizedChi2}")
 
 # ============================================================================
+# MiniAOD Muon Enhanced Tracks Producer
+# ============================================================================
+process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODMuonEnhancedTracksProducer_cfi")
+
+# ============================================================================
 # HYDDRA SV Producer
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi")
@@ -142,8 +147,8 @@ process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
 process.hyddraSVAnalyzer.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 # Use pruned genParticles for MiniAOD
 process.hyddraSVAnalyzer.genParticles = cms.InputTag("prunedGenParticles")
-# Use muon global tracks extracted by miniAODTrackProducer
-process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
+# Use combined muon tracks from MiniAODMuonEnhancedTracksProducer for muon ID
+process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODMuonEnhancedTracks", "combinedMuonTracks")
 # Use reduced superclusters available in MiniAOD
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 
@@ -172,9 +177,10 @@ elif options.processMode == 'hadronic':
 # Path: Run MiniAOD track producer, then SV producer, then analyzer
 # ============================================================================
 process.p = cms.Path(
-    process.miniAODTrackProducer +  # Produces track collections from packed candidates
-    process.hyddraSVs +              # Produces leptonic/hadronic vertices
-    process.hyddraSVAnalyzer         # Writes TTree output
+    process.miniAODTrackProducer +          # Produces track collections from packed candidates
+    process.miniAODMuonEnhancedTracks +     # Produces sip2DMuonEnhancedTracks and combinedMuonTracks
+    process.hyddraSVs +                      # Produces leptonic/hadronic vertices
+    process.hyddraSVAnalyzer                 # Writes TTree output
 )
 
 process.schedule = cms.Schedule(process.p)

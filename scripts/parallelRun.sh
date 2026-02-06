@@ -40,6 +40,7 @@ print_usage() {
     echo "  -c, --config FILE     cmsRun config file (default: testHyddraSVAnalyzer_cfg.py)"
     echo "  -o, --output-dir DIR  Output directory (default: parallel_output)"
     echo "  -n, --output-name     Merged output filename (default: merged_ntuple.root)"
+    echo "  --continue            Skip files that completed successfully in a previous run"
     echo "  --track-collection X  Track collection option to pass to config"
     echo "  --no-gen              Disable gen info (for data)"
     echo "  --no-merge            Skip hadd merge step"
@@ -79,6 +80,7 @@ INPUT_LIST="$1"
 shift
 
 DO_MERGE=true
+CONTINUE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -108,6 +110,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-merge)
             DO_MERGE=false
+            shift
+            ;;
+        --continue)
+            CONTINUE=true
             shift
             ;;
         --apply-cuts)
@@ -169,17 +175,67 @@ mkdir -p "$OUTPUT_DIR"
 LOG_DIR="$OUTPUT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
+# Build the list of files to process
+FILES_TO_PROCESS=$(mktemp)
+grep -v '^#' "$INPUT_LIST" | grep -v '^$' > "$FILES_TO_PROCESS"
+
+N_SKIPPED=0
+if [[ "$CONTINUE" == true ]]; then
+    FILTERED=$(mktemp)
+    while IFS= read -r INPUT_FILE; do
+        BASENAME=$(basename "$INPUT_FILE" .root)
+        BASENAME=${BASENAME#file:}
+        LOG_FILE="$LOG_DIR/${BASENAME}.log"
+
+        if [[ -f "$LOG_FILE" ]] && grep -q "CMSRUN_EXIT_SUCCESS" "$LOG_FILE"; then
+            N_SKIPPED=$((N_SKIPPED + 1))
+        else
+            echo "$INPUT_FILE" >> "$FILTERED"
+        fi
+    done < "$FILES_TO_PROCESS"
+    mv "$FILTERED" "$FILES_TO_PROCESS"
+fi
+
+N_TO_PROCESS=$(wc -l < "$FILES_TO_PROCESS" | tr -d ' ')
+
 echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}  Parallel cmsRun Processing${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
 echo "  Input file list: $INPUT_LIST"
-echo "  Number of files: $N_FILES"
+echo "  Total files:     $N_FILES"
+if [[ "$CONTINUE" == true ]]; then
+echo "  Already done:    $N_SKIPPED"
+fi
+echo "  Files to run:    $N_TO_PROCESS"
 echo "  Parallel jobs:   $N_JOBS"
 echo "  Config file:     $CONFIG"
 echo "  Output dir:      $OUTPUT_DIR"
 echo "  Extra args:      $EXTRA_ARGS"
 echo ""
+
+if [[ $N_TO_PROCESS -eq 0 ]]; then
+    echo -e "${GREEN}All files already processed. Nothing to do.${NC}"
+    rm -f "$FILES_TO_PROCESS"
+    # Still merge if requested
+    N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -gt 0 ]]; then
+        echo ""
+        echo -e "${YELLOW}Merging outputs with hadd...${NC}"
+        MERGED_FILE="$OUTPUT_DIR/$OUTPUT_NAME"
+        if hadd -f "$MERGED_FILE" "$OUTPUT_DIR"/*_ntuple.root; then
+            echo -e "${GREEN}Merged output: $MERGED_FILE${NC}"
+            MERGED_SIZE=$(ls -lh "$MERGED_FILE" | awk '{print $5}')
+            echo "  Size: $MERGED_SIZE"
+        else
+            echo -e "${RED}hadd merge failed${NC}"
+            exit 1
+        fi
+    fi
+    echo ""
+    echo -e "${GREEN}Done!${NC}"
+    exit 0
+fi
 
 # Create a temporary script for parallel to run
 # This handles the file naming properly
@@ -202,6 +258,7 @@ echo "[$(date '+%H:%M:%S')] Starting: $BASENAME"
 
 # Run cmsRun
 if cmsRun "$CONFIG" inputFiles="$INPUT_FILE" outputFile="$OUTPUT_FILE" $EXTRA_ARGS > "$LOG_FILE" 2>&1; then
+    echo "CMSRUN_EXIT_SUCCESS" >> "$LOG_FILE"
     echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
     exit 0
 else
@@ -219,13 +276,13 @@ START_TIME=$(date +%s)
 
 # Use parallel to process files
 # --bar shows progress, --halt soon,fail=1 stops on first failure (optional)
-grep -v '^#' "$INPUT_LIST" | grep -v '^$' | \
+cat "$FILES_TO_PROCESS" | \
     parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
 
 PARALLEL_EXIT=$?
 
-# Cleanup temp script
-rm -f "$TEMP_SCRIPT"
+# Cleanup temp files
+rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS"
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
@@ -239,7 +296,7 @@ echo -e "${GREEN}Processing completed in ${ELAPSED}s${NC}"
 
 # Count successful outputs
 N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
-echo "  Successful outputs: $N_OUTPUTS / $N_FILES"
+echo "  Successful outputs: $N_OUTPUTS / $N_FILES (${N_SKIPPED} from previous run)"
 
 # Merge outputs
 if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -gt 0 ]]; then
