@@ -42,6 +42,7 @@ print_usage() {
     echo "  -n, --output-name     Merged output filename (default: merged_ntuple.root)"
     echo "  --continue            Skip files that completed successfully in a previous run"
     echo "  --track-collection X  Track collection option to pass to config"
+    echo "  --process-mode MODE   SV type: both (default), leptonic, or hadronic"
     echo "  --no-gen              Disable gen info (for data)"
     echo "  --no-merge            Skip hadd merge step"
     echo "  -h, --help            Show this help message"
@@ -102,6 +103,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --track-collection)
             EXTRA_ARGS="$EXTRA_ARGS trackCollection=$2"
+            shift 2
+            ;;
+        --process-mode)
+            EXTRA_ARGS="$EXTRA_ARGS processMode=$2"
             shift 2
             ;;
         --no-gen)
