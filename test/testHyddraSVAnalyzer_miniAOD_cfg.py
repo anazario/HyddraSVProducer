@@ -18,7 +18,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: pf, lost, eleLost, merged, mergedWithEle, globalMuon, displacedMuonGlobal, sip2DMuonEnhanced (default)")
+                 "Track collection: pf, lost, eleLost, merged, mergedWithEle, promptMuonExtracted, displacedMuonExtracted, sip2DMuonEnhanced (default)")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
