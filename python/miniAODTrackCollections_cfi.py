@@ -14,7 +14,7 @@ MINIAOD_TRACK_COLLECTION_CONFIG = {
     'merged': cms.InputTag("miniAODTrackProducer", "merged"),
     'mergedWithEle': cms.InputTag("miniAODTrackProducer", "mergedWithEle"),
     # From muons (global tracks)
-    'muonGlobal': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
+    'globalMuon': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
     'displacedMuonGlobal': cms.InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"),
     # From MiniAODMuonEnhancedTracksProducer (muon-enhanced with sip2D selection)
     'sip2DMuonEnhanced': cms.InputTag("miniAODMuonEnhancedTracks", "sip2DMuonEnhancedTracks"),

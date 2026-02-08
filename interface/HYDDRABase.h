@@ -118,19 +118,19 @@ class HYDDRABase : public TrackVertexSetCollection {
     for (auto x = tracks.begin(); x != endm1; ++x) {
       for (auto y = x + 1; y != end; ++y) {
 	nPairs++;
-
+	
 	if (TrackHelper::OverlappingTrack(**x, **y, ttBuilder_)) {
 	  nOverlapping++;
 	  continue;
 	}
-
+	
 	TrackVertexSet seed({*x, *y}, ttBuilder_);
-
+	
 	if (!isValidVertex(seed)) {
 	  nInvalid++;
 	  continue;
 	}
-
+	
 	// CosTheta alignment cut (check before insert for speed)
 	if (primaryVertex_ && primaryVertex_->isValid()) {
 	  if (seed.cosTheta(*primaryVertex_) < seedCosThetaCut_) {
@@ -138,13 +138,13 @@ class HYDDRABase : public TrackVertexSetCollection {
 	    continue;
 	  }
 	}
-
+	
 	// Use add() to properly handle subsets
 	this->add(seed);
 	masterList_.add(seed);
       }
     }
-
+    
     size_t nPassedChi2 = this->size() + nFailedCosTheta;
     HYDDRA_DBG("[HYDDRA] Seeds: " << tracks.size() << " tracks, "
                << nPairs << " pairs, "
@@ -153,35 +153,35 @@ class HYDDRABase : public TrackVertexSetCollection {
                << nPassedChi2 << " passed chi2, "
                << this->size() << " passed cosTheta\n");
   }
-
+  
   // Iteratively merge vertices that share tracks and are spatially close
   // (distance significance < 4), until no more merges are possible.
   void mergeVertices() {
     if (this->empty()) return;
-
+    
     int iteration = 0;
     bool madeChange = true;
-
+    
     while (madeChange && iteration < 30) {
       madeChange = false;
-
+      
       TrackVertexSetCollection ignoreList;
       TrackVertexSetCollection mergedList;
       int nMerged = 0, nMergeFailed = 0, nAlreadyExists = 0;
-
+      
       // Snapshot to vector for safe pairwise iteration
       std::vector<TrackVertexSet> vtxVec(this->begin(), this->end());
-
+      
       for (size_t i = 0; i < vtxVec.size(); ++i) {
 	if (ignoreList.contains(vtxVec[i])) continue;
-
+	
 	for (size_t j = i + 1; j < vtxVec.size(); ++j) {
 	  if (ignoreList.contains(vtxVec[j]) || ignoreList.contains(vtxVec[i])) continue;
 	  if ((vtxVec[i] & vtxVec[j]) == 0) continue;
-
+	  
 	  if (vtxVec[i].distanceSignificance(vtxVec[j]) < 4) {
 	    TrackVertexSet mergedVertex(vtxVec[i] + vtxVec[j]);
-
+	    
 	    if (isValidVertex(mergedVertex) && masterList_.doesNotContain(mergedVertex)) {
 	      ignoreList.add(vtxVec[i]);
 	      ignoreList.add(vtxVec[j]);
@@ -200,7 +200,7 @@ class HYDDRABase : public TrackVertexSetCollection {
 	  }
 	}
       }
-
+      
       // Build updated collection: survivors + newly merged
       TrackVertexSetCollection updated;
       for (const auto& v : vtxVec) {
@@ -209,29 +209,29 @@ class HYDDRABase : public TrackVertexSetCollection {
 	}
       }
       updated += mergedList;
-
+      
       iteration++;
       diagnostics_.nTotalMerges += nMerged;
       diagnostics_.nMergeFailed += nMergeFailed;
       diagnostics_.nMergeAlreadyExists += nAlreadyExists;
-
+      
       HYDDRA_DBG("[HYDDRA] Merge iter " << iteration << ": "
 		 << this->size() << " -> " << updated.size()
 		 << " | merged=" << nMerged
 		 << " failed=" << nMergeFailed
 		 << " exists=" << nAlreadyExists << "\n");
-
+      
       this->clear();
       for (const auto& v : updated) {
 	this->add(v);
       }
     }
-
+    
     diagnostics_.nMergeIterations = iteration;
     HYDDRA_DBG("[HYDDRA] Merge result: " << this->size() << " vertices, "
 	       << iteration << " iterations\n");
   }
-
+  
   // A vertex is valid if the fit converged and normChi2 < 5.
   bool isValidVertex(const TrackVertexSet& set) const {
     return set.isValid() && set.normChi2() < 5;

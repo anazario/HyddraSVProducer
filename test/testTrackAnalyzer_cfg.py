@@ -13,7 +13,7 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection to analyze: general, generalFiltered, selected, muon, muonGlobal, displacedMuonGlobal, sip2D, sip2DMuonEnhanced, muonEnhanced")
+                 "Track collection to analyze: general, generalFiltered, selected, displacedGlobalMuon, globalMuon, displacedMuonGlobal, sip2D, sip2DMuonEnhanced, muonEnhanced")
 options.register('genMatchDeltaRCut',
                  0.02,
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -123,11 +123,11 @@ else:
 # Path
 # ============================================================================
 # Build the path based on track collection
-if options.trackCollection in ['general', 'muon']:
+if options.trackCollection in ['general', 'displacedGlobalMuon']:
     # These collections don't need any producer
     process.p = cms.Path(process.trackAnalyzer)
-elif options.trackCollection in ['muonGlobal', 'displacedMuonGlobal']:
-    # muonGlobal and displacedMuonGlobal need the muonGlobalTrackProducer
+elif options.trackCollection in ['globalMuon', 'displacedMuonGlobal']:
+    # globalMuon and displacedMuonGlobal need the muonGlobalTrackProducer
     process.p = cms.Path(
         process.muonGlobalTrackProducer +
         process.trackAnalyzer

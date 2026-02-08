@@ -13,7 +13,7 @@ options.register('trackCollection',
                  'merged',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: pf, lost, eleLost, merged (default), mergedWithEle, muonGlobal, displacedMuonGlobal")
+                 "Track collection: pf, lost, eleLost, merged (default), mergedWithEle, globalMuon, displacedMuonGlobal")
 options.register('genMatchDeltaRCut',
                  0.02,
                  VarParsing.VarParsing.multiplicity.singleton,
