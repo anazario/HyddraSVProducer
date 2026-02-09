@@ -398,74 +398,37 @@ def process_file(args):
 
 
 # ============================================================================
-# Output writing
+# Output writing (incremental)
 # ============================================================================
 
-def write_output(output_file, all_results, dsa_dr, dsa_relpt):
-    """Concatenate results from all files and write output ROOT file."""
-
-    # Concatenate
-    combined = None
-    for result in all_results:
-        if result is None:
-            continue
-        out, dr_vals, relpt_vals, _ = result
-        dsa_dr.extend(dr_vals)
-        dsa_relpt.extend(relpt_vals)
-        if combined is None:
-            combined = out
-        else:
-            for key in combined:
-                combined[key].extend(out[key])
-
-    if combined is None:
-        print('ERROR: No data to write.', file=sys.stderr)
-        return
-
-    # Build tree dict with HyddraSV/HyddraGenVertex branch names
+def build_tree_chunk(out):
+    """Convert one file's output dict to tree_data dict with proper branch names."""
     tree_data = {}
 
     # Scalar branches
-    tree_data['HyddraSV_nVertices'] = np.array(combined['nVertices'], dtype=np.uint32)
-    tree_data['HyddraGenVertex_nTotal'] = np.array(combined['genVertex_nTotal'], dtype=np.uint32)
-    tree_data['HyddraGenVertex_nMuon'] = np.array(combined['genVertex_nMuon'], dtype=np.uint32)
-    tree_data['HyddraGenVertex_nElectron'] = np.array(combined['genVertex_nElectron'], dtype=np.uint32)
-    tree_data['HyddraGenVertex_nHadronic'] = np.array(combined['genVertex_nHadronic'], dtype=np.uint32)
+    tree_data['HyddraSV_nVertices'] = np.array(out['nVertices'], dtype=np.uint32)
+    tree_data['HyddraGenVertex_nTotal'] = np.array(out['genVertex_nTotal'], dtype=np.uint32)
+    tree_data['HyddraGenVertex_nMuon'] = np.array(out['genVertex_nMuon'], dtype=np.uint32)
+    tree_data['HyddraGenVertex_nElectron'] = np.array(out['genVertex_nElectron'], dtype=np.uint32)
+    tree_data['HyddraGenVertex_nHadronic'] = np.array(out['genVertex_nHadronic'], dtype=np.uint32)
 
     # Jagged reco branches
-    sv_renames = {
-        'x': 'x', 'y': 'y', 'z': 'z', 'dxy': 'dxy',
-        'mass': 'mass', 'pt': 'pt', 'eta': 'eta', 'phi': 'phi',
-        'chi2': 'chi2', 'normalizedChi2': 'normalizedChi2', 'ndof': 'ndof',
-        'min3D': 'min3D', 'genVertexIndex': 'genVertexIndex',
-        'nearestGenVertexIndex': 'nearestGenVertexIndex',
-        'isLeptonic': 'isLeptonic', 'isBronze': 'isBronze',
-        'isSilver': 'isSilver', 'isGold': 'isGold',
-        'deltaR1': 'deltaR1', 'deltaR2': 'deltaR2',
-        'relPtDiff1': 'relPtDiff1', 'relPtDiff2': 'relPtDiff2',
-    }
-    for internal, branch in sv_renames.items():
-        tree_data['HyddraSV_' + branch] = ak.Array(combined['sv_' + internal])
-    tree_data['HyddraSV_nTracks'] = ak.Array(combined['nTracks'])
+    sv_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
+               'chi2', 'normalizedChi2', 'ndof', 'min3D',
+               'genVertexIndex', 'nearestGenVertexIndex',
+               'isLeptonic', 'isBronze', 'isSilver', 'isGold',
+               'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
+    for k in sv_keys:
+        tree_data['HyddraSV_' + k] = ak.Array(out['sv_' + k])
+    tree_data['HyddraSV_nTracks'] = ak.Array(out['nTracks'])
 
     # Jagged gen branches
-    gv_float = ['dxy', 'x', 'y', 'z', 'pt', 'eta', 'phi', 'mass']
-    gv_bool = ['isMuon', 'isElectron', 'isHadronic', 'passSelection']
-    for k in gv_float + gv_bool:
-        tree_data['HyddraGenVertex_' + k] = ak.Array(combined['gv_' + k])
+    gv_keys = ['dxy', 'x', 'y', 'z', 'pt', 'eta', 'phi', 'mass',
+               'isMuon', 'isElectron', 'isHadronic', 'passSelection']
+    for k in gv_keys:
+        tree_data['HyddraGenVertex_' + k] = ak.Array(out['gv_' + k])
 
-    with uproot.recreate(output_file) as f:
-        f['llpNanoSVAnalyzer/tree'] = tree_data
-
-        # DSA matching histograms
-        if dsa_dr:
-            f['h_dsaGenDeltaR'] = np.histogram(
-                dsa_dr, bins=150, range=(0., 3.))
-            f['h_dsaGenRelPtDiff'] = np.histogram(
-                dsa_relpt, bins=100, range=(0., 5.))
-
-    n_events = len(combined['nVertices'])
-    print(f'  Wrote {n_events} events to {output_file}')
+    return tree_data
 
 
 # ============================================================================
@@ -529,29 +492,50 @@ def main():
 
         dsa_dr = []
         dsa_relpt = []
+        total_events = 0
+        tree_path = 'llpNanoSVAnalyzer/tree'
 
-        if args.workers > 1 and len(input_files) > 1:
-            with Pool(args.workers) as pool:
-                results = []
-                for i, result in enumerate(pool.imap_unordered(process_file, worker_args)):
-                    if result is not None:
-                        results.append(result)
+        with uproot.recreate(out_file) as fout:
+            first_write = True
+
+            def write_result(result):
+                nonlocal first_write, total_events
+                if result is None:
+                    return
+                out, dr_vals, relpt_vals, n_ev = result
+                total_events += n_ev
+                dsa_dr.extend(dr_vals)
+                dsa_relpt.extend(relpt_vals)
+                chunk = build_tree_chunk(out)
+                if first_write:
+                    fout[tree_path] = chunk
+                    first_write = False
+                else:
+                    fout[tree_path].extend(chunk)
+
+            if args.workers > 1 and len(input_files) > 1:
+                with Pool(args.workers) as pool:
+                    for i, result in enumerate(pool.imap_unordered(process_file, worker_args)):
+                        write_result(result)
+                        print(f'\r  Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
+                    print()
+            else:
+                for i, wa in enumerate(worker_args):
+                    result = process_file(wa)
+                    write_result(result)
                     print(f'\r  Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
                 print()
-        else:
-            results = []
-            for i, wa in enumerate(worker_args):
-                result = process_file(wa)
-                if result is not None:
-                    results.append(result)
-                print(f'\r  Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
-            print()
 
-        total_events = sum(r[3] for r in results)
+            # Write histograms
+            if dsa_dr:
+                fout['h_dsaGenDeltaR'] = np.histogram(
+                    dsa_dr, bins=150, range=(0., 3.))
+                fout['h_dsaGenRelPtDiff'] = np.histogram(
+                    dsa_relpt, bins=100, range=(0., 5.))
+
         elapsed = time.time() - t0
         print(f'  Total events: {total_events}  ({elapsed:.1f}s)')
-
-        write_output(out_file, results, dsa_dr, dsa_relpt)
+        print(f'  Wrote {total_events} events to {out_file}')
         print()
 
 
