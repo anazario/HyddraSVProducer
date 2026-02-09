@@ -179,10 +179,25 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
                     return gv_idx
             return -1
 
+    def leg_charge(orig_idx_f, is_dsa_f):
+        is_dsa = float(is_dsa_f) > 0.5
+        orig_idx = int(orig_idx_f)
+        if is_dsa:
+            if 0 <= orig_idx < len(evt.get('DSAMuon_charge', [])):
+                return int(evt['DSAMuon_charge'][orig_idx])
+        else:
+            if 0 <= orig_idx < len(evt.get('Muon_charge', [])):
+                return int(evt['Muon_charge'][orig_idx])
+        return 0
+
     vtx = {k.replace(vtx_pre, ''): evt[k] for k in evt if k.startswith(vtx_pre)}
     gv1 = trace_leg(vtx['originalMuonIdx1'][iv], vtx['isDSAMuon1'][iv])
     gv2 = trace_leg(vtx['originalMuonIdx2'][iv], vtx['isDSAMuon2'][iv])
     if gv1 >= 0 and gv1 == gv2:
+        q1 = leg_charge(vtx['originalMuonIdx1'][iv], vtx['isDSAMuon1'][iv])
+        q2 = leg_charge(vtx['originalMuonIdx2'][iv], vtx['isDSAMuon2'][iv])
+        if q1 != 0 and q2 != 0 and q1 + q2 != 0:
+            return -1
         return gv1
     return -1
 
@@ -216,8 +231,8 @@ def process_file(args):
         'GenPart_pdgId', 'GenPart_genPartIdxMother', 'GenPart_status',
         'GenPart_vx', 'GenPart_vy', 'GenPart_vz',
         'GenPart_pt', 'GenPart_eta', 'GenPart_phi', 'GenPart_mass',
-        'Muon_genPartIdx', 'Muon_pt', 'Muon_eta', 'Muon_phi',
-        'DSAMuon_pt', 'DSAMuon_eta', 'DSAMuon_phi',
+        'Muon_genPartIdx', 'Muon_pt', 'Muon_eta', 'Muon_phi', 'Muon_charge',
+        'DSAMuon_pt', 'DSAMuon_eta', 'DSAMuon_phi', 'DSAMuon_charge',
     ]
     vtx_cols = ['isValid', 'vx', 'vy', 'vz', 'vxy',
                 'chi2', 'normChi2', 'ndof',
@@ -394,7 +409,11 @@ def process_file(args):
         for k in vec_bool_keys:
             out['sv_' + k].append(np.array(ev[k], dtype=np.bool_))
 
-    return out, dsa_dr_vals, dsa_relpt_vals, n_events
+    # Count gold vertices and gen signal vertices across all events
+    n_gold = sum(int(g) for ev_gold in out['sv_isGold'] for g in ev_gold)
+    n_gen = sum(out['genVertex_nMuon'])
+
+    return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold, n_gen
 
 
 # ============================================================================
@@ -493,17 +512,21 @@ def main():
         dsa_dr = []
         dsa_relpt = []
         total_events = 0
+        total_gold = 0
+        total_gen = 0
         tree_path = 'llpNanoSVAnalyzer/tree'
 
         with uproot.recreate(out_file) as fout:
             first_write = True
 
             def write_result(result):
-                nonlocal first_write, total_events
+                nonlocal first_write, total_events, total_gold, total_gen
                 if result is None:
                     return
-                out, dr_vals, relpt_vals, n_ev = result
+                out, dr_vals, relpt_vals, n_ev, n_gold, n_gen = result
                 total_events += n_ev
+                total_gold += n_gold
+                total_gen += n_gen
                 dsa_dr.extend(dr_vals)
                 dsa_relpt.extend(relpt_vals)
                 chunk = build_tree_chunk(out)
@@ -534,7 +557,9 @@ def main():
                     dsa_relpt, bins=100, range=(0., 5.))
 
         elapsed = time.time() - t0
+        pct = 100. * total_gold / total_gen if total_gen > 0 else 0.
         print(f'  Total events: {total_events}  ({elapsed:.1f}s)')
+        print(f'  Gold / Gen signal: {total_gold} / {total_gen} ({pct:.1f}%)')
         print(f'  Wrote {total_events} events to {out_file}')
         print()
 
