@@ -208,7 +208,7 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
 
 def process_file(args):
     """Process one NanoAOD file for one collection. Returns output dict."""
-    filename, collection, mother_pdg_id, dr_cut, relpt_cut = args
+    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2 = args
 
     vtx_pre = collection + '_'
     ref_pre = collection + 'RefittedTracks_'
@@ -301,6 +301,8 @@ def process_file(args):
         n_valid = 0
         for iv in range(n_vtx):
             if float(evt[is_valid_key][iv]) < 0.5:
+                continue
+            if float(evt[vtx_pre + 'normChi2'][iv]) > max_chi2:
                 continue
             n_valid += 1
 
@@ -474,6 +476,8 @@ def main():
                         help='Gen-match deltaR cut for gold matching (default: 0.3)')
     parser.add_argument('--rel-pt-diff', type=float, default=0.5,
                         help='Gen-match relative pT diff cut for gold matching (default: 0.5)')
+    parser.add_argument('--max-chi2', type=float, default=5.0,
+                        help='Max normalized chi2 for vertex fit (default: 5.0)')
     args = parser.parse_args()
 
     # Build input file list
@@ -506,7 +510,7 @@ def main():
         t0 = time.time()
 
         worker_args = [(fn, collection, args.mother_pdg_id,
-                        args.delta_r, args.rel_pt_diff)
+                        args.delta_r, args.rel_pt_diff, args.max_chi2)
                        for fn in input_files]
 
         dsa_dr = []
