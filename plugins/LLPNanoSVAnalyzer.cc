@@ -95,6 +95,7 @@ private:
   double dsaDeltaR_;
   double dsaRelPtDiff_;
   std::vector<std::string> inputFiles_;
+  unsigned int fileIndex_;
 
   // ---- Input NanoAOD branch buffers (filled by SetBranchAddress) ----
 
@@ -185,7 +186,8 @@ LLPNanoSVAnalyzer::LLPNanoSVAnalyzer(const edm::ParameterSet& iConfig) :
   motherPdgId_(iConfig.getParameter<int>("motherPdgId")),
   dsaDeltaR_(iConfig.getParameter<double>("dsaDeltaR")),
   dsaRelPtDiff_(iConfig.getParameter<double>("dsaRelPtDiff")),
-  inputFiles_(iConfig.getParameter<std::vector<std::string>>("inputFiles"))
+  inputFiles_(iConfig.getParameter<std::vector<std::string>>("inputFiles")),
+  fileIndex_(0)
 {
   usesResource("TFileService");
 }
@@ -252,13 +254,13 @@ void LLPNanoSVAnalyzer::beginJob() {
 }
 
 // ============================================================================
-// analyze - called once by EmptySource; loops over all input files internally
+// analyze - called once per input file (one CMSSW "event" per file)
 // ============================================================================
 
 void LLPNanoSVAnalyzer::analyze(const edm::Event&, const edm::EventSetup&) {
-  for (const auto& filename : inputFiles_) {
-    processFile(filename);
-  }
+  if (fileIndex_ >= inputFiles_.size()) return;
+  processFile(inputFiles_[fileIndex_]);
+  fileIndex_++;
 }
 
 // ============================================================================

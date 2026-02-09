@@ -53,14 +53,14 @@ process = cms.Process("LLPNANOANALYSIS")
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
-# EmptySource: the analyzer reads NanoAOD files directly via TFile::Open,
-# so we only need one CMSSW "event" to trigger the analyze() call.
+# EmptySource: the analyzer reads NanoAOD files directly via TFile::Open.
+# Each CMSSW "event" processes one input file, giving per-file progress.
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(1)
+    input = cms.untracked.int32(len(inputFiles))
 )
 
 process.source = cms.Source("EmptySource",
-    numberEventsInLuminosityBlock = cms.untracked.uint32(1),
+    numberEventsInLuminosityBlock = cms.untracked.uint32(max(len(inputFiles), 1)),
     firstRun = cms.untracked.uint32(1),
     firstLuminosityBlock = cms.untracked.uint32(1),
     firstEvent = cms.untracked.uint32(1),
