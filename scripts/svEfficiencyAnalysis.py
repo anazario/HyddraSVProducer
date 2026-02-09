@@ -28,7 +28,7 @@ def load_data(filename, tree_path=None):
     if tree_path:
         tree = file[tree_path]
     else:
-        possible_paths = ['hyddraSVAnalyzer/tree', 'tree']
+        possible_paths = ['hyddraSVAnalyzer/tree', 'llpNanoSVAnalyzer/tree', 'tree']
         tree = None
         for path in possible_paths:
             if path in file:
