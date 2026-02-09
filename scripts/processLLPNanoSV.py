@@ -160,6 +160,20 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
                 return -1
             if abs(int(evt['GenPart_pdgId'][gp_idx])) != 13:
                 return -1
+            # Apply deltaR cut on the NanoAOD gen match
+            mu_eta = float(evt['Muon_eta'][orig_idx])
+            mu_phi = float(evt['Muon_phi'][orig_idx])
+            gen_eta = float(evt['GenPart_eta'][gp_idx])
+            gen_phi = float(evt['GenPart_phi'][gp_idx])
+            deta = mu_eta - gen_eta
+            dphi = (mu_phi - gen_phi + np.pi) % (2 * np.pi) - np.pi
+            dr = np.sqrt(deta**2 + dphi**2)
+            if dr > dr_cut:
+                return -1
+            mu_pt = float(evt['Muon_pt'][orig_idx])
+            gen_pt = float(evt['GenPart_pt'][gp_idx])
+            if abs(mu_pt - gen_pt) / max(gen_pt, 0.001) > relpt_cut:
+                return -1
             for gv_idx, gv in enumerate(gen_vertices):
                 if gp_idx in gv['muon_indices']:
                     return gv_idx
@@ -226,7 +240,8 @@ def process_file(args):
     scalar_keys = ['nVertices', 'genVertex_nTotal', 'genVertex_nMuon',
                    'genVertex_nElectron', 'genVertex_nHadronic']
     vec_float_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
-                      'chi2', 'normalizedChi2', 'ndof', 'min3D']
+                      'chi2', 'normalizedChi2', 'ndof', 'min3D',
+                      'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
     vec_int_keys = ['genVertexIndex', 'nearestGenVertexIndex']
     vec_bool_keys = ['isLeptonic', 'isBronze', 'isSilver', 'isGold']
     gen_float_keys = ['dxy', 'x', 'y', 'z', 'pt', 'eta', 'phi', 'mass']
@@ -316,20 +331,45 @@ def process_file(args):
             ev['isSilver'].append(is_gold)
             ev['isBronze'].append(is_gold)
 
-            # DSA histogram (no cuts)
-            for oidx_key, dsa_key in [('originalMuonIdx1', 'isDSAMuon1'),
-                                       ('originalMuonIdx2', 'isDSAMuon2')]:
-                if float(evt[vtx_pre + dsa_key][iv]) > 0.5:
-                    leg = int(evt[vtx_pre + oidx_key][iv])
-                    if 0 <= leg < len(evt.get('DSAMuon_pt', [])):
+            # Per-leg deltaR/relPtDiff to gen match (no cuts applied)
+            for leg_num, (oidx_key, dsa_key) in enumerate([
+                    ('originalMuonIdx1', 'isDSAMuon1'),
+                    ('originalMuonIdx2', 'isDSAMuon2')], start=1):
+                is_dsa = float(evt[vtx_pre + dsa_key][iv]) > 0.5
+                orig_idx = int(evt[vtx_pre + oidx_key][iv])
+                leg_dr = -1.
+                leg_relpt = -1.
+
+                if is_dsa:
+                    if 0 <= orig_idx < len(evt.get('DSAMuon_pt', [])):
                         _, dr, rpt = match_dsa_to_gen(
-                            float(evt['DSAMuon_eta'][leg]),
-                            float(evt['DSAMuon_phi'][leg]),
-                            float(evt['DSAMuon_pt'][leg]),
+                            float(evt['DSAMuon_eta'][orig_idx]),
+                            float(evt['DSAMuon_phi'][orig_idx]),
+                            float(evt['DSAMuon_pt'][orig_idx]),
                             evt, gen_vertices, 999., 999.)
                         if dr < 900.:
+                            leg_dr = dr
+                            leg_relpt = rpt
                             dsa_dr_vals.append(dr)
                             dsa_relpt_vals.append(rpt)
+                else:
+                    # PAT muon: use NanoAOD's genPartIdx, compute deltaR directly
+                    if 0 <= orig_idx < len(evt.get('Muon_genPartIdx', [])):
+                        gp_idx = int(evt['Muon_genPartIdx'][orig_idx])
+                        if 0 <= gp_idx < len(evt['GenPart_eta']):
+                            mu_eta = float(evt['Muon_eta'][orig_idx])
+                            mu_phi = float(evt['Muon_phi'][orig_idx])
+                            gen_eta = float(evt['GenPart_eta'][gp_idx])
+                            gen_phi = float(evt['GenPart_phi'][gp_idx])
+                            deta = mu_eta - gen_eta
+                            dphi = (mu_phi - gen_phi + np.pi) % (2 * np.pi) - np.pi
+                            leg_dr = np.sqrt(deta**2 + dphi**2)
+                            mu_pt = float(evt['Muon_pt'][orig_idx])
+                            gen_pt = float(evt['GenPart_pt'][gp_idx])
+                            leg_relpt = abs(mu_pt - gen_pt) / max(gen_pt, 0.001)
+
+                ev[f'deltaR{leg_num}'].append(leg_dr)
+                ev[f'relPtDiff{leg_num}'].append(leg_relpt)
 
             # Spatial matching
             min_dist = -1.
@@ -401,6 +441,8 @@ def write_output(output_file, all_results, dsa_dr, dsa_relpt):
         'nearestGenVertexIndex': 'nearestGenVertexIndex',
         'isLeptonic': 'isLeptonic', 'isBronze': 'isBronze',
         'isSilver': 'isSilver', 'isGold': 'isGold',
+        'deltaR1': 'deltaR1', 'deltaR2': 'deltaR2',
+        'relPtDiff1': 'relPtDiff1', 'relPtDiff2': 'relPtDiff2',
     }
     for internal, branch in sv_renames.items():
         tree_data['HyddraSV_' + branch] = ak.Array(combined['sv_' + internal])
@@ -446,10 +488,10 @@ def main():
                         help='Number of parallel workers (default: 4)')
     parser.add_argument('--mother-pdg-id', type=int, default=54,
                         help='Signal mother PDG ID (default: 54)')
-    parser.add_argument('--dsa-delta-r', type=float, default=0.3,
-                        help='DSA-gen deltaR matching threshold (default: 0.3)')
-    parser.add_argument('--dsa-rel-pt-diff', type=float, default=0.5,
-                        help='DSA-gen relative pT diff threshold (default: 0.5)')
+    parser.add_argument('--delta-r', type=float, default=0.3,
+                        help='Gen-match deltaR cut for gold matching (default: 0.3)')
+    parser.add_argument('--rel-pt-diff', type=float, default=0.5,
+                        help='Gen-match relative pT diff cut for gold matching (default: 0.5)')
     args = parser.parse_args()
 
     # Build input file list
@@ -482,7 +524,7 @@ def main():
         t0 = time.time()
 
         worker_args = [(fn, collection, args.mother_pdg_id,
-                        args.dsa_delta_r, args.dsa_rel_pt_diff)
+                        args.delta_r, args.rel_pt_diff)
                        for fn in input_files]
 
         dsa_dr = []
