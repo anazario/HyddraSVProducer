@@ -301,8 +301,8 @@ std::vector<T> LLPNanoSVAnalyzer::getColumn(const nanoaod::FlatTable& table, con
   int idx = table.columnIndex(name);
   if (idx < 0) return std::vector<T>();
 
-  // columValue<T>(column) returns the entire column as a span/reference
-  const auto& col = table.columValue<T>(idx);
+  // columnData<T>(col) returns a span/range over the column for multi-row tables
+  const auto& col = table.columnData<T>(idx);
   return std::vector<T>(col.begin(), col.end());
 }
 
@@ -310,7 +310,7 @@ std::vector<bool> LLPNanoSVAnalyzer::getBoolColumn(const nanoaod::FlatTable& tab
   int idx = table.columnIndex(name);
   if (idx < 0) return std::vector<bool>();
 
-  const auto& col = table.columValue<uint8_t>(idx);
+  const auto& col = table.columnData<uint8_t>(idx);
   std::vector<bool> result(col.size());
   for (unsigned int i = 0; i < col.size(); ++i) {
     result[i] = static_cast<bool>(col[i]);
