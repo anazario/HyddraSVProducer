@@ -53,14 +53,17 @@ process = cms.Process("LLPNANOANALYSIS")
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
-# Number of events
+# EmptySource: the analyzer reads NanoAOD files directly via TFile::Open,
+# so we only need one CMSSW "event" to trigger the analyze() call.
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(options.maxEvents)
+    input = cms.untracked.int32(1)
 )
 
-# Input source (NanoAOD files)
-process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring(inputFiles)
+process.source = cms.Source("EmptySource",
+    numberEventsInLuminosityBlock = cms.untracked.uint32(1),
+    firstRun = cms.untracked.uint32(1),
+    firstLuminosityBlock = cms.untracked.uint32(1),
+    firstEvent = cms.untracked.uint32(1),
 )
 
 # TFileService for output ROOT file
@@ -81,6 +84,9 @@ if options.collection == 'PatDSAMuonVertex':
 # Override motherPdgId if specified
 process.llpNanoSVAnalyzer.motherPdgId = cms.int32(options.motherPdgId)
 
+# Pass input files to the analyzer (it reads NanoAOD TTrees directly)
+process.llpNanoSVAnalyzer.inputFiles = cms.vstring(inputFiles)
+
 # ============================================================================
 # Path: just the analyzer (no producers needed for NanoAOD)
 # ============================================================================
@@ -91,16 +97,19 @@ process.schedule = cms.Schedule(process.p)
 # Usage examples:
 # ============================================================================
 # PatMuonVertex (default):
-#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=root://xrootd.path/sample.root
+#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=file:output20.root
 #
 # PatDSAMuonVertex:
-#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=root://xrootd.path/sample.root collection=PatDSAMuonVertex
+#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=file:output20.root collection=PatDSAMuonVertex
+#
+# Remote file via xrootd:
+#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=root://xrootd.path/sample.root
 #
 # Multiple files from a file list:
 #   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFileList=myfiles.txt collection=PatMuonVertex
 #
 # Custom output file name:
-#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=root://xrootd.path/sample.root outputFile=myoutput.root
+#   cmsRun testLLPNanoSVAnalyzer_cfg.py inputFiles=file:output20.root outputFile=myoutput.root
 #
 # Compatible with parallelRun.sh:
 #   ./scripts/parallelRun.sh files.txt -c testLLPNanoSVAnalyzer_cfg.py
