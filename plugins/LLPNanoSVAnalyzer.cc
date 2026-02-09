@@ -95,14 +95,13 @@ private:
   double dsaDeltaR_;
   double dsaRelPtDiff_;
   std::vector<std::string> inputFiles_;
-  bool isDSACollection_;  // true if collection == "PatDSAMuonVertex"
 
   // ---- Input NanoAOD branch buffers (filled by SetBranchAddress) ----
 
   // GenPart
-  UInt_t in_nGenPart_;
+  Int_t in_nGenPart_;
   Int_t in_GenPart_pdgId_[MAX_GENPART];
-  Int_t in_GenPart_genPartIdxMother_[MAX_GENPART];
+  Short_t in_GenPart_genPartIdxMother_[MAX_GENPART];
   Float_t in_GenPart_vx_[MAX_GENPART];
   Float_t in_GenPart_vy_[MAX_GENPART];
   Float_t in_GenPart_vz_[MAX_GENPART];
@@ -113,21 +112,21 @@ private:
   Int_t in_GenPart_status_[MAX_GENPART];
 
   // Muon
-  UInt_t in_nMuon_;
-  Int_t in_Muon_genPartIdx_[MAX_MUON];
+  Int_t in_nMuon_;
+  Short_t in_Muon_genPartIdx_[MAX_MUON];
   Float_t in_Muon_pt_[MAX_MUON];
   Float_t in_Muon_eta_[MAX_MUON];
   Float_t in_Muon_phi_[MAX_MUON];
 
   // DSAMuon
-  UInt_t in_nDSAMuon_;
+  Int_t in_nDSAMuon_;
   Float_t in_DSAMuon_pt_[MAX_DSAMUON];
   Float_t in_DSAMuon_eta_[MAX_DSAMUON];
   Float_t in_DSAMuon_phi_[MAX_DSAMUON];
 
   // Vertex (PatMuonVertex or PatDSAMuonVertex)
-  UInt_t in_nVtx_;
-  Bool_t in_Vtx_isValid_[MAX_VTX];
+  Int_t in_nVtx_;
+  Float_t in_Vtx_isValid_[MAX_VTX];
   Float_t in_Vtx_vx_[MAX_VTX];
   Float_t in_Vtx_vy_[MAX_VTX];
   Float_t in_Vtx_vz_[MAX_VTX];
@@ -135,17 +134,17 @@ private:
   Float_t in_Vtx_chi2_[MAX_VTX];
   Float_t in_Vtx_normChi2_[MAX_VTX];
   Float_t in_Vtx_ndof_[MAX_VTX];
-  Int_t in_Vtx_originalMuonIdx1_[MAX_VTX];
-  Int_t in_Vtx_originalMuonIdx2_[MAX_VTX];
-  Bool_t in_Vtx_isDSAMuon1_[MAX_VTX];  // Only used for PatDSAMuonVertex
-  Bool_t in_Vtx_isDSAMuon2_[MAX_VTX];
+  Float_t in_Vtx_originalMuonIdx1_[MAX_VTX];
+  Float_t in_Vtx_originalMuonIdx2_[MAX_VTX];
+  Float_t in_Vtx_isDSAMuon1_[MAX_VTX];
+  Float_t in_Vtx_isDSAMuon2_[MAX_VTX];
 
   // RefittedTracks
-  UInt_t in_nRefTracks_;
+  Int_t in_nRefTracks_;
   Float_t in_RefTracks_px_[MAX_REFTRACKS];
   Float_t in_RefTracks_py_[MAX_REFTRACKS];
   Float_t in_RefTracks_pz_[MAX_REFTRACKS];
-  Int_t in_RefTracks_idx_[MAX_REFTRACKS];
+  Float_t in_RefTracks_idx_[MAX_REFTRACKS];
 
   // ---- Output TTree and branches ----
   TTree* tree_;
@@ -182,8 +181,7 @@ LLPNanoSVAnalyzer::LLPNanoSVAnalyzer(const edm::ParameterSet& iConfig) :
   motherPdgId_(iConfig.getParameter<int>("motherPdgId")),
   dsaDeltaR_(iConfig.getParameter<double>("dsaDeltaR")),
   dsaRelPtDiff_(iConfig.getParameter<double>("dsaRelPtDiff")),
-  inputFiles_(iConfig.getParameter<std::vector<std::string>>("inputFiles")),
-  isDSACollection_(collection_ == "PatDSAMuonVertex")
+  inputFiles_(iConfig.getParameter<std::vector<std::string>>("inputFiles"))
 {
   usesResource("TFileService");
 }
@@ -314,11 +312,9 @@ void LLPNanoSVAnalyzer::processFile(const std::string& filename) {
   events->SetBranchAddress((vtxPrefix + "originalMuonIdx1").c_str(), in_Vtx_originalMuonIdx1_);
   events->SetBranchAddress((vtxPrefix + "originalMuonIdx2").c_str(), in_Vtx_originalMuonIdx2_);
 
-  // isDSAMuon1/2 only exist for PatDSAMuonVertex
-  if (isDSACollection_) {
-    events->SetBranchAddress((vtxPrefix + "isDSAMuon1").c_str(), in_Vtx_isDSAMuon1_);
-    events->SetBranchAddress((vtxPrefix + "isDSAMuon2").c_str(), in_Vtx_isDSAMuon2_);
-  }
+  // isDSAMuon1/2 exist for both PatMuonVertex and PatDSAMuonVertex
+  events->SetBranchAddress((vtxPrefix + "isDSAMuon1").c_str(), in_Vtx_isDSAMuon1_);
+  events->SetBranchAddress((vtxPrefix + "isDSAMuon2").c_str(), in_Vtx_isDSAMuon2_);
 
   // ---- RefittedTracks ----
   events->SetBranchAddress(nRefBranch.c_str(), &in_nRefTracks_);
@@ -375,8 +371,8 @@ void LLPNanoSVAnalyzer::processEvent() {
   // ---- Process reco vertices ----
   unsigned int nValid = 0;
 
-  for (unsigned int iv = 0; iv < in_nVtx_; ++iv) {
-    if (!in_Vtx_isValid_[iv]) continue;
+  for (int iv = 0; iv < in_nVtx_; ++iv) {
+    if (in_Vtx_isValid_[iv] < 0.5f) continue;
 
     nValid++;
 
@@ -394,8 +390,8 @@ void LLPNanoSVAnalyzer::processEvent() {
     // Compute vertex mass/pt/eta/phi from refitted tracks
     TLorentzVector p4sum;
     bool foundTracks = false;
-    for (unsigned int it = 0; it < in_nRefTracks_; ++it) {
-      if (in_RefTracks_idx_[it] == static_cast<int>(iv)) {
+    for (int it = 0; it < in_nRefTracks_; ++it) {
+      if (static_cast<int>(in_RefTracks_idx_[it]) == iv) {
         double energy = std::sqrt(in_RefTracks_px_[it] * in_RefTracks_px_[it] +
                                   in_RefTracks_py_[it] * in_RefTracks_py_[it] +
                                   in_RefTracks_pz_[it] * in_RefTracks_pz_[it] +
@@ -467,19 +463,19 @@ LLPNanoSVAnalyzer::buildGenVertices() const {
 
   std::map<int, std::vector<int>> motherToMuons;
 
-  for (unsigned int i = 0; i < in_nGenPart_; ++i) {
+  for (int i = 0; i < in_nGenPart_; ++i) {
     if (std::abs(in_GenPart_pdgId_[i]) != 13) continue;
     if (in_GenPart_status_[i] != 1) continue;
 
-    int motherIdx = in_GenPart_genPartIdxMother_[i];
-    if (motherIdx < 0 || motherIdx >= static_cast<int>(in_nGenPart_)) continue;
+    int motherIdx = static_cast<int>(in_GenPart_genPartIdxMother_[i]);
+    if (motherIdx < 0 || motherIdx >= in_nGenPart_) continue;
 
     // Walk up the chain to find the signal mother
     int currentMother = motherIdx;
     bool foundSignalMother = false;
 
     for (int level = 0; level < 10; ++level) {
-      if (currentMother < 0 || currentMother >= static_cast<int>(in_nGenPart_))
+      if (currentMother < 0 || currentMother >= in_nGenPart_)
         break;
 
       if (in_GenPart_pdgId_[currentMother] == motherPdgId_) {
@@ -489,7 +485,7 @@ LLPNanoSVAnalyzer::buildGenVertices() const {
 
       // If mother is same-pdgId muon (status copy), keep going up
       if (std::abs(in_GenPart_pdgId_[currentMother]) == 13) {
-        currentMother = in_GenPart_genPartIdxMother_[currentMother];
+        currentMother = static_cast<int>(in_GenPart_genPartIdxMother_[currentMother]);
         continue;
       }
       break;
@@ -548,11 +544,11 @@ int LLPNanoSVAnalyzer::findGoldMatch(
   // -- Trace leg 1 --
   int genVtxIdx1 = -1;
   {
-    int origIdx = in_Vtx_originalMuonIdx1_[vtxIdx];
-    bool isDSA = isDSACollection_ && in_Vtx_isDSAMuon1_[vtxIdx];
+    int origIdx = static_cast<int>(in_Vtx_originalMuonIdx1_[vtxIdx]);
+    bool isDSA = in_Vtx_isDSAMuon1_[vtxIdx] > 0.5f;
 
     if (isDSA) {
-      if (origIdx >= 0 && origIdx < static_cast<int>(in_nDSAMuon_)) {
+      if (origIdx >= 0 && origIdx < in_nDSAMuon_) {
         int gpIdx = matchDSAToGen(in_DSAMuon_eta_[origIdx],
                                    in_DSAMuon_phi_[origIdx],
                                    in_DSAMuon_pt_[origIdx]);
@@ -560,9 +556,9 @@ int LLPNanoSVAnalyzer::findGoldMatch(
           genVtxIdx1 = findGenVertexForParticle(gpIdx, genVertices);
       }
     } else {
-      if (origIdx >= 0 && origIdx < static_cast<int>(in_nMuon_)) {
-        int gpIdx = in_Muon_genPartIdx_[origIdx];
-        if (gpIdx >= 0 && gpIdx < static_cast<int>(in_nGenPart_) &&
+      if (origIdx >= 0 && origIdx < in_nMuon_) {
+        int gpIdx = static_cast<int>(in_Muon_genPartIdx_[origIdx]);
+        if (gpIdx >= 0 && gpIdx < in_nGenPart_ &&
             std::abs(in_GenPart_pdgId_[gpIdx]) == 13) {
           genVtxIdx1 = findGenVertexForParticle(gpIdx, genVertices);
         }
@@ -573,11 +569,11 @@ int LLPNanoSVAnalyzer::findGoldMatch(
   // -- Trace leg 2 --
   int genVtxIdx2 = -1;
   {
-    int origIdx = in_Vtx_originalMuonIdx2_[vtxIdx];
-    bool isDSA = isDSACollection_ && in_Vtx_isDSAMuon2_[vtxIdx];
+    int origIdx = static_cast<int>(in_Vtx_originalMuonIdx2_[vtxIdx]);
+    bool isDSA = in_Vtx_isDSAMuon2_[vtxIdx] > 0.5f;
 
     if (isDSA) {
-      if (origIdx >= 0 && origIdx < static_cast<int>(in_nDSAMuon_)) {
+      if (origIdx >= 0 && origIdx < in_nDSAMuon_) {
         int gpIdx = matchDSAToGen(in_DSAMuon_eta_[origIdx],
                                    in_DSAMuon_phi_[origIdx],
                                    in_DSAMuon_pt_[origIdx]);
@@ -585,9 +581,9 @@ int LLPNanoSVAnalyzer::findGoldMatch(
           genVtxIdx2 = findGenVertexForParticle(gpIdx, genVertices);
       }
     } else {
-      if (origIdx >= 0 && origIdx < static_cast<int>(in_nMuon_)) {
-        int gpIdx = in_Muon_genPartIdx_[origIdx];
-        if (gpIdx >= 0 && gpIdx < static_cast<int>(in_nGenPart_) &&
+      if (origIdx >= 0 && origIdx < in_nMuon_) {
+        int gpIdx = static_cast<int>(in_Muon_genPartIdx_[origIdx]);
+        if (gpIdx >= 0 && gpIdx < in_nGenPart_ &&
             std::abs(in_GenPart_pdgId_[gpIdx]) == 13) {
           genVtxIdx2 = findGenVertexForParticle(gpIdx, genVertices);
         }
@@ -611,7 +607,7 @@ int LLPNanoSVAnalyzer::matchDSAToGen(float dsaEta, float dsaPhi,
   int bestIdx = -1;
   double bestDR = dsaDeltaR_;
 
-  for (unsigned int i = 0; i < in_nGenPart_; ++i) {
+  for (int i = 0; i < in_nGenPart_; ++i) {
     if (std::abs(in_GenPart_pdgId_[i]) != 13) continue;
 
     double deta = dsaEta - in_GenPart_eta_[i];
