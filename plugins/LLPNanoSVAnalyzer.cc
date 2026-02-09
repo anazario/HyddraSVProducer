@@ -146,6 +146,10 @@ private:
   Float_t in_RefTracks_pz_[MAX_REFTRACKS];
   Float_t in_RefTracks_idx_[MAX_REFTRACKS];
 
+  // ---- DSA matching quality histograms ----
+  TH1F* h_dsaGenDeltaR_;
+  TH1F* h_dsaGenRelPtDiff_;
+
   // ---- Output TTree and branches ----
   TTree* tree_;
 
@@ -192,6 +196,16 @@ LLPNanoSVAnalyzer::LLPNanoSVAnalyzer(const edm::ParameterSet& iConfig) :
 
 void LLPNanoSVAnalyzer::beginJob() {
   edm::Service<TFileService> fs;
+
+  h_dsaGenDeltaR_ = fs->make<TH1F>(
+      "h_dsaGenDeltaR",
+      "DSA leg #DeltaR to closest signal gen #mu;#DeltaR;DSA legs",
+      150, 0, 3.0);
+  h_dsaGenRelPtDiff_ = fs->make<TH1F>(
+      "h_dsaGenRelPtDiff",
+      "DSA leg |#Deltap_{T}|/p_{T}^{gen} to closest signal gen #mu;|#Deltap_{T}|/p_{T}^{gen};DSA legs",
+      100, 0, 5.0);
+
   tree_ = fs->make<TTree>("tree", "LLPNanoSV Tree");
 
   // Reco vertex branches
@@ -424,6 +438,41 @@ void LLPNanoSVAnalyzer::processEvent() {
                                            in_Vtx_vz_[iv], genVertices, minDist);
     nearestGenVertexIndex_.push_back(nearestIdx);
     min3D_.push_back(minDist);
+
+    // Fill DSA matching quality histograms (no cuts applied)
+    auto fillDSAHistos = [&](float origIdxF, float isDSAF) {
+      if (isDSAF < 0.5f) return;
+      int origIdx = static_cast<int>(origIdxF);
+      if (origIdx < 0 || origIdx >= in_nDSAMuon_) return;
+
+      float dsaEta = in_DSAMuon_eta_[origIdx];
+      float dsaPhi = in_DSAMuon_phi_[origIdx];
+      float dsaPt  = in_DSAMuon_pt_[origIdx];
+
+      double bestDR = 999.;
+      double bestRelPtDiff = 999.;
+      for (const auto& gv : genVertices) {
+        for (int muIdx : gv.muonGenPartIndices) {
+          double deta = dsaEta - in_GenPart_eta_[muIdx];
+          double dphi = dsaPhi - in_GenPart_phi_[muIdx];
+          while (dphi > M_PI)  dphi -= 2 * M_PI;
+          while (dphi < -M_PI) dphi += 2 * M_PI;
+          double dr = std::sqrt(deta * deta + dphi * dphi);
+          if (dr < bestDR) {
+            bestDR = dr;
+            bestRelPtDiff = std::abs(dsaPt - in_GenPart_pt_[muIdx]) /
+                            std::max(double(in_GenPart_pt_[muIdx]), 0.001);
+          }
+        }
+      }
+      if (bestDR < 900.) {
+        h_dsaGenDeltaR_->Fill(bestDR);
+        h_dsaGenRelPtDiff_->Fill(bestRelPtDiff);
+      }
+    };
+
+    fillDSAHistos(in_Vtx_originalMuonIdx1_[iv], in_Vtx_isDSAMuon1_[iv]);
+    fillDSAHistos(in_Vtx_originalMuonIdx2_[iv], in_Vtx_isDSAMuon2_[iv]);
   }
 
   nVertices_ = nValid;
