@@ -299,10 +299,13 @@ def process_file(args):
 
         ev = {k: [] for k in vec_float_keys + vec_int_keys + vec_bool_keys + ['nTracks']}
 
-        # PV position (once per event)
-        pvx = float(evt.get('PV_x', [0.])[0])
-        pvy = float(evt.get('PV_y', [0.])[0])
-        pvz = float(evt.get('PV_z', [0.])[0])
+        # PV position (once per event; scalar in NanoAOD)
+        def _pv(key):
+            v = evt.get(key, 0.)
+            return float(v[0]) if hasattr(v, '__len__') else float(v)
+        pvx = _pv('PV_x')
+        pvy = _pv('PV_y')
+        pvz = _pv('PV_z')
 
         n_valid = 0
         for iv in range(n_vtx):
