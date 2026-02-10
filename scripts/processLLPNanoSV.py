@@ -208,7 +208,7 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
 
 def process_file(args):
     """Process one NanoAOD file for one collection. Returns output dict."""
-    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2 = args
+    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2, min_cos_theta, min_p_over_e, min_mass = args
 
     vtx_pre = collection + '_'
     ref_pre = collection + 'RefittedTracks_'
@@ -233,6 +233,7 @@ def process_file(args):
         'GenPart_pt', 'GenPart_eta', 'GenPart_phi', 'GenPart_mass',
         'Muon_genPartIdx', 'Muon_pt', 'Muon_eta', 'Muon_phi', 'Muon_charge',
         'DSAMuon_pt', 'DSAMuon_eta', 'DSAMuon_phi', 'DSAMuon_charge',
+        'PV_x', 'PV_y', 'PV_z',
     ]
     vtx_cols = ['isValid', 'vx', 'vy', 'vz', 'vxy',
                 'chi2', 'normChi2', 'ndof',
@@ -255,7 +256,7 @@ def process_file(args):
     scalar_keys = ['nVertices', 'genVertex_nTotal', 'genVertex_nMuon',
                    'genVertex_nElectron', 'genVertex_nHadronic']
     vec_float_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
-                      'chi2', 'normalizedChi2', 'ndof', 'min3D',
+                      'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'min3D',
                       'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
     vec_int_keys = ['genVertexIndex', 'nearestGenVertexIndex']
     vec_bool_keys = ['isLeptonic', 'isBronze', 'isSilver', 'isGold']
@@ -298,25 +299,19 @@ def process_file(args):
 
         ev = {k: [] for k in vec_float_keys + vec_int_keys + vec_bool_keys + ['nTracks']}
 
+        # PV position (once per event)
+        pvx = float(evt.get('PV_x', [0.])[0])
+        pvy = float(evt.get('PV_y', [0.])[0])
+        pvz = float(evt.get('PV_z', [0.])[0])
+
         n_valid = 0
         for iv in range(n_vtx):
             if float(evt[is_valid_key][iv]) < 0.5:
                 continue
             if float(evt[vtx_pre + 'normChi2'][iv]) > max_chi2:
                 continue
-            n_valid += 1
 
-            ev['isLeptonic'].append(True)
-            ev['nTracks'].append(2)
-            ev['x'].append(float(evt[vtx_pre + 'vx'][iv]))
-            ev['y'].append(float(evt[vtx_pre + 'vy'][iv]))
-            ev['z'].append(float(evt[vtx_pre + 'vz'][iv]))
-            ev['dxy'].append(float(evt[vtx_pre + 'vxy'][iv]))
-            ev['chi2'].append(float(evt[vtx_pre + 'chi2'][iv]))
-            ev['normalizedChi2'].append(float(evt[vtx_pre + 'normChi2'][iv]))
-            ev['ndof'].append(float(evt[vtx_pre + 'ndof'][iv]))
-
-            # Kinematics from refitted tracks
+            # Kinematics from refitted tracks (needed for cuts)
             idx_key = ref_pre + 'idx'
             px_tot = py_tot = pz_tot = e_tot = 0.
             found = False
@@ -332,13 +327,48 @@ def process_file(args):
 
             if found:
                 p_tot = np.sqrt(px_tot**2 + py_tot**2 + pz_tot**2)
-                ev['mass'].append(np.sqrt(max(0., e_tot**2 - p_tot**2)))
-                ev['pt'].append(np.sqrt(px_tot**2 + py_tot**2))
-                ev['eta'].append(np.arctanh(pz_tot / p_tot) if p_tot > 0 else 0.)
-                ev['phi'].append(np.arctan2(py_tot, px_tot))
+                mass = np.sqrt(max(0., e_tot**2 - p_tot**2))
+                pt = np.sqrt(px_tot**2 + py_tot**2)
+                eta = np.arctanh(pz_tot / p_tot) if p_tot > 0 else 0.
+                phi = np.arctan2(py_tot, px_tot)
             else:
-                ev['mass'].append(0.); ev['pt'].append(0.)
-                ev['eta'].append(0.); ev['phi'].append(0.)
+                p_tot = 0.; mass = 0.; pt = 0.; eta = 0.; phi = 0.
+
+            # cosTheta: pointing angle between displacement (PV->SV) and SV momentum
+            dx = float(evt[vtx_pre + 'vx'][iv]) - pvx
+            dy = float(evt[vtx_pre + 'vy'][iv]) - pvy
+            dz = float(evt[vtx_pre + 'vz'][iv]) - pvz
+            disp_mag = np.sqrt(dx**2 + dy**2 + dz**2)
+            if disp_mag > 0 and p_tot > 0:
+                cos_theta = (dx*px_tot + dy*py_tot + dz*pz_tot) / (disp_mag * p_tot)
+            else:
+                cos_theta = -999.
+
+            # HYDDRA custodial cuts: cosTheta, mass, p/E
+            if cos_theta < min_cos_theta:
+                continue
+            if mass < min_mass:
+                continue
+            p_over_e = p_tot / e_tot if e_tot > 1e-6 else 0.
+            if p_over_e < min_p_over_e:
+                continue
+
+            n_valid += 1
+
+            ev['isLeptonic'].append(True)
+            ev['nTracks'].append(2)
+            ev['x'].append(float(evt[vtx_pre + 'vx'][iv]))
+            ev['y'].append(float(evt[vtx_pre + 'vy'][iv]))
+            ev['z'].append(float(evt[vtx_pre + 'vz'][iv]))
+            ev['dxy'].append(float(evt[vtx_pre + 'vxy'][iv]))
+            ev['chi2'].append(float(evt[vtx_pre + 'chi2'][iv]))
+            ev['normalizedChi2'].append(float(evt[vtx_pre + 'normChi2'][iv]))
+            ev['ndof'].append(float(evt[vtx_pre + 'ndof'][iv]))
+            ev['mass'].append(mass)
+            ev['pt'].append(pt)
+            ev['eta'].append(eta)
+            ev['phi'].append(phi)
+            ev['cosTheta'].append(cos_theta)
 
             # Gold matching
             gold_idx = find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut)
@@ -411,11 +441,26 @@ def process_file(args):
         for k in vec_bool_keys:
             out['sv_' + k].append(np.array(ev[k], dtype=np.bool_))
 
-    # Count gold vertices and gen signal vertices across all events
-    n_gold = sum(int(g) for ev_gold in out['sv_isGold'] for g in ev_gold)
-    n_gen = sum(out['genVertex_nMuon'])
+    # Count efficiency: unique gold-matched gen vertices / gen muon vertices
+    # Filter by dxy range [0.1, 100) cm to match efficiency script
+    DXY_MIN, DXY_MAX = 0.1, 100.
+    n_gen_in_range = 0
+    n_gold_gen = 0
+    for ei_out in range(len(out['genVertex_nMuon'])):
+        gen_dxy = out['gv_dxy'][ei_out]
+        gold_matched = set()
+        for ri in range(len(out['sv_isGold'][ei_out])):
+            if out['sv_isGold'][ei_out][ri]:
+                gvi = int(out['sv_genVertexIndex'][ei_out][ri])
+                if gvi >= 0:
+                    gold_matched.add(gvi)
+        for gi in range(len(gen_dxy)):
+            if DXY_MIN <= gen_dxy[gi] < DXY_MAX:
+                n_gen_in_range += 1
+                if gi in gold_matched:
+                    n_gold_gen += 1
 
-    return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold, n_gen
+    return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold_gen, n_gen_in_range
 
 
 # ============================================================================
@@ -435,7 +480,7 @@ def build_tree_chunk(out):
 
     # Jagged reco branches
     sv_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
-               'chi2', 'normalizedChi2', 'ndof', 'min3D',
+               'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'min3D',
                'genVertexIndex', 'nearestGenVertexIndex',
                'isLeptonic', 'isBronze', 'isSilver', 'isGold',
                'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
@@ -478,6 +523,12 @@ def main():
                         help='Gen-match relative pT diff cut for gold matching (default: 0.5)')
     parser.add_argument('--max-chi2', type=float, default=5.0,
                         help='Max normalized chi2 for vertex fit (default: 5.0)')
+    parser.add_argument('--min-cos-theta', type=float, default=0.75,
+                        help='Min cosTheta pointing angle (default: 0.75)')
+    parser.add_argument('--min-p-over-e', type=float, default=0.6,
+                        help='Min p/E ratio (default: 0.6)')
+    parser.add_argument('--min-mass', type=float, default=2.0,
+                        help='Min vertex mass in GeV (default: 2.0)')
     args = parser.parse_args()
 
     # Build input file list
@@ -510,7 +561,8 @@ def main():
         t0 = time.time()
 
         worker_args = [(fn, collection, args.mother_pdg_id,
-                        args.delta_r, args.rel_pt_diff, args.max_chi2)
+                        args.delta_r, args.rel_pt_diff, args.max_chi2,
+                        args.min_cos_theta, args.min_p_over_e, args.min_mass)
                        for fn in input_files]
 
         dsa_dr = []
