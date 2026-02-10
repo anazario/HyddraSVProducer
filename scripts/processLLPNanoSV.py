@@ -208,7 +208,7 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
 
 def process_file(args):
     """Process one NanoAOD file for one collection. Returns output dict."""
-    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2, min_cos_theta, min_p_over_e, min_mass = args
+    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2, min_cos_theta, min_p_over_e, min_mass, max_decay_angle = args
 
     vtx_pre = collection + '_'
     ref_pre = collection + 'RefittedTracks_'
@@ -256,8 +256,8 @@ def process_file(args):
     scalar_keys = ['nVertices', 'genVertex_nTotal', 'genVertex_nMuon',
                    'genVertex_nElectron', 'genVertex_nHadronic']
     vec_float_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
-                      'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'min3D',
-                      'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
+                      'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'decayAngle',
+                      'min3D', 'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
     vec_int_keys = ['genVertexIndex', 'nearestGenVertexIndex']
     vec_bool_keys = ['isLeptonic', 'isBronze', 'isSilver', 'isGold']
     gen_float_keys = ['dxy', 'x', 'y', 'z', 'pt', 'eta', 'phi', 'mass']
@@ -317,6 +317,7 @@ def process_file(args):
             # Kinematics from refitted tracks (needed for cuts)
             idx_key = ref_pre + 'idx'
             px_tot = py_tot = pz_tot = e_tot = 0.
+            track_4vecs = []  # (px, py, pz, e) per track
             found = False
             if idx_key in evt:
                 for it in range(len(evt[idx_key])):
@@ -324,8 +325,10 @@ def process_file(args):
                         px = float(evt[ref_pre + 'px'][it])
                         py = float(evt[ref_pre + 'py'][it])
                         pz = float(evt[ref_pre + 'pz'][it])
-                        e_tot += np.sqrt(px**2 + py**2 + pz**2 + MUON_MASS**2)
+                        e = np.sqrt(px**2 + py**2 + pz**2 + MUON_MASS**2)
+                        e_tot += e
                         px_tot += px; py_tot += py; pz_tot += pz
+                        track_4vecs.append((px, py, pz, e))
                         found = True
 
             if found:
@@ -337,6 +340,27 @@ def process_file(args):
             else:
                 p_tot = 0.; mass = 0.; pt = 0.; eta = 0.; phi = 0.
 
+            # Decay angle: boost first track into SV rest frame,
+            # dot its direction with the boost direction
+            decay_angle = -999.
+            if len(track_4vecs) >= 2 and e_tot > 1e-6:
+                bx = px_tot / e_tot
+                by = py_tot / e_tot
+                bz = pz_tot / e_tot
+                b2 = bx**2 + by**2 + bz**2
+                gamma = 1. / np.sqrt(max(1e-12, 1. - b2))
+                # Boost first track
+                t1_px, t1_py, t1_pz, t1_e = track_4vecs[0]
+                bdotp = bx*t1_px + by*t1_py + bz*t1_pz
+                fac = (gamma - 1.) * bdotp / b2 - gamma * t1_e if b2 > 1e-12 else -gamma * t1_e
+                bp_x = t1_px + fac * bx
+                bp_y = t1_py + fac * by
+                bp_z = t1_pz + fac * bz
+                bp_mag = np.sqrt(bp_x**2 + bp_y**2 + bp_z**2)
+                b_mag = np.sqrt(b2)
+                if bp_mag > 0 and b_mag > 0:
+                    decay_angle = (bp_x*bx + bp_y*by + bp_z*bz) / (bp_mag * b_mag)
+
             # cosTheta: pointing angle between displacement (PV->SV) and SV momentum
             dx = float(evt[vtx_pre + 'vx'][iv]) - pvx
             dy = float(evt[vtx_pre + 'vy'][iv]) - pvy
@@ -347,13 +371,15 @@ def process_file(args):
             else:
                 cos_theta = -999.
 
-            # HYDDRA custodial cuts: cosTheta, mass, p/E
+            # HYDDRA custodial cuts: cosTheta, mass, p/E, decayAngle
             if cos_theta < min_cos_theta:
                 continue
             if mass < min_mass:
                 continue
             p_over_e = p_tot / e_tot if e_tot > 1e-6 else 0.
             if p_over_e < min_p_over_e:
+                continue
+            if decay_angle > -900. and abs(decay_angle) > max_decay_angle:
                 continue
 
             n_valid += 1
@@ -372,6 +398,7 @@ def process_file(args):
             ev['eta'].append(eta)
             ev['phi'].append(phi)
             ev['cosTheta'].append(cos_theta)
+            ev['decayAngle'].append(decay_angle)
 
             # Gold matching
             gold_idx = find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut)
@@ -483,8 +510,8 @@ def build_tree_chunk(out):
 
     # Jagged reco branches
     sv_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
-               'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'min3D',
-               'genVertexIndex', 'nearestGenVertexIndex',
+               'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'decayAngle',
+               'min3D', 'genVertexIndex', 'nearestGenVertexIndex',
                'isLeptonic', 'isBronze', 'isSilver', 'isGold',
                'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
     for k in sv_keys:
@@ -532,6 +559,8 @@ def main():
                         help='Min p/E ratio (default: 0.6)')
     parser.add_argument('--min-mass', type=float, default=2.0,
                         help='Min vertex mass in GeV (default: 2.0)')
+    parser.add_argument('--max-decay-angle', type=float, default=0.9,
+                        help='Max |decayAngle| (default: 0.9)')
     args = parser.parse_args()
 
     # Build input file list
@@ -565,7 +594,8 @@ def main():
 
         worker_args = [(fn, collection, args.mother_pdg_id,
                         args.delta_r, args.rel_pt_diff, args.max_chi2,
-                        args.min_cos_theta, args.min_p_over_e, args.min_mass)
+                        args.min_cos_theta, args.min_p_over_e, args.min_mass,
+                        args.max_decay_angle)
                        for fn in input_files]
 
         dsa_dr = []
