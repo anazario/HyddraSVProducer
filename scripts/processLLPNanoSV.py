@@ -340,26 +340,57 @@ def process_file(args):
             else:
                 p_tot = 0.; mass = 0.; pt = 0.; eta = 0.; phi = 0.
 
-            # Decay angle: boost first track into SV rest frame,
-            # dot its direction with the boost direction
+            # Decay angle: boost leg1 into the vertex rest frame,
+            # dot its direction with the boost direction.
+            # Use muon legs from Muon/DSAMuon tables (more reliable than refitted tracks idx).
             decay_angle = -999.
-            if len(track_4vecs) >= 2 and e_tot > 1e-6:
-                bx = px_tot / e_tot
-                by = py_tot / e_tot
-                bz = pz_tot / e_tot
-                b2 = bx**2 + by**2 + bz**2
-                gamma = 1. / np.sqrt(max(1e-12, 1. - b2))
-                # Boost first track
-                t1_px, t1_py, t1_pz, t1_e = track_4vecs[0]
-                bdotp = bx*t1_px + by*t1_py + bz*t1_pz
-                fac = (gamma - 1.) * bdotp / b2 - gamma * t1_e if b2 > 1e-12 else -gamma * t1_e
-                bp_x = t1_px + fac * bx
-                bp_y = t1_py + fac * by
-                bp_z = t1_pz + fac * bz
-                bp_mag = np.sqrt(bp_x**2 + bp_y**2 + bp_z**2)
-                b_mag = np.sqrt(b2)
-                if bp_mag > 0 and b_mag > 0:
-                    decay_angle = (bp_x*bx + bp_y*by + bp_z*bz) / (bp_mag * b_mag)
+            leg_4vecs = []
+            for oidx_key, dsa_key in [('originalMuonIdx1', 'isDSAMuon1'),
+                                       ('originalMuonIdx2', 'isDSAMuon2')]:
+                is_dsa = float(evt[vtx_pre + dsa_key][iv]) > 0.5
+                orig_idx = int(evt[vtx_pre + oidx_key][iv])
+                if is_dsa:
+                    if 0 <= orig_idx < len(evt.get('DSAMuon_pt', [])):
+                        lpt = float(evt['DSAMuon_pt'][orig_idx])
+                        leta = float(evt['DSAMuon_eta'][orig_idx])
+                        lphi = float(evt['DSAMuon_phi'][orig_idx])
+                    else:
+                        continue
+                else:
+                    if 0 <= orig_idx < len(evt.get('Muon_pt', [])):
+                        lpt = float(evt['Muon_pt'][orig_idx])
+                        leta = float(evt['Muon_eta'][orig_idx])
+                        lphi = float(evt['Muon_phi'][orig_idx])
+                    else:
+                        continue
+                lpx = lpt * np.cos(lphi)
+                lpy = lpt * np.sin(lphi)
+                lpz = lpt * np.sinh(leta)
+                le = np.sqrt(lpx**2 + lpy**2 + lpz**2 + MUON_MASS**2)
+                leg_4vecs.append((lpx, lpy, lpz, le))
+
+            if len(leg_4vecs) == 2:
+                sum_px = leg_4vecs[0][0] + leg_4vecs[1][0]
+                sum_py = leg_4vecs[0][1] + leg_4vecs[1][1]
+                sum_pz = leg_4vecs[0][2] + leg_4vecs[1][2]
+                sum_e = leg_4vecs[0][3] + leg_4vecs[1][3]
+                if sum_e > 1e-6:
+                    bx = sum_px / sum_e
+                    by = sum_py / sum_e
+                    bz = sum_pz / sum_e
+                    b2 = bx**2 + by**2 + bz**2
+                    if b2 < 1. and b2 > 1e-12:
+                        gamma = 1. / np.sqrt(1. - b2)
+                        t1_px, t1_py, t1_pz, t1_e = leg_4vecs[0]
+                        bdotp = bx*t1_px + by*t1_py + bz*t1_pz
+                        fac = (gamma - 1.) * bdotp / b2 - gamma * t1_e
+                        bp_x = t1_px + fac * bx
+                        bp_y = t1_py + fac * by
+                        bp_z = t1_pz + fac * bz
+                        bp_mag = np.sqrt(bp_x**2 + bp_y**2 + bp_z**2)
+                        b_mag = np.sqrt(b2)
+                        if bp_mag > 0 and b_mag > 0:
+                            decay_angle = (bp_x*bx + bp_y*by + bp_z*bz) / (bp_mag * b_mag)
 
             # cosTheta: pointing angle between displacement (PV->SV) and SV momentum
             dx = float(evt[vtx_pre + 'vx'][iv]) - pvx
