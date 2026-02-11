@@ -31,6 +31,11 @@ TRACK_COLLECTION_CONFIG = {
     'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
     'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
+    # FastSim track collections (use FastSimMuonEnhancedTracksProducer)
+    'fastSimSip2DMuonEnhanced': cms.InputTag("fastSimMuonEnhancedTracks", "sip2DMuonEnhancedTracks"),
+    'fastSimMuonEnhanced': cms.InputTag("fastSimMuonEnhancedTracks", "muonEnhancedTracks"),
+    'fastSimSip2D': cms.InputTag("fastSimMuonEnhancedTracks", "sip2DTracks"),
+    'fastSimSelected': cms.InputTag("fastSimMuonEnhancedTracks", "selectedTracks"),
 }
 
 def configureTrackCollection(process, trackCollection):

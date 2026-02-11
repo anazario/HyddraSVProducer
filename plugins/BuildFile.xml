@@ -11,6 +11,7 @@
 <use name="DataFormats/NanoAOD"/>
 <use name="DataFormats/PatCandidates"/>
 <use name="TrackingTools/TransientTrack"/>
+<use name="TrackingTools/IPTools"/>
 <use name="TrackingTools/Records"/>
 <use name="TrackingTools/TrackAssociator"/>
 <use name="MagneticField/Engine"/>

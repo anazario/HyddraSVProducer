@@ -12,14 +12,15 @@ import os
 # -----------------------------------------------
 # displacedGlobalMuons         -> globalMuons
 # displacedStandAloneMuons     -> standAloneMuons
+# displacedTracks              -> (not available)
+# displacedMuons               -> (not available)
 # particleFlowEGamma (SCs)     -> particleFlowSuperClusterECAL:particleFlowSuperClusterECALBarrel
 #                                  (barrel-only; endcap lost unless particleFlowEGamma exists)
 # particleFlowSuperClusterOOT  -> same InputTag (exists in FastSim)
 #
-# Collections NOT available in FastSim (cannot use these track collections):
-#   displacedTracks, displacedMuons, muonEnhancedTracks
-#
-# Supported trackCollection options: general, generalFiltered
+# Supported trackCollection options:
+#   general, generalFiltered,
+#   fastSimSip2DMuonEnhanced (default), fastSimMuonEnhanced, fastSimSip2D, fastSimSelected
 # ============================================================================
 
 # Setup command line options
@@ -35,10 +36,11 @@ options.register('processMode',
                  VarParsing.VarParsing.varType.string,
                  "Processing mode: both (default), leptonic, or hadronic")
 options.register('trackCollection',
-                 'generalFiltered',
+                 'fastSimSip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: general, generalFiltered (default)")
+                 "Track collection: general, generalFiltered, "
+                 "fastSimSip2DMuonEnhanced (default), fastSimMuonEnhanced, fastSimSip2D, fastSimSelected")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -49,12 +51,15 @@ options.setDefault('outputFile', 'hyddraSV_fastSim_ntuple.root')
 options.parseArguments()
 
 # Validate track collection choice for FastSim
-FASTSIM_ALLOWED_COLLECTIONS = ['general', 'generalFiltered']
+FASTSIM_ALLOWED_COLLECTIONS = [
+    'general', 'generalFiltered',
+    'fastSimSip2DMuonEnhanced', 'fastSimMuonEnhanced', 'fastSimSip2D', 'fastSimSelected',
+]
 if options.trackCollection not in FASTSIM_ALLOWED_COLLECTIONS:
     raise ValueError(
         f"Track collection '{options.trackCollection}' is not available in FastSim AOD. "
         f"Allowed: {FASTSIM_ALLOWED_COLLECTIONS}. "
-        f"Collections requiring displaced reconstruction (sip2DMuonEnhanced, muonEnhanced, "
+        f"Collections requiring full sim displaced reconstruction (sip2DMuonEnhanced, muonEnhanced, "
         f"displacedGlobalMuon, etc.) are not available in FastSim."
     )
 
@@ -115,6 +120,13 @@ process.TFileService = cms.Service("TFileService",
 )
 
 # ============================================================================
+# FastSim MuonEnhancedTracks Producer
+# ============================================================================
+# Same as MuonEnhancedTracksProducer but without displacedTracks/displacedMuons.
+# Uses globalMuons and standAloneMuons as proxies.
+process.load("KUCMSNtupleizer.HyddraSVProducer.fastSimMuonEnhancedTracksProducer_cfi")
+
+# ============================================================================
 # FilteredTrackProducer (applies quality cuts to general tracks)
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.filteredTrackProducer_cfi")
@@ -169,7 +181,19 @@ elif options.processMode == 'hadronic':
 # ============================================================================
 # Path
 # ============================================================================
-if options.trackCollection == 'generalFiltered':
+# FastSim track collections that need the FastSimMuonEnhancedTracksProducer
+FASTSIM_MUON_ENHANCED_COLLECTIONS = [
+    'fastSimSip2DMuonEnhanced', 'fastSimMuonEnhanced', 'fastSimSip2D', 'fastSimSelected',
+]
+
+if options.trackCollection in FASTSIM_MUON_ENHANCED_COLLECTIONS:
+    process.p = cms.Path(
+        process.fastSimMuonEnhancedTracks +  # Produces muon-enhanced tracks from FastSim collections
+        process.ecalTracks +                  # Produces displacedElectronSCs for SC matching
+        process.hyddraSVs +                   # Produces leptonic/hadronic vertices
+        process.hyddraSVAnalyzer              # Writes TTree output
+    )
+elif options.trackCollection == 'generalFiltered':
     process.p = cms.Path(
         process.filteredTrackProducer +
         process.ecalTracks +
@@ -188,8 +212,14 @@ process.schedule = cms.Schedule(process.p)
 # ============================================================================
 # Usage examples:
 # ============================================================================
-# Default (generalFiltered tracks):
+# Default (fastSimSip2DMuonEnhanced tracks — muon-enhanced with sip2D selection):
 #   cmsRun testHyddraSVAnalyzer_fastSim_cfg.py inputFiles=file:fastsim_aod.root
+#
+# FastSim muon-enhanced tracks (before sip2D cut):
+#   cmsRun testHyddraSVAnalyzer_fastSim_cfg.py inputFiles=file:fastsim_aod.root trackCollection=fastSimMuonEnhanced
+#
+# General tracks with filtering:
+#   cmsRun testHyddraSVAnalyzer_fastSim_cfg.py inputFiles=file:fastsim_aod.root trackCollection=generalFiltered
 #
 # General tracks (no filtering):
 #   cmsRun testHyddraSVAnalyzer_fastSim_cfg.py inputFiles=file:fastsim_aod.root trackCollection=general
