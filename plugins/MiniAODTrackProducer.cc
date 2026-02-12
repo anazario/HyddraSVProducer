@@ -169,8 +169,6 @@ void MiniAODTrackProducer::extractMuonTracks(
 }
 
 void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-  std::cerr << "[DEBUG] MiniAODTrackProducer::produce() START" << std::endl;
-
   // Get input collections
   edm::Handle<pat::PackedCandidateCollection> pfCandidatesHandle;
   iEvent.getByToken(pfCandidatesToken_, pfCandidatesHandle);

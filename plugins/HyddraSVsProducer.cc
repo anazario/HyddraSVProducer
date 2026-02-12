@@ -69,8 +69,6 @@ HyddraSVsProducer::HyddraSVsProducer(const edm::ParameterSet& iConfig) :
 }
 
 void HyddraSVsProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-  std::cerr << "[DEBUG] HyddraSVsProducer::produce() START" << std::endl;
-
   // Get inputs
   edm::Handle<reco::TrackCollection> tracksHandle;
   iEvent.getByToken(tracksToken_, tracksHandle);
@@ -87,17 +85,18 @@ void HyddraSVsProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     trackRefs.emplace_back(tracksHandle, i);
   }
 
-  std::cerr << "[DEBUG] HyddraSVsProducer: " << trackRefs.size() << " input tracks" << std::endl;
+  if(trackRefs.size() > 500) {
+    edm::LogWarning("HyddraSVsProducer") << "Large input track collection (" << trackRefs.size()
+      << " tracks). Vertex reconstruction may be very slow. "
+      << "Consider enabling track cuts (applyCuts=True).";
+  }
 
   // Use leading PV
   const reco::Vertex& pv = pvHandle->at(0);
 
   // Run both reconstruction paths
-  std::cerr << "[DEBUG] HyddraSVsProducer: running leptonic reconstruction..." << std::endl;
   leptonic_.run_reconstruction(trackRefs, ttBuilder, pv);
-  std::cerr << "[DEBUG] HyddraSVsProducer: leptonic done. Running hadronic..." << std::endl;
   hadronic_.run_reconstruction(trackRefs, ttBuilder, pv);
-  std::cerr << "[DEBUG] HyddraSVsProducer: hadronic done." << std::endl;
 
   // Convert to reco::VertexCollection and put into event
   auto leptonicVertices = std::make_unique<reco::VertexCollection>(leptonic_.vertices());
