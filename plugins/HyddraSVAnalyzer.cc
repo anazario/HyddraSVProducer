@@ -33,6 +33,7 @@
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 #include "DataFormats/EgammaReco/interface/SuperCluster.h"
 #include "DataFormats/EgammaReco/interface/SuperClusterFwd.h"
 
@@ -82,6 +83,9 @@ private:
   int FindNearestGenVertexIndex(const reco::Vertex& vertex, double& distance) const;
   double matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex, bool requireHighPurity = false) const;
   bool getSCMatch(const reco::Track& track, reco::SuperCluster& sc, double& deltaR) const;
+  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
+      const GenVertex& genVertex,
+      const std::vector<pat::PackedGenParticle>& packedGenParticles) const;
 
   // Configuration
   bool hasGenInfo_;
@@ -95,6 +99,7 @@ private:
   edm::EDGetTokenT<reco::TrackCollection> muonTracksToken_;
   edm::EDGetTokenT<reco::SuperClusterCollection> mergedSCsToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
+  edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> packedGenToken_;
   edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> transientTrackBuilder_;
   edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> magneticFieldToken_;
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeometryToken_;
@@ -107,6 +112,7 @@ private:
   edm::Handle<reco::TrackCollection> muonTracksHandle_;
   edm::Handle<reco::SuperClusterCollection> mergedSCsHandle_;
   edm::Handle<reco::GenParticleCollection> genHandle_;
+  edm::Handle<std::vector<pat::PackedGenParticle>> packedGenHandle_;
 
   // Track association
   TrackDetectorAssociator trackAssociator_;
@@ -236,6 +242,9 @@ HyddraSVAnalyzer::HyddraSVAnalyzer(const edm::ParameterSet& iConfig) :
 
   if(hasGenInfo_) {
     genToken_ = consumes<reco::GenParticleCollection>(iConfig.getParameter<edm::InputTag>("genParticles"));
+    if(!isFullAOD_) {
+      packedGenToken_ = consumes<std::vector<pat::PackedGenParticle>>(iConfig.getParameter<edm::InputTag>("packedGenParticles"));
+    }
   }
 
   // Initialize track associator parameters from config
@@ -319,7 +328,7 @@ void HyddraSVAnalyzer::beginJob() {
 
     tree_->Branch("HyddraGenVertex_nTotal", &genVertex_nTotal_);
     tree_->Branch("HyddraGenVertex_nTracks", &genVertex_nTracks_);
-    if(isFullAOD_) tree_->Branch("HyddraGenVertex_nChargedDaughters", &genVertex_nChargedDaughters_);
+    tree_->Branch("HyddraGenVertex_nChargedDaughters", &genVertex_nChargedDaughters_);
     tree_->Branch("HyddraGenVertex_nElectron", &genVertex_nElectron_);
     tree_->Branch("HyddraGenVertex_nMuon", &genVertex_nMuon_);
     tree_->Branch("HyddraGenVertex_nHadronic", &genVertex_nHadronic_);
@@ -487,6 +496,8 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
 
   if(hasGenInfo_) {
     iEvent.getByToken(genToken_, genHandle_);
+    if(!isFullAOD_)
+      iEvent.getByToken(packedGenToken_, packedGenHandle_);
 
     // Build transient tracks from the muon-enhanced track collection
     std::vector<reco::TransientTrack> ttracks;
@@ -524,7 +535,10 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
 
     // Build charged particle matches for matchRatio computation
     for(const auto &genVertex : genVertices_) {
-      DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*muonEnhancedTracksHandle_, genVertex.getStableChargedDaughters(*genHandle_));
+      reco::GenParticleCollection stableChargedDaughters = isFullAOD_ ?
+          genVertex.getStableChargedDaughters(*genHandle_) :
+          getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+      DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*muonEnhancedTracksHandle_, stableChargedDaughters);
       chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
 
       if(!genVertex.hasTracks()) continue;
@@ -594,7 +608,12 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       }
 
       genVertex_nTracks_.push_back(unsigned(genVertex.tracks().size()));
-      if(isFullAOD_) genVertex_nChargedDaughters_.push_back(unsigned(genVertex.getStableChargedDaughters(*genHandle_).size()));
+      {
+        reco::GenParticleCollection chargedDaughters = isFullAOD_ ?
+            genVertex.getStableChargedDaughters(*genHandle_) :
+            getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+        genVertex_nChargedDaughters_.push_back(unsigned(chargedDaughters.size()));
+      }
       genVertex_mass_.push_back(float(genVertex.mass()));
       genVertex_x_.push_back(float(genVertex.x()));
       genVertex_y_.push_back(float(genVertex.y()));
@@ -817,6 +836,41 @@ bool HyddraSVAnalyzer::getSCMatch(const reco::Track& track, reco::SuperCluster& 
   return isMatched;
 }
 
+reco::GenParticleCollection HyddraSVAnalyzer::getStableChargedDaughtersFromPacked(
+    const GenVertex& genVertex,
+    const std::vector<pat::PackedGenParticle>& packedGenParticles) const {
+
+  const reco::Candidate* genZ = genVertex.genPair().first.mother();
+  reco::GenParticleCollection result;
+
+  if(!genZ) return result;
+
+  for(const auto& packed : packedGenParticles) {
+    if(packed.status() != 1 || packed.charge() == 0) continue;
+
+    const reco::Candidate* mom = packed.mother(0);
+    if(!mom) continue;
+
+    bool isFromSameZ = false;
+    const reco::Candidate* prev = nullptr;
+    while(mom && mom != prev) {
+      if(mom->pdgId() == 23) {
+        if(mom == genZ) isFromSameZ = true;
+        break;
+      }
+      prev = mom;
+      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
+    }
+
+    if(isFromSameZ) {
+      result.emplace_back(reco::GenParticle(
+          packed.charge(), packed.p4(), packed.vertex(),
+          packed.pdgId(), packed.status(), true));
+    }
+  }
+  return result;
+}
+
 void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
@@ -829,6 +883,7 @@ void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descript
   desc.add<edm::InputTag>("muonTracks", edm::InputTag("displacedGlobalMuons"));
   desc.add<edm::InputTag>("mergedSCs", edm::InputTag("ecalTracks", "displacedElectronSCs"));
   desc.add<edm::InputTag>("genParticles", edm::InputTag("genParticles"));
+  desc.add<edm::InputTag>("packedGenParticles", edm::InputTag(""));
 
   // Track associator parameters
   edm::ParameterSetDescription trackAssocDesc;
