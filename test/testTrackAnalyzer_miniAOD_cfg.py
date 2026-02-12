@@ -133,6 +133,9 @@ process.trackAnalyzer.genMatchDeltaRCut = cms.double(options.genMatchDeltaRCut)
 process.trackAnalyzer.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 # Use pruned genParticles for MiniAOD
 process.trackAnalyzer.genParticles = cms.InputTag("prunedGenParticles")
+# Use packed gen particles for complete charged hadron matching in MiniAOD
+process.trackAnalyzer.isFullAOD = cms.bool(False)
+process.trackAnalyzer.packedGenParticles = cms.InputTag("packedGenParticles")
 
 # Set track collection based on option
 from KUCMSNtupleizer.HyddraSVProducer.miniAODTrackCollections_cfi import MINIAOD_TRACK_COLLECTION_CONFIG

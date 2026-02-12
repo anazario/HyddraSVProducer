@@ -31,6 +31,7 @@
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
@@ -61,22 +62,28 @@ private:
   void endJob() override {}
 
   void clearBranches();
+  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
+      const GenVertex& genVertex,
+      const std::vector<pat::PackedGenParticle>& packedGenParticles) const;
 
   // Configuration
   bool hasGenInfo_;
   bool doChargedHadronMatching_;
   double genMatchDeltaRCut_;
+  bool isFullAOD_;
 
   // Tokens
   edm::EDGetTokenT<reco::TrackCollection> tracksToken_;
   edm::EDGetTokenT<reco::VertexCollection> pvToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
+  edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> packedGenToken_;
   edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> transientTrackBuilder_;
 
   // Handles
   edm::Handle<reco::TrackCollection> tracksHandle_;
   edm::Handle<reco::VertexCollection> pvHandle_;
   edm::Handle<reco::GenParticleCollection> genHandle_;
+  edm::Handle<std::vector<pat::PackedGenParticle>> packedGenHandle_;
 
   // TTree
   TTree* tree_;
@@ -194,6 +201,7 @@ TrackAnalyzer::TrackAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
   doChargedHadronMatching_(iConfig.getParameter<bool>("doChargedHadronMatching")),
   genMatchDeltaRCut_(iConfig.getParameter<double>("genMatchDeltaRCut")),
+  isFullAOD_(iConfig.getParameter<bool>("isFullAOD")),
   tracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("tracks"))),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
   transientTrackBuilder_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder")))
@@ -202,6 +210,9 @@ TrackAnalyzer::TrackAnalyzer(const edm::ParameterSet& iConfig) :
 
   if(hasGenInfo_) {
     genToken_ = consumes<reco::GenParticleCollection>(iConfig.getParameter<edm::InputTag>("genParticles"));
+    if(!isFullAOD_) {
+      packedGenToken_ = consumes<std::vector<pat::PackedGenParticle>>(iConfig.getParameter<edm::InputTag>("packedGenParticles"));
+    }
   }
 }
 
@@ -455,6 +466,8 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
   if(hasGenInfo_) {
     iEvent.getByToken(genToken_, genHandle_);
+    if(!isFullAOD_)
+      iEvent.getByToken(packedGenToken_, packedGenHandle_);
 
     // Build transient tracks for gen-matching
     std::vector<reco::TransientTrack> ttracks;
@@ -474,7 +487,10 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
       // Per-vertex charged hadron matching and signal track collection
       for(const auto& genVertex : genVertices_) {
-        DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*tracksHandle_, genVertex.getStableChargedDaughters(*genHandle_));
+        reco::GenParticleCollection stableChargedDaughters = isFullAOD_ ?
+            genVertex.getStableChargedDaughters(*genHandle_) :
+            getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+        DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*tracksHandle_, stableChargedDaughters);
         chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
 
         if(!genVertex.hasTracks()) continue;
@@ -718,15 +734,52 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
   tree_->Fill();
 }
 
+reco::GenParticleCollection TrackAnalyzer::getStableChargedDaughtersFromPacked(
+    const GenVertex& genVertex,
+    const std::vector<pat::PackedGenParticle>& packedGenParticles) const {
+
+  const reco::Candidate* genZ = genVertex.genPair().first.mother();
+  reco::GenParticleCollection result;
+
+  if(!genZ) return result;
+
+  for(const auto& packed : packedGenParticles) {
+    if(packed.status() != 1 || packed.charge() == 0) continue;
+
+    const reco::Candidate* mom = packed.mother(0);
+    if(!mom) continue;
+
+    bool isFromSameZ = false;
+    const reco::Candidate* prev = nullptr;
+    while(mom && mom != prev) {
+      if(mom->pdgId() == 23) {
+        if(mom == genZ) isFromSameZ = true;
+        break;
+      }
+      prev = mom;
+      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
+    }
+
+    if(isFromSameZ) {
+      result.emplace_back(reco::GenParticle(
+          packed.charge(), packed.p4(), packed.vertex(),
+          packed.pdgId(), packed.status(), true));
+    }
+  }
+  return result;
+}
+
 void TrackAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
   desc.add<bool>("hasGenInfo", true);
   desc.add<bool>("doChargedHadronMatching", false);
   desc.add<double>("genMatchDeltaRCut", 0.02);
+  desc.add<bool>("isFullAOD", true);
   desc.add<edm::InputTag>("tracks", edm::InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));
   desc.add<edm::InputTag>("genParticles", edm::InputTag("genParticles"));
+  desc.add<edm::InputTag>("packedGenParticles", edm::InputTag(""));
 
   descriptions.addDefault(desc);
 }

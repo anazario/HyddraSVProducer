@@ -22,9 +22,11 @@ trackAnalyzer = cms.EDAnalyzer("TrackAnalyzer",
     hasGenInfo = cms.bool(True),
     doChargedHadronMatching = cms.bool(False),
     genMatchDeltaRCut = cms.double(0.02),
+    isFullAOD = cms.bool(True),
     tracks = TRACK_COLLECTION_CONFIG['sip2DMuonEnhanced'],
     pvCollection = cms.InputTag("offlinePrimaryVertices"),
     genParticles = cms.InputTag("genParticles"),
+    packedGenParticles = cms.InputTag(""),
 )
 
 # =============================================================================

@@ -76,6 +76,7 @@ hyddraSVAnalyzer = cms.EDAnalyzer("HyddraSVAnalyzer",
     muonTracks = cms.InputTag("displacedGlobalMuons"),
     mergedSCs = cms.InputTag("ecalTracks", "displacedElectronSCs"),
     genParticles = cms.InputTag("genParticles"),
+    packedGenParticles = cms.InputTag(""),
     TrackAssociatorParameters = tkAssocParamBlock.TrackAssociatorParameters.clone(),
 )
 
