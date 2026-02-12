@@ -143,6 +143,7 @@ process.hyddraSVs.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi")
 process.hyddraSVAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
+process.hyddraSVAnalyzer.isFullAOD = cms.bool(False)
 # Override PV collection for MiniAOD
 process.hyddraSVAnalyzer.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 # Use pruned genParticles for MiniAOD

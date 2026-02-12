@@ -85,6 +85,7 @@ private:
 
   // Configuration
   bool hasGenInfo_;
+  bool isFullAOD_;
 
   // Tokens
   edm::EDGetTokenT<reco::VertexCollection> leptonicVerticesToken_;
@@ -220,6 +221,7 @@ private:
 
 HyddraSVAnalyzer::HyddraSVAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
+  isFullAOD_(iConfig.getParameter<bool>("isFullAOD")),
   leptonicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("leptonicVertices"))),
   hadronicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("hadronicVertices"))),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
@@ -296,7 +298,7 @@ void HyddraSVAnalyzer::beginJob() {
     tree_->Branch("HyddraSV_nearestGenVertexIndex", &nearestGenVertexIndex_);
     tree_->Branch("HyddraSV_min3D", &min3D_);
     tree_->Branch("HyddraSV_matchRatio", &vtxMatchRatio_);
-    tree_->Branch("HyddraSV_highPurityMatchRatio", &vtxHighPurityMatchRatio_);
+    if(isFullAOD_) tree_->Branch("HyddraSV_highPurityMatchRatio", &vtxHighPurityMatchRatio_);
     tree_->Branch("HyddraSV_isBronze", &isBronze_);
     tree_->Branch("HyddraSV_isSilver", &isSilver_);
     tree_->Branch("HyddraSV_isGold", &isGold_);
@@ -317,7 +319,7 @@ void HyddraSVAnalyzer::beginJob() {
 
     tree_->Branch("HyddraGenVertex_nTotal", &genVertex_nTotal_);
     tree_->Branch("HyddraGenVertex_nTracks", &genVertex_nTracks_);
-    tree_->Branch("HyddraGenVertex_nChargedDaughters", &genVertex_nChargedDaughters_);
+    if(isFullAOD_) tree_->Branch("HyddraGenVertex_nChargedDaughters", &genVertex_nChargedDaughters_);
     tree_->Branch("HyddraGenVertex_nElectron", &genVertex_nElectron_);
     tree_->Branch("HyddraGenVertex_nMuon", &genVertex_nMuon_);
     tree_->Branch("HyddraGenVertex_nHadronic", &genVertex_nHadronic_);
@@ -592,7 +594,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       }
 
       genVertex_nTracks_.push_back(unsigned(genVertex.tracks().size()));
-      genVertex_nChargedDaughters_.push_back(unsigned(genVertex.getStableChargedDaughters(*genHandle_).size()));
+      if(isFullAOD_) genVertex_nChargedDaughters_.push_back(unsigned(genVertex.getStableChargedDaughters(*genHandle_).size()));
       genVertex_mass_.push_back(float(genVertex.mass()));
       genVertex_x_.push_back(float(genVertex.x()));
       genVertex_y_.push_back(float(genVertex.y()));
@@ -675,7 +677,7 @@ void HyddraSVAnalyzer::fillVertexBranches(const reco::Vertex& vertex, const reco
     nearestGenVertexIndex_.push_back(int(nearestIdx));
     min3D_.push_back(float(minDistance));
     vtxMatchRatio_.push_back(float(nearestIdx >= 0 ? matchRatio(vertex, genVertices_[nearestIdx]) : -1));
-    vtxHighPurityMatchRatio_.push_back(float(nearestIdx >= 0 ? matchRatio(vertex, genVertices_[nearestIdx], true) : -1));
+    if(isFullAOD_) vtxHighPurityMatchRatio_.push_back(float(nearestIdx >= 0 ? matchRatio(vertex, genVertices_[nearestIdx], true) : -1));
   }
 
   // Fill per-track branches
@@ -819,6 +821,7 @@ void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descript
   edm::ParameterSetDescription desc;
 
   desc.add<bool>("hasGenInfo", true);
+  desc.add<bool>("isFullAOD", true);
   desc.add<edm::InputTag>("leptonicVertices", edm::InputTag("hyddraSVs", "leptonicVertices"));
   desc.add<edm::InputTag>("hadronicVertices", edm::InputTag("hyddraSVs", "hadronicVertices"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));
