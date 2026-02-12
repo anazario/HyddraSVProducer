@@ -80,7 +80,7 @@ private:
   bool IsGold(const reco::Vertex& vertex) const;
   int FindGenVertexIndex(const reco::Vertex& vertex) const;
   int FindNearestGenVertexIndex(const reco::Vertex& vertex, double& distance) const;
-  double matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex) const;
+  double matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex, bool requireHighPurity = false) const;
   bool getSCMatch(const reco::Track& track, reco::SuperCluster& sc, double& deltaR) const;
 
   // Configuration
@@ -172,6 +172,7 @@ private:
   std::vector<int> nearestGenVertexIndex_;
   std::vector<float> min3D_;
   std::vector<float> vtxMatchRatio_;
+  std::vector<float> vtxHighPurityMatchRatio_;
   std::vector<bool> isBronze_;
   std::vector<bool> isSilver_;
   std::vector<bool> isGold_;
@@ -294,6 +295,7 @@ void HyddraSVAnalyzer::beginJob() {
     tree_->Branch("HyddraSV_nearestGenVertexIndex", &nearestGenVertexIndex_);
     tree_->Branch("HyddraSV_min3D", &min3D_);
     tree_->Branch("HyddraSV_matchRatio", &vtxMatchRatio_);
+    tree_->Branch("HyddraSV_highPurityMatchRatio", &vtxHighPurityMatchRatio_);
     tree_->Branch("HyddraSV_isBronze", &isBronze_);
     tree_->Branch("HyddraSV_isSilver", &isSilver_);
     tree_->Branch("HyddraSV_isGold", &isGold_);
@@ -384,6 +386,7 @@ void HyddraSVAnalyzer::clearBranches() {
     nearestGenVertexIndex_.clear();
     min3D_.clear();
     vtxMatchRatio_.clear();
+    vtxHighPurityMatchRatio_.clear();
     isBronze_.clear();
     isSilver_.clear();
     isGold_.clear();
@@ -668,6 +671,7 @@ void HyddraSVAnalyzer::fillVertexBranches(const reco::Vertex& vertex, const reco
     nearestGenVertexIndex_.push_back(int(nearestIdx));
     min3D_.push_back(float(minDistance));
     vtxMatchRatio_.push_back(float(nearestIdx >= 0 ? matchRatio(vertex, genVertices_[nearestIdx]) : -1));
+    vtxHighPurityMatchRatio_.push_back(float(nearestIdx >= 0 ? matchRatio(vertex, genVertices_[nearestIdx], true) : -1));
   }
 
   // Fill per-track branches
@@ -758,7 +762,7 @@ int HyddraSVAnalyzer::FindNearestGenVertexIndex(const reco::Vertex& vertex, doub
   return minIndex;
 }
 
-double HyddraSVAnalyzer::matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex) const {
+double HyddraSVAnalyzer::matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex, bool requireHighPurity) const {
 
   if(chargedMatches_.find(genVertex) == chargedMatches_.end())
     return -1.;
@@ -780,6 +784,9 @@ double HyddraSVAnalyzer::matchRatio(const reco::Vertex& vertex, const GenVertex&
         break;
       }
     }
+
+    if(requireHighPurity && !pair.GetObjectA().quality(reco::TrackBase::highPurity))
+      continue;
 
     if(inVertex && ((deltaR < 0.01 && fabs(relPtDiff) < (-10 * deltaR + 0.15)) ||
                     (deltaR > 0.01 && deltaR < 0.1 && fabs(relPtDiff) < (-deltaR / 2 + 0.055)))) {

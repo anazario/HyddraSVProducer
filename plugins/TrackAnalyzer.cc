@@ -126,6 +126,7 @@ private:
   std::vector<int> missingOuterHits_;
   std::vector<int> trackerLayersWithMeasurement_;
   std::vector<int> pixelLayersWithMeasurement_;
+  std::vector<bool> isHighPurity_;
 
   // Gen-matching branches (per track)
   std::vector<bool> isSignal_;
@@ -228,6 +229,7 @@ void TrackAnalyzer::beginJob() {
   tree_->Branch("Track_missingOuterHits", &missingOuterHits_);
   tree_->Branch("Track_trackerLayersWithMeasurement", &trackerLayersWithMeasurement_);
   tree_->Branch("Track_pixelLayersWithMeasurement", &pixelLayersWithMeasurement_);
+  tree_->Branch("Track_isHighPurity", &isHighPurity_);
 
   // Gen-matching branches
   if(hasGenInfo_) {
@@ -313,6 +315,7 @@ void TrackAnalyzer::clearBranches() {
   missingOuterHits_.clear();
   trackerLayersWithMeasurement_.clear();
   pixelLayersWithMeasurement_.clear();
+  isHighPurity_.clear();
 
   if(hasGenInfo_) {
     isSignal_.clear();
@@ -450,6 +453,7 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
     missingOuterHits_.push_back(int(track.missingOuterHits()));
     trackerLayersWithMeasurement_.push_back(int(track.hitPattern().trackerLayersWithMeasurement()));
     pixelLayersWithMeasurement_.push_back(int(track.hitPattern().pixelLayersWithMeasurement()));
+    isHighPurity_.push_back(track.quality(reco::TrackBase::highPurity));
 
     // Gen-matching for this track
     if(hasGenInfo_) {
