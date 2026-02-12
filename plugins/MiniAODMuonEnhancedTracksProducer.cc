@@ -100,6 +100,7 @@ MiniAODMuonEnhancedTracksProducer::MiniAODMuonEnhancedTracksProducer(const edm::
 //
 // ------------ method called to produce the data  ------------
 void MiniAODMuonEnhancedTracksProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
+  std::cerr << "[DEBUG] MiniAODMuonEnhancedTracksProducer::produce() START" << std::endl;
   using namespace std;
 
   iEvent.getByToken( generalTracksToken_, generalTracksHandle_);

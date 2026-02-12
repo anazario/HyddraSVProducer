@@ -69,6 +69,7 @@ HyddraSVsProducer::HyddraSVsProducer(const edm::ParameterSet& iConfig) :
 }
 
 void HyddraSVsProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
+  std::cerr << "[DEBUG] HyddraSVsProducer::produce() START" << std::endl;
 
   // Get inputs
   edm::Handle<reco::TrackCollection> tracksHandle;
