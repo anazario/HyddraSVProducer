@@ -195,6 +195,7 @@ private:
   // Gen vertex branches
   unsigned int genVertex_nTotal_;
   std::vector<unsigned int> genVertex_nTracks_;
+  std::vector<unsigned int> genVertex_nChargedDaughters_;
   unsigned int genVertex_nElectron_;
   unsigned int genVertex_nMuon_;
   unsigned int genVertex_nHadronic_;
@@ -316,6 +317,7 @@ void HyddraSVAnalyzer::beginJob() {
 
     tree_->Branch("HyddraGenVertex_nTotal", &genVertex_nTotal_);
     tree_->Branch("HyddraGenVertex_nTracks", &genVertex_nTracks_);
+    tree_->Branch("HyddraGenVertex_nChargedDaughters", &genVertex_nChargedDaughters_);
     tree_->Branch("HyddraGenVertex_nElectron", &genVertex_nElectron_);
     tree_->Branch("HyddraGenVertex_nMuon", &genVertex_nMuon_);
     tree_->Branch("HyddraGenVertex_nHadronic", &genVertex_nHadronic_);
@@ -406,6 +408,7 @@ void HyddraSVAnalyzer::clearBranches() {
 
     genVertex_nTotal_ = 0;
     genVertex_nTracks_.clear();
+    genVertex_nChargedDaughters_.clear();
     genVertex_nElectron_ = 0;
     genVertex_nMuon_ = 0;
     genVertex_nHadronic_ = 0;
@@ -589,6 +592,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       }
 
       genVertex_nTracks_.push_back(unsigned(genVertex.tracks().size()));
+      genVertex_nChargedDaughters_.push_back(unsigned(genVertex.getStableChargedDaughters(*genHandle_).size()));
       genVertex_mass_.push_back(float(genVertex.mass()));
       genVertex_x_.push_back(float(genVertex.x()));
       genVertex_y_.push_back(float(genVertex.y()));
