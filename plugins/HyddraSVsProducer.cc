@@ -87,12 +87,17 @@ void HyddraSVsProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     trackRefs.emplace_back(tracksHandle, i);
   }
 
+  std::cerr << "[DEBUG] HyddraSVsProducer: " << trackRefs.size() << " input tracks" << std::endl;
+
   // Use leading PV
   const reco::Vertex& pv = pvHandle->at(0);
 
   // Run both reconstruction paths
+  std::cerr << "[DEBUG] HyddraSVsProducer: running leptonic reconstruction..." << std::endl;
   leptonic_.run_reconstruction(trackRefs, ttBuilder, pv);
+  std::cerr << "[DEBUG] HyddraSVsProducer: leptonic done. Running hadronic..." << std::endl;
   hadronic_.run_reconstruction(trackRefs, ttBuilder, pv);
+  std::cerr << "[DEBUG] HyddraSVsProducer: hadronic done." << std::endl;
 
   // Convert to reco::VertexCollection and put into event
   auto leptonicVertices = std::make_unique<reco::VertexCollection>(leptonic_.vertices());
