@@ -132,6 +132,8 @@ private:
   std::vector<bool> isSignal_;
   std::vector<bool> isSignalElectron_;
   std::vector<bool> isSignalMuon_;
+  std::vector<bool> isSignalHadron_;
+  std::vector<float> signalHadronGenDxy_;
   std::vector<float> genMatchDeltaR_;
   std::vector<float> genMatchPt_;
   std::vector<float> genMatchEta_;
@@ -236,6 +238,8 @@ void TrackAnalyzer::beginJob() {
     tree_->Branch("Track_isSignal", &isSignal_);
     tree_->Branch("Track_isSignalElectron", &isSignalElectron_);
     tree_->Branch("Track_isSignalMuon", &isSignalMuon_);
+    tree_->Branch("Track_isSignalHadron", &isSignalHadron_);
+    tree_->Branch("Track_signalHadronGenDxy", &signalHadronGenDxy_);
     tree_->Branch("Track_genMatchDeltaR", &genMatchDeltaR_);
     tree_->Branch("Track_genMatchPt", &genMatchPt_);
     tree_->Branch("Track_genMatchEta", &genMatchEta_);
@@ -321,6 +325,8 @@ void TrackAnalyzer::clearBranches() {
     isSignal_.clear();
     isSignalElectron_.clear();
     isSignalMuon_.clear();
+    isSignalHadron_.clear();
+    signalHadronGenDxy_.clear();
     genMatchDeltaR_.clear();
     genMatchPt_.clear();
     genMatchEta_.clear();
@@ -384,7 +390,7 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
     // Collect signal gen particles (electrons and muons from displaced vertices)
     for(const auto& gen : *genHandle_) {
-      if(gen.status() == 1 && (isSignalGenMuon(gen) || isSignalGenElectron(gen))) {
+      if(gen.status() == 1 && (isSignalGenMuon(gen) || isSignalGenElectron(gen) || isSignalGenHadron(gen))) {
         signalGenParticles.emplace_back(gen);
       }
     }
@@ -460,6 +466,8 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       bool foundMatch = false;
       bool isElectron = false;
       bool isMuon = false;
+      bool isHadron = false;
+      float hadronGenDxy = -1.0;
       float matchDeltaR = -1.0;
       float matchPt = -1.0;
       float matchEta = -999.0;
@@ -496,6 +504,8 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
             foundMatch = true;
             isElectron = isSignalGenElectron(gen);
             isMuon = isSignalGenMuon(gen);
+            isHadron = isSignalGenHadron(gen);
+            if(isHadron) hadronGenDxy = matchDxy;
           }
           break;
         }
@@ -504,6 +514,8 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       isSignal_.push_back(foundMatch);
       isSignalElectron_.push_back(isElectron);
       isSignalMuon_.push_back(isMuon);
+      isSignalHadron_.push_back(isHadron);
+      signalHadronGenDxy_.push_back(hadronGenDxy);
       genMatchDeltaR_.push_back(matchDeltaR);
       genMatchPt_.push_back(matchPt);
       genMatchEta_.push_back(matchEta);
