@@ -488,19 +488,32 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
   if(hasGenInfo_) {
     iEvent.getByToken(genToken_, genHandle_);
 
+    std::cout << "[DEBUG] Building transient tracks from " << muonEnhancedTracksHandle_->size() << " tracks" << std::endl;
+
     // Build transient tracks from the muon-enhanced track collection
     std::vector<reco::TransientTrack> ttracks;
     for(const auto &track : *muonEnhancedTracksHandle_)
       ttracks.emplace_back(ttBuilder->build(track));
 
+    std::cout << "[DEBUG] Building gen vertices from genHandle (" << genHandle_->size() << " gen particles)" << std::endl;
+
     // Build gen vertices using the same approach as KUCMSDisplacedVertex
     GenVertices allSignalSVs(*genHandle_);
+
+    std::cout << "[DEBUG] GenVertices built: " << allSignalSVs.size() << " vertices, "
+              << allSignalSVs.getAllGenParticles().size() << " gen particles" << std::endl;
+    std::cout << "[DEBUG] Running Hungarian matching (TransientTrack)..." << std::endl;
+
     DeltaRGenMatchHungarian<reco::TransientTrack> assigner(ttracks, allSignalSVs.getAllGenParticles());
+
+    std::cout << "[DEBUG] Hungarian matching done. Running Track diagnostics matching..." << std::endl;
 
     // Do a separate matching with reco::Track for diagnostics (no deltaR cut applied here)
     std::vector<reco::Track> trackVec(muonEnhancedTracksHandle_->begin(), muonEnhancedTracksHandle_->end());
     DeltaRGenMatchHungarian<reco::Track> trackAssigner(trackVec, allSignalSVs.getAllGenParticles());
     allGenMatches_ = trackAssigner.GetPairedObjects();
+
+    std::cout << "[DEBUG] Track diagnostics matching done. Filling gen match branches..." << std::endl;
 
     // Fill gen match diagnostic branches (all matches, no deltaR cut)
     for(const auto &pair : allGenMatches_) {
@@ -518,20 +531,31 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       genMatch_genMotherPdgId_.push_back(motherPdgId);
     }
 
+    std::cout << "[DEBUG] Building genVertices from matched pairs..." << std::endl;
+
     genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), 0.02);
     allSignalSVs += genVertices_;
     genVertices_ = allSignalSVs;
 
-    // Build charged particle matches for matchRatio computation
-    for(const auto &genVertex : genVertices_) {
-      DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*muonEnhancedTracksHandle_, genVertex.getStableChargedDaughters(*genHandle_));
-      chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
+    std::cout << "[DEBUG] genVertices_ has " << genVertices_.size() << " vertices. Building charged matches..." << std::endl;
 
-      if(!genVertex.hasTracks()) continue;
+    // Build charged particle matches for matchRatio computation
+    int vtxCount = 0;
+    for(const auto &genVertex : genVertices_) {
+      std::cout << "[DEBUG]   chargedMatch vertex " << vtxCount << ": getting stable charged daughters..." << std::endl;
+      auto daughters = genVertex.getStableChargedDaughters(*genHandle_);
+      std::cout << "[DEBUG]   vertex " << vtxCount << ": " << daughters.size() << " daughters. Running Hungarian..." << std::endl;
+      DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*muonEnhancedTracksHandle_, daughters);
+      chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
+      std::cout << "[DEBUG]   vertex " << vtxCount << ": done." << std::endl;
+
+      if(!genVertex.hasTracks()) { vtxCount++; continue; }
 
       for(const auto &pair : genVertex.genMatches())
         signalTracks_.emplace_back(pair.GetObjectA());
+      vtxCount++;
     }
+    std::cout << "[DEBUG] All charged matches built." << std::endl;
   }
 
   // Process vertices
