@@ -42,6 +42,7 @@
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenTools.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
 
 // ROOT
 #include "TTree.h"
@@ -63,6 +64,7 @@ private:
 
   // Configuration
   bool hasGenInfo_;
+  bool doChargedHadronMatching_;
   double genMatchDeltaRCut_;
 
   // Tokens
@@ -132,8 +134,6 @@ private:
   std::vector<bool> isSignal_;
   std::vector<bool> isSignalElectron_;
   std::vector<bool> isSignalMuon_;
-  std::vector<bool> isSignalHadron_;
-  std::vector<float> signalHadronGenDxy_;
   std::vector<float> genMatchDeltaR_;
   std::vector<float> genMatchPt_;
   std::vector<float> genMatchEta_;
@@ -146,6 +146,29 @@ private:
   std::vector<float> genMatchVz_;
   std::vector<float> genMatchDxy_;
   std::vector<float> genMatchRelPtDiff_;
+
+  // Charged hadron matching (gated by doChargedHadronMatching_)
+  GenVertices genVertices_;
+  std::map<GenVertex, GenMatches> chargedMatches_;
+  reco::TrackCollection signalTracks_;
+
+  std::vector<bool> isSignalHadron_;
+
+  std::vector<int> chargedHadron_genVertexIndex_;
+  std::vector<float> chargedHadron_genDxy_;
+  std::vector<float> chargedHadron_p_;
+  std::vector<float> chargedHadron_pt_;
+  std::vector<float> chargedHadron_eta_;
+  std::vector<float> chargedHadron_phi_;
+  std::vector<int> chargedHadron_charge_;
+  std::vector<float> chargedHadron_deltaR_;
+  std::vector<int> chargedHadron_trackIndex_;
+  std::vector<float> chargedHadron_trackP_;
+  std::vector<float> chargedHadron_trackPt_;
+  std::vector<float> chargedHadron_trackEta_;
+  std::vector<float> chargedHadron_trackPhi_;
+  std::vector<int> chargedHadron_trackCharge_;
+  std::vector<float> chargedHadron_trackNormChi2_;
 
   // Gen-level summary (all signal particles)
   unsigned int nSignalGen_;
@@ -168,6 +191,7 @@ private:
 
 TrackAnalyzer::TrackAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
+  doChargedHadronMatching_(iConfig.getParameter<bool>("doChargedHadronMatching")),
   genMatchDeltaRCut_(iConfig.getParameter<double>("genMatchDeltaRCut")),
   tracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("tracks"))),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
@@ -238,8 +262,9 @@ void TrackAnalyzer::beginJob() {
     tree_->Branch("Track_isSignal", &isSignal_);
     tree_->Branch("Track_isSignalElectron", &isSignalElectron_);
     tree_->Branch("Track_isSignalMuon", &isSignalMuon_);
-    tree_->Branch("Track_isSignalHadron", &isSignalHadron_);
-    tree_->Branch("Track_signalHadronGenDxy", &signalHadronGenDxy_);
+    if(doChargedHadronMatching_) {
+      tree_->Branch("Track_isSignalHadron", &isSignalHadron_);
+    }
     tree_->Branch("Track_genMatchDeltaR", &genMatchDeltaR_);
     tree_->Branch("Track_genMatchPt", &genMatchPt_);
     tree_->Branch("Track_genMatchEta", &genMatchEta_);
@@ -270,6 +295,24 @@ void TrackAnalyzer::beginJob() {
     tree_->Branch("SignalGen_isMatched", &signalGen_isMatched_);
     tree_->Branch("SignalGen_matchedTrackPt", &signalGen_matchedTrackPt_);
     tree_->Branch("SignalGen_matchedDeltaR", &signalGen_matchedDeltaR_);
+
+    if(doChargedHadronMatching_) {
+      tree_->Branch("ChargedHadron_genVertexIndex", &chargedHadron_genVertexIndex_);
+      tree_->Branch("ChargedHadron_genDxy", &chargedHadron_genDxy_);
+      tree_->Branch("ChargedHadron_p", &chargedHadron_p_);
+      tree_->Branch("ChargedHadron_pt", &chargedHadron_pt_);
+      tree_->Branch("ChargedHadron_eta", &chargedHadron_eta_);
+      tree_->Branch("ChargedHadron_phi", &chargedHadron_phi_);
+      tree_->Branch("ChargedHadron_charge", &chargedHadron_charge_);
+      tree_->Branch("ChargedHadron_deltaR", &chargedHadron_deltaR_);
+      tree_->Branch("ChargedHadron_trackIndex", &chargedHadron_trackIndex_);
+      tree_->Branch("ChargedHadron_trackP", &chargedHadron_trackP_);
+      tree_->Branch("ChargedHadron_trackPt", &chargedHadron_trackPt_);
+      tree_->Branch("ChargedHadron_trackEta", &chargedHadron_trackEta_);
+      tree_->Branch("ChargedHadron_trackPhi", &chargedHadron_trackPhi_);
+      tree_->Branch("ChargedHadron_trackCharge", &chargedHadron_trackCharge_);
+      tree_->Branch("ChargedHadron_trackNormChi2", &chargedHadron_trackNormChi2_);
+    }
   }
 }
 
@@ -325,8 +368,9 @@ void TrackAnalyzer::clearBranches() {
     isSignal_.clear();
     isSignalElectron_.clear();
     isSignalMuon_.clear();
-    isSignalHadron_.clear();
-    signalHadronGenDxy_.clear();
+    if(doChargedHadronMatching_) {
+      isSignalHadron_.clear();
+    }
     genMatchDeltaR_.clear();
     genMatchPt_.clear();
     genMatchEta_.clear();
@@ -356,6 +400,27 @@ void TrackAnalyzer::clearBranches() {
     signalGen_isMatched_.clear();
     signalGen_matchedTrackPt_.clear();
     signalGen_matchedDeltaR_.clear();
+
+    if(doChargedHadronMatching_) {
+      genVertices_.clear();
+      chargedMatches_.clear();
+      signalTracks_.clear();
+      chargedHadron_genVertexIndex_.clear();
+      chargedHadron_genDxy_.clear();
+      chargedHadron_p_.clear();
+      chargedHadron_pt_.clear();
+      chargedHadron_eta_.clear();
+      chargedHadron_phi_.clear();
+      chargedHadron_charge_.clear();
+      chargedHadron_deltaR_.clear();
+      chargedHadron_trackIndex_.clear();
+      chargedHadron_trackP_.clear();
+      chargedHadron_trackPt_.clear();
+      chargedHadron_trackEta_.clear();
+      chargedHadron_trackPhi_.clear();
+      chargedHadron_trackCharge_.clear();
+      chargedHadron_trackNormChi2_.clear();
+    }
   }
 }
 
@@ -381,19 +446,12 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
   const TransientTrackBuilder* ttBuilder = &iSetup.getData(transientTrackBuilder_);
 
   // Gen-matching setup
-  typedef PairedObjectCollection<reco::TransientTrack, reco::GenParticle> GenMatches;
-  GenMatches genMatches;
+  typedef PairedObjectCollection<reco::TransientTrack, reco::GenParticle> TTGenMatches;
+  TTGenMatches genMatches;
   reco::GenParticleCollection signalGenParticles;
 
   if(hasGenInfo_) {
     iEvent.getByToken(genToken_, genHandle_);
-
-    // Collect signal gen particles (electrons and muons from displaced vertices)
-    for(const auto& gen : *genHandle_) {
-      if(gen.status() == 1 && (isSignalGenMuon(gen) || isSignalGenElectron(gen) || isSignalGenHadron(gen))) {
-        signalGenParticles.emplace_back(gen);
-      }
-    }
 
     // Build transient tracks for gen-matching
     std::vector<reco::TransientTrack> ttracks;
@@ -401,9 +459,43 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       ttracks.emplace_back(ttBuilder->build(track));
     }
 
-    // Perform Hungarian algorithm matching
-    DeltaRGenMatchHungarian<reco::TransientTrack> assigner(ttracks, signalGenParticles);
-    genMatches = assigner.GetPairedObjects();
+    if(doChargedHadronMatching_) {
+      // Full GenVertices procedure (following HadronSVs.hh)
+      GenVertices allSignalSVs(*genHandle_);
+      DeltaRGenMatchHungarian<reco::TransientTrack> assigner(ttracks, allSignalSVs.getAllGenParticles());
+      genMatches = assigner.GetPairedObjects();
+
+      genVertices_ = GenVertices(genMatches.ConvertFromTTracks(), genMatchDeltaRCut_);
+      allSignalSVs += genVertices_;
+      genVertices_ = allSignalSVs;
+
+      // Per-vertex charged hadron matching and signal track collection
+      for(const auto& genVertex : genVertices_) {
+        DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*tracksHandle_, genVertex.getStableChargedDaughters(*genHandle_));
+        chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
+
+        if(!genVertex.hasTracks()) continue;
+        for(const auto& pair : genVertex.genMatches())
+          signalTracks_.emplace_back(pair.GetObjectA());
+      }
+
+      // Build signalGenParticles from leptonic gen vertices for the SignalGen summary
+      for(const auto& gen : *genHandle_) {
+        if(gen.status() == 1 && (isSignalGenMuon(gen) || isSignalGenElectron(gen))) {
+          signalGenParticles.emplace_back(gen);
+        }
+      }
+    } else {
+      // Simple lepton-only matching (original behavior)
+      for(const auto& gen : *genHandle_) {
+        if(gen.status() == 1 && (isSignalGenMuon(gen) || isSignalGenElectron(gen))) {
+          signalGenParticles.emplace_back(gen);
+        }
+      }
+
+      DeltaRGenMatchHungarian<reco::TransientTrack> assigner(ttracks, signalGenParticles);
+      genMatches = assigner.GetPairedObjects();
+    }
   }
 
   nTracks_ = tracksHandle_->size();
@@ -466,8 +558,6 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       bool foundMatch = false;
       bool isElectron = false;
       bool isMuon = false;
-      bool isHadron = false;
-      float hadronGenDxy = -1.0;
       float matchDeltaR = -1.0;
       float matchPt = -1.0;
       float matchEta = -999.0;
@@ -504,8 +594,6 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
             foundMatch = true;
             isElectron = isSignalGenElectron(gen);
             isMuon = isSignalGenMuon(gen);
-            isHadron = isSignalGenHadron(gen);
-            if(isHadron) hadronGenDxy = matchDxy;
           }
           break;
         }
@@ -514,8 +602,19 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       isSignal_.push_back(foundMatch);
       isSignalElectron_.push_back(isElectron);
       isSignalMuon_.push_back(isMuon);
-      isSignalHadron_.push_back(isHadron);
-      signalHadronGenDxy_.push_back(hadronGenDxy);
+      if(doChargedHadronMatching_) {
+        bool isHadron = false;
+        for(const auto& [genVertex, matches] : chargedMatches_) {
+          for(const auto& chPair : matches) {
+            if(TrackHelper::SameTrack(track, chPair.GetObjectA()) && chPair.GetDeltaR() < genMatchDeltaRCut_) {
+              isHadron = true;
+              break;
+            }
+          }
+          if(isHadron) break;
+        }
+        isSignalHadron_.push_back(isHadron);
+      }
       genMatchDeltaR_.push_back(matchDeltaR);
       genMatchPt_.push_back(matchPt);
       genMatchEta_.push_back(matchEta);
@@ -578,6 +677,38 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
     nSignalElectronGen_ = nElectron;
     nSignalMuonGen_ = nMuon;
+
+    // Fill ChargedHadron branches (per gen charged daughter)
+    if(doChargedHadronMatching_) {
+      int genVertexIndex = 0;
+      for(const auto& genVertex : genVertices_) {
+        if(chargedMatches_.find(genVertex) == chargedMatches_.end()) {
+          genVertexIndex++;
+          continue;
+        }
+        for(const auto& pair : chargedMatches_.at(genVertex)) {
+          const reco::Track& matchedTrack = pair.GetObjectA();
+          const reco::GenParticle& gen = pair.GetObjectB();
+
+          chargedHadron_genVertexIndex_.push_back(genVertexIndex);
+          chargedHadron_genDxy_.push_back(float(genVertex.dxy()));
+          chargedHadron_p_.push_back(float(gen.p()));
+          chargedHadron_pt_.push_back(float(gen.pt()));
+          chargedHadron_eta_.push_back(float(gen.eta()));
+          chargedHadron_phi_.push_back(float(gen.phi()));
+          chargedHadron_charge_.push_back(int(gen.charge()));
+          chargedHadron_deltaR_.push_back(float(pair.GetDeltaR()));
+          chargedHadron_trackIndex_.push_back(int(TrackHelper::FindTrackIndex(matchedTrack, *tracksHandle_)));
+          chargedHadron_trackP_.push_back(float(matchedTrack.p()));
+          chargedHadron_trackPt_.push_back(float(matchedTrack.pt()));
+          chargedHadron_trackEta_.push_back(float(matchedTrack.eta()));
+          chargedHadron_trackPhi_.push_back(float(matchedTrack.phi()));
+          chargedHadron_trackCharge_.push_back(int(matchedTrack.charge()));
+          chargedHadron_trackNormChi2_.push_back(float(matchedTrack.normalizedChi2()));
+        }
+        genVertexIndex++;
+      }
+    }
   }
 
   tree_->Fill();
@@ -587,6 +718,7 @@ void TrackAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& description
   edm::ParameterSetDescription desc;
 
   desc.add<bool>("hasGenInfo", true);
+  desc.add<bool>("doChargedHadronMatching", false);
   desc.add<double>("genMatchDeltaRCut", 0.02);
   desc.add<edm::InputTag>("tracks", edm::InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));

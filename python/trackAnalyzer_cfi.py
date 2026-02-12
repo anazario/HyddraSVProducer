@@ -20,6 +20,7 @@ TRACK_COLLECTION_CONFIG = {
 # =============================================================================
 trackAnalyzer = cms.EDAnalyzer("TrackAnalyzer",
     hasGenInfo = cms.bool(True),
+    doChargedHadronMatching = cms.bool(False),
     genMatchDeltaRCut = cms.double(0.02),
     tracks = TRACK_COLLECTION_CONFIG['sip2DMuonEnhanced'],
     pvCollection = cms.InputTag("offlinePrimaryVertices"),
