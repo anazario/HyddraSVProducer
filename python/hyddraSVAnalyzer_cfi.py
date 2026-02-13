@@ -28,6 +28,12 @@ TRACK_COLLECTION_CONFIG = {
     'displacedGlobalMuon': cms.InputTag("displacedGlobalMuons"),
     'promptMuonExtracted': cms.InputTag("muonGlobalTrackProducer", "globalTracks"),
     'displacedMuonExtracted': cms.InputTag("muonGlobalTrackProducer", "displacedGlobalTracks"),
+    # Best track from muons (uses CMSSW muonBestTrack)
+    'promptMuonBestTrack': cms.InputTag("muonBestTrackProducer", "globalTracks"),
+    'displacedMuonBestTrack': cms.InputTag("muonBestTrackProducer", "displacedGlobalTracks"),
+    # Priority-based fallback from muons (default: global->inner->outer)
+    'promptMuonPriority': cms.InputTag("muonPriorityTrackProducer", "globalTracks"),
+    'displacedMuonPriority': cms.InputTag("muonPriorityTrackProducer", "displacedGlobalTracks"),
     'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
     'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),

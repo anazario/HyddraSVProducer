@@ -18,7 +18,11 @@ options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Track collection: general, generalFiltered, selected, displacedGlobalMuon, promptMuonExtracted, displacedMuonExtracted, sip2D, sip2DMuonEnhanced (default), muonEnhanced")
+                 "Track collection: general, generalFiltered, selected, displacedGlobalMuon, "
+                 "promptMuonExtracted, displacedMuonExtracted, "
+                 "promptMuonBestTrack, displacedMuonBestTrack, "
+                 "promptMuonPriority, displacedMuonPriority, "
+                 "sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -141,16 +145,45 @@ elif options.processMode == 'hadronic':
 # else: process both (default)
 
 # ============================================================================
+# Muon track producer configurations
+# ============================================================================
+# Maps track collection names to (process module name, mode, trackPriority).
+# These collections need a MuonGlobalTrackProducer clone on the path.
+MUON_TRACK_COLLECTIONS = {
+    'promptMuonExtracted':    ('muonGlobalTrackProducer', 'globalTrack', []),
+    'displacedMuonExtracted': ('muonGlobalTrackProducer', 'globalTrack', []),
+    'promptMuonBestTrack':    ('muonBestTrackProducer', 'bestTrack', []),
+    'displacedMuonBestTrack': ('muonBestTrackProducer', 'bestTrack', []),
+    'promptMuonPriority':     ('muonPriorityTrackProducer', 'priority',
+                               ['globalTrack', 'innerTrack', 'outerTrack']),
+    'displacedMuonPriority':  ('muonPriorityTrackProducer', 'priority',
+                               ['globalTrack', 'innerTrack', 'outerTrack']),
+}
+
+# ============================================================================
 # Path: Run producer sequence then analyzer
 # ============================================================================
 # Build the path based on track collection
-if options.trackCollection in ['promptMuonExtracted', 'displacedMuonExtracted']:
-    # promptMuonExtracted/displacedMuonExtracted need the muonGlobalTrackProducer
+if options.trackCollection in MUON_TRACK_COLLECTIONS:
+    moduleName, mode, priority = MUON_TRACK_COLLECTIONS[options.trackCollection]
+    # Create/clone the producer module with the right mode if it doesn't exist yet
+    if not hasattr(process, moduleName):
+        cloneArgs = dict(mode = cms.string(mode))
+        if priority:
+            cloneArgs['trackPriority'] = cms.vstring(*priority)
+        setattr(process, moduleName,
+                process.muonGlobalTrackProducer.clone(**cloneArgs))
+    else:
+        # Module already exists (e.g. muonGlobalTrackProducer loaded from _cfi),
+        # override its mode and priority
+        getattr(process, moduleName).mode = cms.string(mode)
+        if priority:
+            getattr(process, moduleName).trackPriority = cms.vstring(*priority)
     process.p = cms.Path(
-        process.muonGlobalTrackProducer +  # Produces globalTracks and displacedGlobalTracks from muons
-        process.ecalTracks +               # Produces displacedElectronSCs for SC matching
-        process.hyddraSVs +                # Produces leptonic/hadronic vertices
-        process.hyddraSVAnalyzer           # Writes TTree output
+        getattr(process, moduleName) +
+        process.ecalTracks +
+        process.hyddraSVs +
+        process.hyddraSVAnalyzer
     )
 elif options.trackCollection == 'generalFiltered':
     # generalFiltered needs the filteredTrackProducer
@@ -217,6 +250,12 @@ process.schedule = cms.Schedule(process.p)
 #
 # Sip2D tracks only:
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=sip2D
+#
+# Muon best tracks (CMSSW muonBestTrack):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=promptMuonBestTrack
+#
+# Muon priority tracks (global->inner->outer fallback):
+#   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=promptMuonPriority
 #
 # Leptonic only with general tracks:
 #   cmsRun testHyddraSVAnalyzer_cfg.py inputFiles=file:myinput.root trackCollection=general processMode=leptonic
