@@ -132,6 +132,60 @@ def match_dsa_to_gen(dsa_eta, dsa_phi, dsa_pt, evt, gen_vertices, dr_cut, relpt_
 
 
 # ============================================================================
+# Pass selection (track acceptance)
+# ============================================================================
+
+def check_pass_selection(evt, gv, pass_dr_cut):
+    """Check if all gen muons from a gen vertex have a reco muon match within deltaR.
+
+    For each gen muon, checks PAT muons (via Muon_genPartIdx) and DSA muons
+    (via deltaR scan). No pT cut is applied — purely geometric matching,
+    consistent with HYDDRA passSelection behavior.
+
+    Returns True only if every gen muon has at least one reco match.
+    """
+    gen_eta = evt['GenPart_eta']
+    gen_phi = evt['GenPart_phi']
+
+    for mu_idx in gv['muon_indices']:
+        g_eta = float(gen_eta[mu_idx])
+        g_phi = float(gen_phi[mu_idx])
+        found = False
+
+        # Check PAT muons via Muon_genPartIdx
+        n_pat = len(evt.get('Muon_genPartIdx', []))
+        for j in range(n_pat):
+            gp_idx = int(evt['Muon_genPartIdx'][j])
+            if gp_idx == mu_idx:
+                mu_eta = float(evt['Muon_eta'][j])
+                mu_phi = float(evt['Muon_phi'][j])
+                deta = mu_eta - g_eta
+                dphi = (mu_phi - g_phi + np.pi) % (2 * np.pi) - np.pi
+                dr = np.sqrt(deta**2 + dphi**2)
+                if dr < pass_dr_cut:
+                    found = True
+                    break
+
+        # Check DSA muons via deltaR scan
+        if not found:
+            n_dsa = len(evt.get('DSAMuon_pt', []))
+            for j in range(n_dsa):
+                dsa_eta = float(evt['DSAMuon_eta'][j])
+                dsa_phi = float(evt['DSAMuon_phi'][j])
+                deta = dsa_eta - g_eta
+                dphi = (dsa_phi - g_phi + np.pi) % (2 * np.pi) - np.pi
+                dr = np.sqrt(deta**2 + dphi**2)
+                if dr < pass_dr_cut:
+                    found = True
+                    break
+
+        if not found:
+            return False
+
+    return True
+
+
+# ============================================================================
 # Gold matching
 # ============================================================================
 
@@ -208,7 +262,7 @@ def find_gold_match(iv, evt, vtx_pre, gen_vertices, dr_cut, relpt_cut):
 
 def process_file(args):
     """Process one NanoAOD file for one collection. Returns output dict."""
-    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2, min_cos_theta, min_p_over_e, min_mass, max_decay_angle = args
+    filename, collection, mother_pdg_id, dr_cut, relpt_cut, max_chi2, min_cos_theta, min_p_over_e, min_mass, max_decay_angle, pass_dr_cut = args
 
     vtx_pre = collection + '_'
     ref_pre = collection + 'RefittedTracks_'
@@ -291,7 +345,9 @@ def process_file(args):
         out['gv_isMuon'].append(np.ones(n_gv, dtype=np.bool_))
         out['gv_isElectron'].append(np.zeros(n_gv, dtype=np.bool_))
         out['gv_isHadronic'].append(np.zeros(n_gv, dtype=np.bool_))
-        out['gv_passSelection'].append(np.ones(n_gv, dtype=np.bool_))
+        pass_sel = np.array([check_pass_selection(evt, gv, pass_dr_cut)
+                             for gv in gen_vertices], dtype=np.bool_) if n_gv > 0 else np.array([], dtype=np.bool_)
+        out['gv_passSelection'].append(pass_sel)
 
         # ---- Reco vertices ----
         is_valid_key = vtx_pre + 'isValid'
@@ -592,6 +648,8 @@ def main():
                         help='Min vertex mass in GeV (default: 2.0)')
     parser.add_argument('--max-decay-angle', type=float, default=0.9,
                         help='Max |decayAngle| (default: 0.9)')
+    parser.add_argument('--pass-selection-dr', type=float, default=0.02,
+                        help='DeltaR cut for passSelection track matching (default: 0.02)')
     args = parser.parse_args()
 
     # Build input file list
@@ -626,7 +684,7 @@ def main():
         worker_args = [(fn, collection, args.mother_pdg_id,
                         args.delta_r, args.rel_pt_diff, args.max_chi2,
                         args.min_cos_theta, args.min_p_over_e, args.min_mass,
-                        args.max_decay_angle)
+                        args.max_decay_angle, args.pass_selection_dr)
                        for fn in input_files]
 
         dsa_dr = []
