@@ -326,10 +326,17 @@ def process_file(args):
 
     dsa_dr_vals = []
     dsa_relpt_vals = []
+    n_dupe_genidx_events = 0
 
     for ei in range(n_events):
         # Per-event branch data
         evt = {b: data[b][ei] for b in to_read}
+
+        # Check for non-exclusive Muon_genPartIdx
+        gen_idx_arr = evt.get('Muon_genPartIdx', [])
+        valid_idx = [int(x) for x in gen_idx_arr if int(x) >= 0]
+        if len(valid_idx) != len(set(valid_idx)):
+            n_dupe_genidx_events += 1
 
         gen_vertices = build_gen_vertices(evt, mother_pdg_id)
 
@@ -576,6 +583,11 @@ def process_file(args):
                 n_gen_in_range += 1
                 if gi in gold_matched:
                     n_gold_gen += 1
+
+    if n_dupe_genidx_events > 0:
+        print(f'  WARNING [{os.path.basename(filename)}]: {n_dupe_genidx_events}/{n_events} events '
+              f'have non-exclusive Muon_genPartIdx (multiple reco muons point to same gen particle)',
+              file=sys.stderr)
 
     return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold_gen, n_gen_in_range
 
