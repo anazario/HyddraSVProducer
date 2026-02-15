@@ -17,6 +17,12 @@ Usage:
 
     # Dry run (don't actually submit)
     python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --dry-run
+
+    # Use a specific track collection and vertex collection
+    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --track-collection general --collection PatDSAMuonVertex
+
+    # Apply track quality cuts
+    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --apply-cuts --min-pt 2.0 --max-chi2 3.0
 """
 
 import os
@@ -50,6 +56,19 @@ def get_crab_config(args):
 
     if args.max_events > 0:
         pycfg_params.append(f'maxEvents={args.max_events}')
+
+    if args.track_collection:
+        pycfg_params.append(f'trackCollection={args.track_collection}')
+    if args.collection:
+        pycfg_params.append(f'collection={args.collection}')
+    if args.apply_cuts:
+        pycfg_params.append('applyCuts=True')
+    if args.min_pt is not None:
+        pycfg_params.append(f'minPt={args.min_pt}')
+    if args.min_abs_sip2d is not None:
+        pycfg_params.append(f'minAbsSip2D={args.min_abs_sip2d}')
+    if args.max_chi2 is not None:
+        pycfg_params.append(f'maxNormalizedChi2={args.max_chi2}')
 
     cfg.JobType.pyCfgParams = pycfg_params
 
@@ -259,6 +278,22 @@ def main():
     parser.add_argument('--dbs', default='global',
                        help='DBS instance (default: global)')
 
+    # Track and vertex options
+    parser.add_argument('--track-collection',
+                       help='Track collection option to pass to config')
+    parser.add_argument('--collection',
+                       help='Vertex collection (e.g. PatMuonVertex, PatDSAMuonVertex)')
+
+    # Track cut options
+    parser.add_argument('--apply-cuts', action='store_true',
+                       help='Enable track quality cuts')
+    parser.add_argument('--min-pt', type=float, default=None,
+                       help='Minimum track pT in GeV (default: 1.0)')
+    parser.add_argument('--min-abs-sip2d', type=float, default=None,
+                       help='Minimum |sip2D| for displaced selection (default: 4.0)')
+    parser.add_argument('--max-chi2', type=float, default=None,
+                       help='Maximum normalized chi2 (default: 5.0)')
+
     # GlobalTag
     parser.add_argument('--global-tag', '-g',
                        default='auto:phase1_2022_realistic',
@@ -307,6 +342,18 @@ def main():
     print(f"Storage site:     {args.storage_site}")
     print(f"Output dir:       {args.output_dir}")
     print(f"GlobalTag:        {args.global_tag}")
+    if args.track_collection:
+        print(f"Track collection: {args.track_collection}")
+    if args.collection:
+        print(f"Vertex collection:{args.collection}")
+    if args.apply_cuts:
+        print(f"Apply cuts:       True")
+        if args.min_pt is not None:
+            print(f"  Min pT:         {args.min_pt}")
+        if args.min_abs_sip2d is not None:
+            print(f"  Min |sip2D|:    {args.min_abs_sip2d}")
+        if args.max_chi2 is not None:
+            print(f"  Max chi2:       {args.max_chi2}")
     print("=" * 60)
 
     if args.dry_run:
