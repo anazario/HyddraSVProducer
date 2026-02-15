@@ -3,26 +3,29 @@
 MultiCrab submission script for HyddraSVAnalyzer
 
 Usage:
-    # Submit with a published dataset
-    python crab_hyddraSVAnalyzer.py --dataset /SMS-GlGl.../AODSIM --name my_sample
+    # Submit with a filelist (request name derived from filename: "my_sample")
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt
 
-    # Submit with a txt file containing root file paths
-    python crab_hyddraSVAnalyzer.py --filelist files.txt --name my_sample
+    # Submit with a dataset (request name derived from primary dataset name)
+    python crab_hyddraSVAnalyzer.py --dataset /SMS-GlGl.../AODSIM
+
+    # Override the auto-derived name
+    python crab_hyddraSVAnalyzer.py --filelist files.txt --name custom_name
+
+    # Append a trial tag to differentiate runs
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt --trial v2
 
     # Process only leptonic vertices
-    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --mode leptonic
-
-    # Process only hadronic vertices
-    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --mode hadronic
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt --mode leptonic
 
     # Dry run (don't actually submit)
-    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --dry-run
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt --dry-run
 
     # Use a specific track collection and vertex collection
-    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --track-collection general --collection PatDSAMuonVertex
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt --track-collection general --collection PatDSAMuonVertex
 
     # Apply track quality cuts
-    python crab_hyddraSVAnalyzer.py --dataset /Dataset/... --name sample --apply-cuts --min-pt 2.0 --max-chi2 3.0
+    python crab_hyddraSVAnalyzer.py --filelist my_sample.txt --apply-cuts --min-pt 2.0 --max-chi2 3.0
 """
 
 import os
@@ -227,9 +230,11 @@ def main():
     input_group.add_argument('--filelist', '-f',
                             help='Text file containing list of root files')
 
-    # Required options
-    parser.add_argument('--name', '-n', required=True,
-                       help='Request name for this submission')
+    # Naming options
+    parser.add_argument('--name', '-n', default=None,
+                       help='Request name (default: derived from filelist basename)')
+    parser.add_argument('--trial', '-t', default=None,
+                       help='Trial name appended to request name (e.g. v1, noCuts)')
 
     # Processing mode
     parser.add_argument('--mode', '-m',
@@ -257,8 +262,7 @@ def main():
 
     # Output configuration
     parser.add_argument('--output-dir', '-o',
-                       default='/store/user/{user}/HyddraSV/'.format(
-                           user=os.environ.get('USER', 'unknown')),
+                       default='/store/group/lpcsusylep/anazario/HyddraSVs',
                        help='Output LFN directory base')
     parser.add_argument('--workarea', '-w',
                        default='crab_projects_{date}'.format(
@@ -270,7 +274,8 @@ def main():
                        default='T3_US_FNALLPC',
                        help='Storage site (default: T3_US_FNALLPC)')
     parser.add_argument('--whitelist',
-                       help='Comma-separated list of whitelisted sites')
+                       default='T3_US_FNALLPC',
+                       help='Comma-separated list of whitelisted sites (default: T3_US_FNALLPC)')
     parser.add_argument('--blacklist',
                        help='Comma-separated list of blacklisted sites')
 
@@ -296,7 +301,7 @@ def main():
 
     # GlobalTag
     parser.add_argument('--global-tag', '-g',
-                       default='auto:phase1_2022_realistic',
+                       default='124X_mcRun3_2022_realistic_postEE_v1',
                        help='GlobalTag to use')
 
     # Execution options
@@ -310,6 +315,18 @@ def main():
     # Handle --data shortcut
     if args.data:
         args.gen_info = False
+
+    # Derive request name from filelist if not provided
+    if args.name is None:
+        if args.filelist:
+            args.name = os.path.splitext(os.path.basename(args.filelist))[0]
+        elif args.dataset:
+            # Use the primary dataset name (first component after leading /)
+            args.name = args.dataset.strip('/').split('/')[0]
+
+    # Append trial name if provided
+    if args.trial:
+        args.name = f'{args.name}_{args.trial}'
 
     # Validate filelist if provided
     if args.filelist and not os.path.exists(args.filelist):
