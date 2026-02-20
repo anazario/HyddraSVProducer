@@ -326,6 +326,56 @@ def make_1d_relPtDiff(relPtDiff, isGold, output_base):
     return c, [h_gold, h_nongold, legend]
 
 
+def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
+    """TH2D of relPtDiff vs deltaR: all, gold-only, and non-gold-only.
+
+    Note: relPtDiff as stored is |reco-gen|/gen (non-negative).
+    Returns list of (canvas, objects) tuples for 3 plots.
+    """
+    dr_max = min(float(np.percentile(deltaR, 99.5)), 5.0)
+    rpt_max = min(float(np.percentile(relPtDiff, 99.5)), 5.0)
+    nbins_dr = 100
+    nbins_rpt = 100
+
+    results = []
+
+    configs = [
+        ('all', 'All legs', np.ones(len(deltaR), dtype=bool)),
+        ('gold', 'Gold-matched legs', isGold),
+        ('nongold', 'Non-gold legs', ~isGold),
+    ]
+
+    for tag, title, mask in configs:
+        c = ROOT.TCanvas(f'c_2d_{tag}', f'relPtDiff vs deltaR ({title})', 800, 600)
+        c.SetLeftMargin(0.12)
+        c.SetRightMargin(0.14)
+        c.SetBottomMargin(0.12)
+        c.SetLogz()
+
+        h = ROOT.TH2D(f'h2_relPtDiff_vs_deltaR_{tag}',
+                       f'{title};#DeltaR(reco, gen);'
+                       f'|p_{{T}}^{{reco}} - p_{{T}}^{{gen}}| / p_{{T}}^{{gen}};Legs',
+                       nbins_dr, 0, dr_max, nbins_rpt, 0, rpt_max)
+        h.SetStats(0)
+        h.GetXaxis().SetTitleSize(0.05)
+        h.GetXaxis().SetLabelSize(0.04)
+        h.GetYaxis().SetTitleSize(0.05)
+        h.GetYaxis().SetLabelSize(0.04)
+        h.GetZaxis().SetTitleSize(0.05)
+        h.GetZaxis().SetLabelSize(0.04)
+
+        for dr, rpt in zip(deltaR[mask], relPtDiff[mask]):
+            h.Fill(float(dr), float(rpt))
+
+        h.Draw('COLZ')
+
+        c.Update()
+        c.SaveAs(f'{output_base}_2d_{tag}.pdf')
+        results.append((c, [h]))
+
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Gen-match threshold study: visualize deltaR and relPtDiff distributions')
@@ -414,6 +464,9 @@ def main():
     c, o = make_1d_relPtDiff(relPtDiff, isGold, output_base)
     save(c, o)
 
+    for c, o in make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
+        save(c, o)
+
     # Save to ROOT file
     output_file = ROOT.TFile(args.output, 'RECREATE')
     for canvas in all_canvases:
@@ -425,7 +478,8 @@ def main():
 
     print(f"\nDone! Output saved to {args.output}")
     print(f"PDFs: {output_base}_scatter_all.pdf, {output_base}_scatter_gold.pdf, "
-          f"{output_base}_deltaR.pdf, {output_base}_relPtDiff.pdf")
+          f"{output_base}_deltaR.pdf, {output_base}_relPtDiff.pdf, "
+          f"{output_base}_2d_all.pdf, {output_base}_2d_gold.pdf, {output_base}_2d_nongold.pdf")
 
 
 if __name__ == "__main__":
