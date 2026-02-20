@@ -374,7 +374,12 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         canvases.append(c)
         histos.append(h)
 
-    return [(c, [h]) for c, h in zip(canvases, histos)]
+    # Attach histos to canvases to prevent Python GC, but don't return
+    # them as separate objects — they are already serialized inside the canvas.
+    # Writing TH2D separately causes TPaletteAxis corruption on read-back.
+    for c, h in zip(canvases, histos):
+        c._hist = h
+    return [(c, []) for c in canvases]
 
 
 def main():
