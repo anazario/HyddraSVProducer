@@ -152,6 +152,11 @@ def make_scatter_all(deltaR, relPtDiff, isGold, dr_cut, relpt_cut):
     legend.Draw()
 
     c.Update()
+    c.g_nongold = g_nongold
+    c.g_gold = g_gold
+    c.line_dr = line_dr
+    c.line_rpt = line_rpt
+    c.legend = legend
     return c, [g_nongold, g_gold, line_dr, line_rpt, legend]
 
 
@@ -209,6 +214,10 @@ def make_scatter_gold(deltaR, relPtDiff, isGold, dr_cut, relpt_cut):
     legend.Draw()
 
     c.Update()
+    c.g = g
+    c.line_dr = line_dr
+    c.line_rpt = line_rpt
+    c.legend = legend
     return c, [g, line_dr, line_rpt, legend]
 
 
@@ -225,6 +234,8 @@ def make_1d_deltaR(deltaR, isGold):
 
     h_gold = ROOT.TH1F('h_deltaR_gold', ';#DeltaR(reco, gen);Legs / bin', nbins, 0, dr_max)
     h_nongold = ROOT.TH1F('h_deltaR_nongold', ';#DeltaR(reco, gen);Legs / bin', nbins, 0, dr_max)
+    h_gold.SetDirectory(0)
+    h_nongold.SetDirectory(0)
 
     for dr, g in zip(deltaR, isGold):
         if g:
@@ -262,6 +273,9 @@ def make_1d_deltaR(deltaR, isGold):
     legend.Draw()
 
     c.Update()
+    c.h_gold = h_gold
+    c.h_nongold = h_nongold
+    c.legend = legend
     return c, [h_gold, h_nongold, legend]
 
 
@@ -282,6 +296,8 @@ def make_1d_relPtDiff(relPtDiff, isGold):
     h_nongold = ROOT.TH1F('h_relPtDiff_nongold',
                            ';|p_{T}^{reco} - p_{T}^{gen}| / p_{T}^{gen};Legs / bin',
                            nbins, 0, rpt_max)
+    h_gold.SetDirectory(0)
+    h_nongold.SetDirectory(0)
 
     for rpt, g in zip(relPtDiff, isGold):
         if g:
@@ -319,6 +335,9 @@ def make_1d_relPtDiff(relPtDiff, isGold):
     legend.Draw()
 
     c.Update()
+    c.h_gold = h_gold
+    c.h_nongold = h_nongold
+    c.legend = legend
     return c, [h_gold, h_nongold, legend]
 
 
@@ -353,6 +372,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
                        f'{title};#DeltaR(reco, gen);'
                        f'|p_{{T}}^{{reco}} - p_{{T}}^{{gen}}| / p_{{T}}^{{gen}};Legs',
                        nbins_dr, 0, dr_max, nbins_rpt, 0, rpt_max)
+        h.SetDirectory(0)
         h.SetStats(0)
         h.GetXaxis().SetTitleSize(0.05)
         h.GetXaxis().SetLabelSize(0.04)
@@ -366,6 +386,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
 
         h.Draw('COLZ')
         c.Update()
+        c.h = h  # keep histogram alive; required for TPaletteAxis to survive serialization
 
         canvases.append(c)
         histos.append(h)
@@ -461,13 +482,12 @@ def main():
     for c, o in make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         save(c, o)
 
-    # Save to ROOT file
+    # Save to ROOT file — write only canvases; all primitives are embedded in them.
+    # Writing objects separately causes stale TPaletteAxis pointers for TH2D+COLZ,
+    # which produces black canvases and seg faults in TBrowser.
     output_file = ROOT.TFile(args.output, 'RECREATE')
     for canvas in all_canvases:
         canvas.Write()
-    for obj in all_objects:
-        if hasattr(obj, 'Write'):
-            obj.Write()
     output_file.Close()
 
     print(f"\nDone! Output saved to {args.output}")
