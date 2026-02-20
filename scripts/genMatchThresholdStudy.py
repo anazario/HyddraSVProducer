@@ -482,12 +482,19 @@ def main():
     for c, o in make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         save(c, o)
 
-    # Save to ROOT file — write only canvases; all primitives are embedded in them.
-    # Writing objects separately causes stale TPaletteAxis pointers for TH2D+COLZ,
-    # which produces black canvases and seg faults in TBrowser.
+    # Save to ROOT file.
+    # TPaletteAxis (created by COLZ) stores a raw C++ pointer to its TH2.  When ROOT
+    # reads back a TCanvas it must resolve that pointer.  Writing the histogram as a
+    # *separate named object* after the canvas gives ROOT the anchor it needs; without
+    # it fH stays null and any mouse interaction (tooltip, render) causes a crash.
+    # TGraph/TLine/TLegend have no such pointer issue and must NOT be written
+    # separately (double-writing them confuses the canvas primitive list).
     output_file = ROOT.TFile(args.output, 'RECREATE')
     for canvas in all_canvases:
         canvas.Write()
+        # For TH2D+COLZ canvases: also write histogram as named object
+        if hasattr(canvas, 'h') and isinstance(canvas.h, ROOT.TH2):
+            canvas.h.Write()
     output_file.Close()
 
     print(f"\nDone! Output saved to {args.output}")
