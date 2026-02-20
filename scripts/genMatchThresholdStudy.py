@@ -333,8 +333,6 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
     nbins_dr = 100
     nbins_rpt = 100
 
-    results = []
-
     configs = [
         ('all', 'All legs', np.ones(len(deltaR), dtype=bool)),
         ('gold', 'Gold-matched legs', isGold),
@@ -350,15 +348,12 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         c.SetRightMargin(0.14)
         c.SetBottomMargin(0.12)
         c.SetLogz()
-        c.cd()
 
         h = ROOT.TH2D(f'h2_relPtDiff_vs_deltaR_{tag}',
                        f'{title};#DeltaR(reco, gen);'
                        f'|p_{{T}}^{{reco}} - p_{{T}}^{{gen}}| / p_{{T}}^{{gen}};Legs',
                        nbins_dr, 0, dr_max, nbins_rpt, 0, rpt_max)
-        h.SetDirectory(0)
         h.SetStats(0)
-        h.SetMinimum(0.5)
         h.GetXaxis().SetTitleSize(0.05)
         h.GetXaxis().SetLabelSize(0.04)
         h.GetYaxis().SetTitleSize(0.05)
@@ -375,12 +370,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         canvases.append(c)
         histos.append(h)
 
-    # Attach histos to canvases to prevent Python GC, but don't return
-    # them as separate objects — they are already serialized inside the canvas.
-    # Writing TH2D separately causes TPaletteAxis corruption on read-back.
-    for c, h in zip(canvases, histos):
-        c._hist = h
-    return [(c, []) for c in canvases]
+    return [(c, [h]) for c, h in zip(canvases, histos)]
 
 
 def main():
