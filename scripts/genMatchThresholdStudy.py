@@ -94,7 +94,7 @@ def flatten_legs(data):
     return all_dr[valid], all_rpt[valid], all_gold[valid]
 
 
-def make_scatter_all(deltaR, relPtDiff, isGold, dr_cut, relpt_cut, output_base):
+def make_scatter_all(deltaR, relPtDiff, isGold, dr_cut, relpt_cut):
     """2D scatter: deltaR vs relPtDiff, colored by gold status, with threshold lines."""
     c = ROOT.TCanvas('c_scatter_all', 'deltaR vs relPtDiff (all legs)', 800, 600)
     c.SetLeftMargin(0.12)
@@ -152,11 +152,10 @@ def make_scatter_all(deltaR, relPtDiff, isGold, dr_cut, relpt_cut, output_base):
     legend.Draw()
 
     c.Update()
-    c.SaveAs(output_base + '_scatter_all.pdf')
     return c, [g_nongold, g_gold, line_dr, line_rpt, legend]
 
 
-def make_scatter_gold(deltaR, relPtDiff, isGold, dr_cut, relpt_cut, output_base):
+def make_scatter_gold(deltaR, relPtDiff, isGold, dr_cut, relpt_cut):
     """2D scatter: deltaR vs relPtDiff, gold-matched legs only (zoomed)."""
     c = ROOT.TCanvas('c_scatter_gold', 'deltaR vs relPtDiff (gold only)', 800, 600)
     c.SetLeftMargin(0.12)
@@ -210,11 +209,10 @@ def make_scatter_gold(deltaR, relPtDiff, isGold, dr_cut, relpt_cut, output_base)
     legend.Draw()
 
     c.Update()
-    c.SaveAs(output_base + '_scatter_gold.pdf')
     return c, [g, line_dr, line_rpt, legend]
 
 
-def make_1d_deltaR(deltaR, isGold, output_base):
+def make_1d_deltaR(deltaR, isGold):
     """1D deltaR distribution, gold vs non-gold, log y-axis."""
     c = ROOT.TCanvas('c_deltaR', 'deltaR distribution', 800, 600)
     c.SetLeftMargin(0.12)
@@ -264,11 +262,10 @@ def make_1d_deltaR(deltaR, isGold, output_base):
     legend.Draw()
 
     c.Update()
-    c.SaveAs(output_base + '_deltaR.pdf')
     return c, [h_gold, h_nongold, legend]
 
 
-def make_1d_relPtDiff(relPtDiff, isGold, output_base):
+def make_1d_relPtDiff(relPtDiff, isGold):
     """1D relPtDiff distribution, gold vs non-gold, log y-axis."""
     c = ROOT.TCanvas('c_relPtDiff', 'relPtDiff distribution', 800, 600)
     c.SetLeftMargin(0.12)
@@ -322,11 +319,10 @@ def make_1d_relPtDiff(relPtDiff, isGold, output_base):
     legend.Draw()
 
     c.Update()
-    c.SaveAs(output_base + '_relPtDiff.pdf')
     return c, [h_gold, h_nongold, legend]
 
 
-def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
+def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
     """TH2D of relPtDiff vs deltaR: all, gold-only, and non-gold-only.
 
     Note: relPtDiff as stored is |reco-gen|/gen (non-negative).
@@ -345,6 +341,9 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
         ('nongold', 'Non-gold legs', ~isGold),
     ]
 
+    canvases = []
+    histos = []
+
     for tag, title, mask in configs:
         c = ROOT.TCanvas(f'c_2d_{tag}', f'relPtDiff vs deltaR ({title})', 800, 600)
         c.SetLeftMargin(0.12)
@@ -357,6 +356,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
                        f'|p_{{T}}^{{reco}} - p_{{T}}^{{gen}}| / p_{{T}}^{{gen}};Legs',
                        nbins_dr, 0, dr_max, nbins_rpt, 0, rpt_max)
         h.SetStats(0)
+        h.SetMinimum(0.5)
         h.GetXaxis().SetTitleSize(0.05)
         h.GetXaxis().SetLabelSize(0.04)
         h.GetYaxis().SetTitleSize(0.05)
@@ -370,10 +370,10 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
         h.Draw('COLZ')
 
         c.Update()
-        c.SaveAs(f'{output_base}_2d_{tag}.pdf')
-        results.append((c, [h]))
+        canvases.append(c)
+        histos.append(h)
 
-    return results
+    return [(c, [h]) for c, h in zip(canvases, histos)]
 
 
 def main():
@@ -439,9 +439,6 @@ def main():
         print("ERROR: No valid legs found. Check your input file.")
         return
 
-    # Output base for PDFs (same directory as output ROOT file, without extension)
-    output_base = os.path.splitext(args.output)[0]
-
     # Create plots
     all_canvases = []
     all_objects = []
@@ -452,19 +449,19 @@ def main():
 
     print("\nCreating plots...")
 
-    c, o = make_scatter_all(deltaR, relPtDiff, isGold, args.delta_r, args.rel_pt_diff, output_base)
+    c, o = make_scatter_all(deltaR, relPtDiff, isGold, args.delta_r, args.rel_pt_diff)
     save(c, o)
 
-    c, o = make_scatter_gold(deltaR, relPtDiff, isGold, args.delta_r, args.rel_pt_diff, output_base)
+    c, o = make_scatter_gold(deltaR, relPtDiff, isGold, args.delta_r, args.rel_pt_diff)
     save(c, o)
 
-    c, o = make_1d_deltaR(deltaR, isGold, output_base)
+    c, o = make_1d_deltaR(deltaR, isGold)
     save(c, o)
 
-    c, o = make_1d_relPtDiff(relPtDiff, isGold, output_base)
+    c, o = make_1d_relPtDiff(relPtDiff, isGold)
     save(c, o)
 
-    for c, o in make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold, output_base):
+    for c, o in make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         save(c, o)
 
     # Save to ROOT file
@@ -477,9 +474,7 @@ def main():
     output_file.Close()
 
     print(f"\nDone! Output saved to {args.output}")
-    print(f"PDFs: {output_base}_scatter_all.pdf, {output_base}_scatter_gold.pdf, "
-          f"{output_base}_deltaR.pdf, {output_base}_relPtDiff.pdf, "
-          f"{output_base}_2d_all.pdf, {output_base}_2d_gold.pdf, {output_base}_2d_nongold.pdf")
+    print(f"Created {len(all_canvases)} plots")
 
 
 if __name__ == "__main__":
