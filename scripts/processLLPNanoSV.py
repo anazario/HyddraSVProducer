@@ -294,7 +294,7 @@ def process_file(args):
                 'originalMuonIdx1', 'originalMuonIdx2',
                 'isDSAMuon1', 'isDSAMuon2',
                 'refittedTrackIdx1', 'refittedTrackIdx2']
-    ref_cols = ['px', 'py', 'pz']
+    ref_cols = ['px', 'py', 'pz', 'charge']
     need += [vtx_pre + c for c in vtx_cols]
     need += [ref_pre + c for c in ref_cols]
 
@@ -384,7 +384,8 @@ def process_file(args):
 
             # Kinematics from refitted tracks (needed for cuts)
             px_tot = py_tot = pz_tot = e_tot = 0.
-            track_4vecs = []  # (px, py, pz, e) per track
+            track_4vecs = []   # (px, py, pz, e) per track
+            track_charges = []
             found = False
             for ti_key in [vtx_pre + 'refittedTrackIdx1', vtx_pre + 'refittedTrackIdx2']:
                 if ti_key not in evt:
@@ -399,6 +400,7 @@ def process_file(args):
                 e_tot += e
                 px_tot += px; py_tot += py; pz_tot += pz
                 track_4vecs.append((px, py, pz, e))
+                track_charges.append(int(evt[ref_pre + 'charge'][ti]))
                 found = True
 
             if found:
@@ -410,12 +412,17 @@ def process_file(args):
             else:
                 p_tot = 0.; mass = 0.; pt = 0.; eta = 0.; phi = 0.
 
-            # Decay angle: boost track1 into the dimuon rest frame, dot with boost direction.
+            # Decay angle: boost the mu- into the dimuon rest frame, dot with boost direction.
             # Matches VertexHelper.cc CalculateDecayAngle: refitted track momenta, mass=0.
+            # The negatively charged track is used to define an unbiased, convention-consistent angle.
             decay_angle = -999.
             if len(track_4vecs) == 2:
                 da_4vecs = [(px, py, pz, np.sqrt(px**2 + py**2 + pz**2))
                             for (px, py, pz, _) in track_4vecs]
+                # Pick the negatively charged leg; fall back to index 0 if charges are equal
+                neg_idx = 0
+                if len(track_charges) == 2 and track_charges[1] < track_charges[0]:
+                    neg_idx = 1
                 sum_px = da_4vecs[0][0] + da_4vecs[1][0]
                 sum_py = da_4vecs[0][1] + da_4vecs[1][1]
                 sum_pz = da_4vecs[0][2] + da_4vecs[1][2]
@@ -427,7 +434,7 @@ def process_file(args):
                     b2 = bx**2 + by**2 + bz**2
                     if b2 < 1. and b2 > 1e-12:
                         gamma = 1. / np.sqrt(1. - b2)
-                        t1_px, t1_py, t1_pz, t1_e = da_4vecs[0]
+                        t1_px, t1_py, t1_pz, t1_e = da_4vecs[neg_idx]
                         bdotp = bx*t1_px + by*t1_py + bz*t1_pz
                         fac = (gamma - 1.) * bdotp / b2 - gamma * t1_e
                         bp_x = t1_px + fac * bx
