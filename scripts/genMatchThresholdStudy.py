@@ -355,6 +355,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
                        f'{title};#DeltaR(reco, gen);'
                        f'|p_{{T}}^{{reco}} - p_{{T}}^{{gen}}| / p_{{T}}^{{gen}};Legs',
                        nbins_dr, 0, dr_max, nbins_rpt, 0, rpt_max)
+        h.SetDirectory(0)
         h.SetStats(0)
         h.SetMinimum(0.5)
         h.GetXaxis().SetTitleSize(0.05)
