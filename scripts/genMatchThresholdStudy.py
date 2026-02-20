@@ -9,9 +9,11 @@ Helps choose optimal thresholds for gold matching.
 Usage:
     python genMatchThresholdStudy.py -i llpNanoSV.root
     python genMatchThresholdStudy.py -i llpNanoSV.root --delta-r 0.2 --rel-pt-diff 0.3
+    python genMatchThresholdStudy.py -i "output_*.root" -o combined_study.root
 """
 
 import argparse
+import glob
 import os
 import numpy as np
 import uproot
@@ -327,8 +329,8 @@ def make_1d_relPtDiff(relPtDiff, isGold, output_base):
 def main():
     parser = argparse.ArgumentParser(
         description='Gen-match threshold study: visualize deltaR and relPtDiff distributions')
-    parser.add_argument('-i', '--input', required=True,
-                        help='Input ROOT file (from processLLPNanoSV.py)')
+    parser.add_argument('-i', '--input', nargs='+', required=True,
+                        help='Input ROOT file(s) or glob pattern(s) (from processLLPNanoSV.py)')
     parser.add_argument('-o', '--output', default='gen_match_threshold_study.root',
                         help='Output ROOT file name')
     parser.add_argument('--tree-path', default=None,
@@ -342,13 +344,46 @@ def main():
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptStat(0)
 
-    # Load data
-    print(f"Loading data from {args.input}...")
-    data = load_data(args.input, args.tree_path)
+    # Expand glob patterns and collect unique files
+    input_files = []
+    for pattern in args.input:
+        expanded = sorted(glob.glob(pattern))
+        if expanded:
+            input_files.extend(expanded)
+        else:
+            # Not a glob, treat as literal path
+            input_files.append(pattern)
+    # Deduplicate while preserving order
+    seen = set()
+    unique_files = []
+    for f in input_files:
+        fabs = os.path.abspath(f)
+        if fabs not in seen:
+            seen.add(fabs)
+            unique_files.append(f)
+    input_files = unique_files
 
-    # Flatten legs
-    print("Flattening per-leg branches...")
-    deltaR, relPtDiff, isGold = flatten_legs(data)
+    if not input_files:
+        print("ERROR: No input files found.")
+        return
+
+    print(f"Processing {len(input_files)} file(s)...")
+
+    # Load and flatten all files
+    all_deltaR, all_relPtDiff, all_isGold = [], [], []
+    for fname in input_files:
+        print(f"  Loading {fname}...")
+        data = load_data(fname, args.tree_path)
+        dr, rpt, gold = flatten_legs(data)
+        all_deltaR.append(dr)
+        all_relPtDiff.append(rpt)
+        all_isGold.append(gold)
+
+    deltaR = np.concatenate(all_deltaR)
+    relPtDiff = np.concatenate(all_relPtDiff)
+    isGold = np.concatenate(all_isGold)
+
+    print(f"\nCombined: {len(deltaR)} legs, {np.sum(isGold)} gold, {np.sum(~isGold)} non-gold")
 
     if len(deltaR) == 0:
         print("ERROR: No valid legs found. Check your input file.")
