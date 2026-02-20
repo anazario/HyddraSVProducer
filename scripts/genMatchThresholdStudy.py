@@ -350,6 +350,7 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
         c.SetRightMargin(0.14)
         c.SetBottomMargin(0.12)
         c.SetLogz()
+        c.cd()
 
         h = ROOT.TH2D(f'h2_relPtDiff_vs_deltaR_{tag}',
                        f'{title};#DeltaR(reco, gen);'
@@ -369,8 +370,8 @@ def make_2d_relPtDiff_vs_deltaR(deltaR, relPtDiff, isGold):
             h.Fill(float(dr), float(rpt))
 
         h.Draw('COLZ')
-
         c.Update()
+
         canvases.append(c)
         histos.append(h)
 
