@@ -121,13 +121,13 @@ def match_dsa_to_gen(dsa_eta, dsa_phi, dsa_pt, evt, gen_vertices, dr_cut, relpt_
             dphi = float(dsa_phi) - float(gen_phi[mu_idx])
             dphi = (dphi + np.pi) % (2 * np.pi) - np.pi
             dr = np.sqrt(deta**2 + dphi**2)
-            relpt = abs(float(dsa_pt) - float(gen_pt[mu_idx])) / max(float(gen_pt[mu_idx]), 0.001)
-            if relpt > relpt_cut:
+            signed_relpt = (float(dsa_pt) - float(gen_pt[mu_idx])) / max(float(gen_pt[mu_idx]), 0.001)
+            if abs(signed_relpt) > relpt_cut:
                 continue
             if dr < best_dr:
                 best_dr = dr
                 best_gv = gv_idx
-                best_relpt = relpt
+                best_relpt = signed_relpt
     return best_gv, best_dr, best_relpt
 
 
@@ -292,8 +292,9 @@ def process_file(args):
     vtx_cols = ['isValid', 'vx', 'vy', 'vz', 'vxy',
                 'chi2', 'normChi2', 'ndof',
                 'originalMuonIdx1', 'originalMuonIdx2',
-                'isDSAMuon1', 'isDSAMuon2']
-    ref_cols = ['px', 'py', 'pz', 'idx']
+                'isDSAMuon1', 'isDSAMuon2',
+                'refittedTrackIdx1', 'refittedTrackIdx2']
+    ref_cols = ['px', 'py', 'pz']
     need += [vtx_pre + c for c in vtx_cols]
     need += [ref_pre + c for c in ref_cols]
 
@@ -311,7 +312,7 @@ def process_file(args):
                    'genVertex_nElectron', 'genVertex_nHadronic']
     vec_float_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
                       'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'decayAngle',
-                      'min3D', 'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
+                      'min3D']
     vec_int_keys = ['genVertexIndex', 'nearestGenVertexIndex']
     vec_bool_keys = ['isLeptonic', 'isBronze', 'isSilver', 'isGold']
     gen_float_keys = ['dxy', 'x', 'y', 'z', 'pt', 'eta', 'phi', 'mass']
@@ -321,6 +322,8 @@ def process_file(args):
     out['nTracks'] = []
     for k in vec_float_keys + vec_int_keys + vec_bool_keys:
         out['sv_' + k] = []
+    out['sv_deltaR'] = []
+    out['sv_relPtDiff'] = []
     for k in gen_float_keys + gen_bool_keys:
         out['gv_' + k] = []
 
@@ -361,6 +364,8 @@ def process_file(args):
         n_vtx = len(evt.get(is_valid_key, []))
 
         ev = {k: [] for k in vec_float_keys + vec_int_keys + vec_bool_keys + ['nTracks']}
+        ev['deltaR'] = []
+        ev['relPtDiff'] = []
 
         # PV position (once per event; scalar in NanoAOD)
         def _pv(key):
@@ -378,21 +383,23 @@ def process_file(args):
                 continue
 
             # Kinematics from refitted tracks (needed for cuts)
-            idx_key = ref_pre + 'idx'
             px_tot = py_tot = pz_tot = e_tot = 0.
             track_4vecs = []  # (px, py, pz, e) per track
             found = False
-            if idx_key in evt:
-                for it in range(len(evt[idx_key])):
-                    if int(evt[idx_key][it]) == iv:
-                        px = float(evt[ref_pre + 'px'][it])
-                        py = float(evt[ref_pre + 'py'][it])
-                        pz = float(evt[ref_pre + 'pz'][it])
-                        e = np.sqrt(px**2 + py**2 + pz**2 + MUON_MASS**2)
-                        e_tot += e
-                        px_tot += px; py_tot += py; pz_tot += pz
-                        track_4vecs.append((px, py, pz, e))
-                        found = True
+            for ti_key in [vtx_pre + 'refittedTrackIdx1', vtx_pre + 'refittedTrackIdx2']:
+                if ti_key not in evt:
+                    continue
+                ti = int(evt[ti_key][iv])
+                if ti < 0 or ti >= len(evt[ref_pre + 'px']):
+                    continue
+                px = float(evt[ref_pre + 'px'][ti])
+                py = float(evt[ref_pre + 'py'][ti])
+                pz = float(evt[ref_pre + 'pz'][ti])
+                e = np.sqrt(px**2 + py**2 + pz**2 + MUON_MASS**2)
+                e_tot += e
+                px_tot += px; py_tot += py; pz_tot += pz
+                track_4vecs.append((px, py, pz, e))
+                found = True
 
             if found:
                 p_tot = np.sqrt(px_tot**2 + py_tot**2 + pz_tot**2)
@@ -503,13 +510,14 @@ def process_file(args):
             ev['isBronze'].append(is_gold)
 
             # Per-leg deltaR/relPtDiff to gen match (no cuts applied)
-            for leg_num, (oidx_key, dsa_key) in enumerate([
-                    ('originalMuonIdx1', 'isDSAMuon1'),
-                    ('originalMuonIdx2', 'isDSAMuon2')], start=1):
+            leg_drs = []
+            leg_relpts = []
+            for oidx_key, dsa_key in [('originalMuonIdx1', 'isDSAMuon1'),
+                                       ('originalMuonIdx2', 'isDSAMuon2')]:
                 is_dsa = float(evt[vtx_pre + dsa_key][iv]) > 0.5
                 orig_idx = int(evt[vtx_pre + oidx_key][iv])
                 leg_dr = -1.
-                leg_relpt = -1.
+                leg_relpt = -999.
 
                 if is_dsa:
                     if 0 <= orig_idx < len(evt.get('DSAMuon_pt', [])):
@@ -530,17 +538,19 @@ def process_file(args):
                         if 0 <= gp_idx < len(evt['GenPart_eta']):
                             mu_eta = float(evt['Muon_eta'][orig_idx])
                             mu_phi = float(evt['Muon_phi'][orig_idx])
-                            gen_eta = float(evt['GenPart_eta'][gp_idx])
-                            gen_phi = float(evt['GenPart_phi'][gp_idx])
-                            deta = mu_eta - gen_eta
-                            dphi = (mu_phi - gen_phi + np.pi) % (2 * np.pi) - np.pi
+                            g_eta = float(evt['GenPart_eta'][gp_idx])
+                            g_phi = float(evt['GenPart_phi'][gp_idx])
+                            deta = mu_eta - g_eta
+                            dphi = (mu_phi - g_phi + np.pi) % (2 * np.pi) - np.pi
                             leg_dr = np.sqrt(deta**2 + dphi**2)
                             mu_pt = float(evt['Muon_pt'][orig_idx])
                             gen_pt = float(evt['GenPart_pt'][gp_idx])
-                            leg_relpt = abs(mu_pt - gen_pt) / max(gen_pt, 0.001)
+                            leg_relpt = (mu_pt - gen_pt) / max(gen_pt, 0.001)
 
-                ev[f'deltaR{leg_num}'].append(leg_dr)
-                ev[f'relPtDiff{leg_num}'].append(leg_relpt)
+                leg_drs.append(leg_dr)
+                leg_relpts.append(leg_relpt)
+            ev['deltaR'].extend(leg_drs)
+            ev['relPtDiff'].extend(leg_relpts)
 
             # Spatial matching
             min_dist = -1.
@@ -564,6 +574,8 @@ def process_file(args):
             out['sv_' + k].append(np.array(ev[k], dtype=np.int32))
         for k in vec_bool_keys:
             out['sv_' + k].append(np.array(ev[k], dtype=np.bool_))
+        out['sv_deltaR'].append(np.array(ev['deltaR'], dtype=np.float32))
+        out['sv_relPtDiff'].append(np.array(ev['relPtDiff'], dtype=np.float32))
 
     # Count efficiency: unique gold-matched gen vertices / gen muon vertices
     # Filter by dxy range [0.1, 100) cm to match efficiency script
@@ -611,10 +623,12 @@ def build_tree_chunk(out):
     sv_keys = ['x', 'y', 'z', 'dxy', 'mass', 'pt', 'eta', 'phi',
                'chi2', 'normalizedChi2', 'ndof', 'cosTheta', 'decayAngle',
                'min3D', 'genVertexIndex', 'nearestGenVertexIndex',
-               'isLeptonic', 'isBronze', 'isSilver', 'isGold',
-               'deltaR1', 'deltaR2', 'relPtDiff1', 'relPtDiff2']
+               'isLeptonic', 'isBronze', 'isSilver', 'isGold']
     for k in sv_keys:
         tree_data['HyddraSV_' + k] = ak.Array(out['sv_' + k])
+    # Nested per-leg arrays: [event][vertex][leg]
+    tree_data['HyddraSV_deltaR'] = ak.Array(out['sv_deltaR'])
+    tree_data['HyddraSV_relPtDiff'] = ak.Array(out['sv_relPtDiff'])
     tree_data['HyddraSV_nTracks'] = ak.Array(out['nTracks'])
 
     # Jagged gen branches
@@ -744,7 +758,7 @@ def main():
                 fout['h_dsaGenDeltaR'] = np.histogram(
                     dsa_dr, bins=150, range=(0., 3.))
                 fout['h_dsaGenRelPtDiff'] = np.histogram(
-                    dsa_relpt, bins=100, range=(0., 5.))
+                    dsa_relpt, bins=200, range=(-5., 5.))
 
         elapsed = time.time() - t0
         pct = 100. * total_gold / total_gen if total_gen > 0 else 0.
