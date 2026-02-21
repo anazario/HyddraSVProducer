@@ -66,7 +66,7 @@ def plot_seed_track_cos_theta(tdir, st):
 
     h_ax = ROOT.TH1F("h_ax_stct", ";Track cos#theta (wrt PV);Normalised to Unit Area",
                      n_bins, bins)
-    h_ax.SetMinimum(0); h_ax.SetMaximum(max_y)
+    h_ax.SetMinimum(1e-4); h_ax.SetMaximum(max_y)
     h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
     h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
     h_ax.GetXaxis().SetLabelSize(0.04);  h_ax.GetYaxis().SetLabelSize(0.04)

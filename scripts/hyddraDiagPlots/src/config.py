@@ -20,9 +20,9 @@ MARKERS         = [20, 21, 22, 23, 29]
 
 # ── Reco observables shown per stage ─────────────────────────────────────────
 RECO_OBSERVABLES = {
-    "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1,  51)), "log_y": False},
-    "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1,  51)), "log_y": False},
-    "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1,  51)), "log_y": False},
+    "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
+    "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
+    "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1,  51)), "log_y": True},
     "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 150,  76)), "log_y": True},
     "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100,  51)), "log_y": True},
 }

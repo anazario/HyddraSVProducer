@@ -64,7 +64,7 @@ def plot_track_absorption(tdir, gf):
     h_ax = ROOT.TH1F("h_ax_tab",
                      ";Number of tracks at merge;Normalised to Unit Area",
                      n_bins, bins)
-    h_ax.SetMinimum(0); h_ax.SetMaximum(max(max_y, 0.1))
+    h_ax.SetMinimum(1e-4); h_ax.SetMaximum(max(max_y, 0.1))
     h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
     h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
     h_ax.GetXaxis().SetLabelSize(0.04);  h_ax.GetYaxis().SetLabelSize(0.04)

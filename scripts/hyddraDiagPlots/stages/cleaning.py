@@ -35,8 +35,8 @@ def plot_cleaning_2d(tdir, ct, max_compat=1.5, min_cos_theta=0.5):
     bkg_track_in_sig_vtx = ~is_signal & sig_vtx
     bkg_vtx_tracks       = ~sig_vtx
 
-    x_bins = np.linspace(0, 5, 51)
-    y_bins = np.linspace(-1, 1, 51)
+    x_bins = np.linspace(0, 5, 101)
+    y_bins = np.linspace(-1, 1, 101)
 
     def fill_h2(name, title, mask):
         ROOT.gStyle.SetPalette(ROOT.kViridis)
@@ -152,7 +152,7 @@ def plot_cleaning_track_distributions(tdir, ct):
         max_y = max((h.GetMaximum() for h, _ in hists if h.Integral() > 0), default=1.0)
         h_ax = ROOT.TH1F(f"h_ax_{cname}",
                          f";{x_label};Normalised to Unit Area", n_bins, bins)
-        h_ax.SetMinimum(0); h_ax.SetMaximum(max_y * 1.3)
+        h_ax.SetMinimum(1e-4); h_ax.SetMaximum(max_y * 1.3)
         h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
         h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
         h_ax.GetXaxis().SetLabelSize(0.04);  h_ax.GetYaxis().SetLabelSize(0.04)

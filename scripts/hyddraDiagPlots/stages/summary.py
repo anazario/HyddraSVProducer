@@ -131,6 +131,7 @@ def plot_efficiency_funnel(tdir, gf):
     h_bronze.SetFillColor(ROOT.kRed - 3);  h_bronze.SetLineColor(ROOT.kRed - 3)
 
     max_y = max(eff_gold + eff_silver + eff_bronze) * 1.3
+    h_gold.SetMinimum(1e-4)
     h_gold.SetMaximum(max_y)
     h_gold.GetYaxis().SetTitle("Efficiency")
     h_gold.GetXaxis().CenterTitle(True)
@@ -191,7 +192,7 @@ def plot_efficiency_vs_var(tdir, gf, var_key, var_label, bins, canvas_name):
 
     h_ax = ROOT.TH1F(f"h_ax_{var_key}", f";{var_label};Gold Efficiency",
                      n_bins, np.array(bins, dtype=float))
-    h_ax.SetMinimum(0); h_ax.SetMaximum(1.1)
+    h_ax.SetMinimum(1e-4); h_ax.SetMaximum(1.1)
     h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
     h_ax.SetStats(0)
     h_ax.Draw("AXIS")
@@ -245,7 +246,7 @@ def plot_silver_to_gold_recovery(tdir, gf):
     g.SetMarkerStyle(20); g.SetLineWidth(2)
 
     h_ax = ROOT.TH1F("h_sg_ax", ";Gen dxy (cm);Recovery Fraction", len(bins) - 1, bins)
-    h_ax.SetMinimum(0); h_ax.SetMaximum(1.1)
+    h_ax.SetMinimum(1e-4); h_ax.SetMaximum(1.1)
     h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
     h_ax.SetStats(0)
     h_ax.Draw("AXIS")
@@ -290,6 +291,7 @@ def plot_loss_stage_distribution(tdir, gf):
     h.GetXaxis().CenterTitle(True)
     h.GetYaxis().CenterTitle(True)
     h.SetStats(0)
+    h.SetMinimum(1e-4)
     h.SetMaximum(max(counts) * 1.4 if max(counts) > 0 else 1)
     h.Draw("HIST")
 
