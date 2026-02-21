@@ -111,12 +111,12 @@ def add_legend(canvas, graphs, x1=0.6, y1=0.7, x2=0.88, y2=0.88):
 
 def load_gen_funnel(root_file):
     """Return genFunnel tree arrays from an open uproot file."""
-    return root_file["genFunnel"].arrays(library="ak")
+    return root_file["hyddraSVsDiagAnalyzer/genFunnel"].arrays(library="ak")
 
 
 def load_stage_counts(root_file):
     """Return stageCounts tree arrays (summed over all events)."""
-    arr = root_file["stageCounts"].arrays(library="ak")
+    arr = root_file["hyddraSVsDiagAnalyzer/stageCounts"].arrays(library="ak")
     totals = {}
     for key in ["n", "nGold", "nSilver", "nBronze"]:
         for stage in STAGE_KEYS:
@@ -127,7 +127,7 @@ def load_stage_counts(root_file):
 
 def load_cleaning_tracks(root_file):
     """Return cleaningTracks tree arrays from an open uproot file."""
-    return root_file["cleaningTracks"].arrays(library="ak")
+    return root_file["hyddraSVsDiagAnalyzer/cleaningTracks"].arrays(library="ak")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
