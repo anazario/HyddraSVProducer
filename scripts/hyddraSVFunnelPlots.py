@@ -17,7 +17,11 @@ Usage:
 """
 
 import argparse
+import glob as glob_module
+import multiprocessing as mp
+import os
 import sys
+import tempfile
 import numpy as np
 import uproot
 import awkward as ak
@@ -513,58 +517,139 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         print(f"  [cleaning_2d_{suffix}] done")
 
 
+# Multi-file helpers
+
+def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta):
+    """Load data from sig_path and write all 7 plot groups into out_file."""
+    stem = os.path.splitext(os.path.basename(sig_path))[0]
+    print(f"  [{stem}] Loading data...")
+    with uproot.open(sig_path) as sig_f:
+        gf_sig = load_gen_funnel(sig_f)
+        sc_sig = load_stage_counts(sig_f)
+        ct_sig = load_cleaning_tracks(sig_f)
+
+    sc_bkg = None
+    if bkg_path:
+        with uproot.open(bkg_path) as bkg_f:
+            sc_bkg = load_stage_counts(bkg_f)
+
+    print(f"  [{stem}] Yield flow plots...")
+    plot_yield_flow(out_file, sc_sig, sc_bkg)
+    print(f"  [{stem}] Efficiency funnel bar chart...")
+    plot_efficiency_funnel(out_file, gf_sig)
+    print(f"  [{stem}] Efficiency vs gen dxy...")
+    dxy_bins = list(np.concatenate([
+        np.linspace(0, 5, 11), np.linspace(6, 20, 8), np.linspace(25, 50, 6)]))
+    plot_efficiency_vs_var(out_file, gf_sig, "dxy", "Gen dxy (cm)", dxy_bins, "eff_vs_dxy")
+    print(f"  [{stem}] Efficiency vs gen pt...")
+    pt_bins = list(np.linspace(0, 100, 21))
+    plot_efficiency_vs_var(out_file, gf_sig, "pt", "Gen p_{T} (GeV)", pt_bins, "eff_vs_pt")
+    print(f"  [{stem}] Silver-to-gold recovery...")
+    plot_silver_to_gold_recovery(out_file, gf_sig)
+    print(f"  [{stem}] 2D cleaning variable plots...")
+    plot_cleaning_2d(out_file, ct_sig, max_compat, min_cos_theta)
+    print(f"  [{stem}] Done.")
+
+
+def _worker(args_tuple):
+    """Multiprocessing worker: process one signal file into a temp ROOT file."""
+    sig_path, bkg_path, tmp_path, max_compat, min_cos_theta = args_tuple
+    stem = os.path.splitext(os.path.basename(sig_path))[0]
+    print(f"[{stem}] Worker started (PID {os.getpid()})")
+    tmp_file = ROOT.TFile(tmp_path, "RECREATE")
+    _run_all_plots(tmp_file, sig_path, bkg_path, max_compat, min_cos_theta)
+    tmp_file.Close()
+    return tmp_path
+
+
+def _copy_to_dir(src_path, tdir):
+    """Copy all top-level objects from src ROOT file into tdir."""
+    src = ROOT.TFile.Open(src_path, "READ")
+    if not src or src.IsZombie():
+        print(f"  Warning: could not open temp file {src_path}", file=sys.stderr)
+        return
+    tdir.cd()
+    for key in src.GetListOfKeys():
+        obj = key.ReadObj()
+        tdir.cd()
+        obj.Write(key.GetName())
+    src.Close()
+
+
 # Main
 
 def main():
     parser = argparse.ArgumentParser(description="HYDDRA diagnostic funnel plots")
-    parser.add_argument("--signal",     required=True, help="Signal ROOT file")
-    parser.add_argument("--background", default=None,  help="Background ROOT file (optional)")
-    parser.add_argument("--output",     default="hyddraSVFunnelPlots.root",
+    parser.add_argument("--signal", required=True, nargs='+',
+                        help="Signal ROOT file(s) or glob pattern(s)")
+    parser.add_argument("--background", default=None,
+                        help="Background ROOT file (optional, applied to all signal files)")
+    parser.add_argument("--output", default="hyddraSVFunnelPlots.root",
                         help="Output ROOT file")
-    parser.add_argument("--max-compat",   type=float, default=1.5,
+    parser.add_argument("--max-compat",    type=float, default=1.5,
                         help="maxCompatibility cut value (default: 1.5)")
-    parser.add_argument("--min-cos-theta",type=float, default=0.5,
+    parser.add_argument("--min-cos-theta", type=float, default=0.5,
                         help="minCleanCosTheta cut value (default: 0.5)")
+    parser.add_argument("--jobs", "-j", type=int, default=0,
+                        help="Max parallel workers for multi-file mode (0 = cpu_count)")
     args = parser.parse_args()
 
-    print(f"[hyddraSVFunnelPlots] Signal:     {args.signal}")
+    # Expand glob patterns and deduplicate
+    sig_files = []
+    for pat in args.signal:
+        expanded = sorted(glob_module.glob(pat))
+        sig_files.extend(expanded if expanded else [pat])
+    sig_files = list(dict.fromkeys(sig_files))  # deduplicate, preserve order
+
+    if not sig_files:
+        print("Error: no signal files found.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[hyddraSVFunnelPlots] Signal files ({len(sig_files)}):")
+    for f in sig_files:
+        print(f"  {f}")
     print(f"[hyddraSVFunnelPlots] Background: {args.background or 'none'}")
     print(f"[hyddraSVFunnelPlots] Output:     {args.output}")
 
-    with uproot.open(args.signal) as sig_file:
-        gf_sig  = load_gen_funnel(sig_file)
-        sc_sig  = load_stage_counts(sig_file)
-        ct_sig  = load_cleaning_tracks(sig_file)
+    if len(sig_files) == 1:
+        # ── Single-file mode: identical to original behaviour ──────────────
+        out_file = ROOT.TFile(args.output, "RECREATE")
+        _run_all_plots(out_file, sig_files[0], args.background,
+                       args.max_compat, args.min_cos_theta)
+        out_file.Close()
 
-    sc_bkg = None
-    if args.background:
-        with uproot.open(args.background) as bkg_file:
-            sc_bkg = load_stage_counts(bkg_file)
+    else:
+        # ── Multi-file mode: parallel workers → temp files → merge ─────────
+        n_workers = args.jobs if args.jobs > 0 else min(len(sig_files), mp.cpu_count())
+        print(f"[hyddraSVFunnelPlots] Workers:    {n_workers}")
 
-    out_file = ROOT.TFile(args.output, "RECREATE")
+        tmpdir = tempfile.mkdtemp(prefix="hyddra_funnel_")
+        work_items = []
+        for sig_path in sig_files:
+            stem    = os.path.splitext(os.path.basename(sig_path))[0]
+            tmp_out = os.path.join(tmpdir, f"{stem}.root")
+            work_items.append((sig_path, args.background, tmp_out,
+                               args.max_compat, args.min_cos_theta))
 
-    print("\n[1/7] Yield flow plots...")
-    plot_yield_flow(out_file, sc_sig, sc_bkg)
+        print(f"\n[hyddraSVFunnelPlots] Launching {len(work_items)} workers...")
+        with mp.Pool(n_workers) as pool:
+            pool.map(_worker, work_items)
 
-    print("[2/7] Efficiency funnel bar chart...")
-    plot_efficiency_funnel(out_file, gf_sig)
+        # Merge temp files into per-file subdirectories of the final output
+        print(f"\n[hyddraSVFunnelPlots] Merging into {args.output}...")
+        out_file = ROOT.TFile(args.output, "RECREATE")
+        for sig_path, _, tmp_path, _, _ in work_items:
+            stem = os.path.splitext(os.path.basename(sig_path))[0]
+            print(f"  Copying {stem}...")
+            tdir = out_file.mkdir(stem)
+            _copy_to_dir(tmp_path, tdir)
+            os.unlink(tmp_path)
+        out_file.Close()
+        try:
+            os.rmdir(tmpdir)
+        except OSError:
+            pass
 
-    print("[3/7] Efficiency vs gen dxy...")
-    dxy_bins = list(np.concatenate([
-        np.linspace(0, 5, 11), np.linspace(6, 20, 8), np.linspace(25, 50, 6)]))
-    plot_efficiency_vs_var(out_file, gf_sig, "dxy", "Gen dxy (cm)", dxy_bins, "eff_vs_dxy")
-
-    print("[4/7] Efficiency vs gen pt...")
-    pt_bins = list(np.linspace(0, 100, 21))
-    plot_efficiency_vs_var(out_file, gf_sig, "pt", "Gen p_{T} (GeV)", pt_bins, "eff_vs_pt")
-
-    print("[5/7] Silver-to-gold recovery...")
-    plot_silver_to_gold_recovery(out_file, gf_sig)
-
-    print("[6/7] 2D cleaning variable plots...")
-    plot_cleaning_2d(out_file, ct_sig, args.max_compat, args.min_cos_theta)
-
-    out_file.Close()
     print(f"\n[hyddraSVFunnelPlots] All plots saved to {args.output}")
 
 
