@@ -25,7 +25,7 @@ import ROOT
 
 ROOT.gROOT.SetBatch(True)
 
-# ─── Style ────────────────────────────────────────────────────────────────────
+
 STAGE_NAMES   = ["Seeding", "Merging", "Cleaning", "Disambiguation", "Filtering"]
 STAGE_KEYS    = ["seed", "merged", "cleaned", "disambig", "filtered"]
 COLORS_SIGNAL = ROOT.kBlue + 2
@@ -105,10 +105,7 @@ def add_legend(canvas, graphs, x1=0.6, y1=0.7, x2=0.88, y2=0.88):
     canvas._legend = leg
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Data loading helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
 def load_gen_funnel(root_file):
     """Return genFunnel tree arrays from an open uproot file."""
     return root_file["hyddraSVsDiagAnalyzer/genFunnel"].arrays(library="ak")
@@ -130,10 +127,7 @@ def load_cleaning_tracks(root_file):
     return root_file["hyddraSVsDiagAnalyzer/cleaningTracks"].arrays(library="ak")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Plot 1 & 2: Yield flow (styled after vertexYieldFlow4.py)
-# ─────────────────────────────────────────────────────────────────────────────
-
 def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
     """
     Two canvases:
@@ -215,10 +209,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
         print(f"  [yield_flow_{suffix}] done")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Plot 3: Efficiency funnel bar chart
-# ─────────────────────────────────────────────────────────────────────────────
-
 def plot_efficiency_funnel(out_file, gf):
     """
     Fraction of gen vertices with hasTracks=True found at each stage
@@ -295,10 +286,7 @@ def plot_efficiency_funnel(out_file, gf):
     print("  [efficiency_funnel] done")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Plots 4 & 5: Efficiency vs gen dxy / pt
-# ─────────────────────────────────────────────────────────────────────────────
-
 def plot_efficiency_vs_var(out_file, gf, var_key, var_label, bins, canvas_name):
     """
     TEfficiency-style ratio curve for gold efficiency vs a gen-level variable,
@@ -350,10 +338,7 @@ def plot_efficiency_vs_var(out_file, gf, var_key, var_label, bins, canvas_name):
     print(f"  [eff_vs_{var_key}] done")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Plot 6: Silver-to-gold recovery
-# ─────────────────────────────────────────────────────────────────────────────
-
 def plot_silver_to_gold_recovery(out_file, gf):
     """
     Among gen vertices that are silver-but-not-gold at the merge stage,
@@ -408,10 +393,7 @@ def plot_silver_to_gold_recovery(out_file, gf):
     print("  [silver_to_gold_recovery] done")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Plot 7: 2D cleaning variables
-# ─────────────────────────────────────────────────────────────────────────────
-
 def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
     """
     2D histogram of (compatibility, cosTheta) for tracks in post-merge multi-track
@@ -440,8 +422,10 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
     y_bins = np.linspace(-1, 1, 51)
 
     def fill_h2(name, title, mask):
+        ROOT.gStyle.SetPalette(ROOT.kViridis)
         h = ROOT.TH2F(name, title,
                       len(x_bins)-1, x_bins, len(y_bins)-1, y_bins)
+        h.SetDirectory(0)
         for c, ct_v in zip(compat[mask], cos_th[mask]):
             h.Fill(c, ct_v)
         h.GetXaxis().SetTitle("Track Compatibility (#sigma)")
@@ -477,7 +461,8 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
     ]:
         c = ROOT.TCanvas(f"cleaning_2d_{suffix}", title, 900, 700)
         c.SetRightMargin(0.15)
-        h.Draw("COLZ")
+        #h.Draw("COLZ")
+        c.Update()
         lines = draw_cut_lines(h)
 
         leg = ROOT.TLegend(0.18, 0.75, 0.55, 0.88)
@@ -495,9 +480,7 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         print(f"  [cleaning_2d_{suffix}] done")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Main
-# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="HYDDRA diagnostic funnel plots")
