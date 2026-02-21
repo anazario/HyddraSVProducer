@@ -48,8 +48,6 @@
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 
 // Local helpers
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackHelper.h"
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/VertexHelper.h"
 #include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackVertexSet.h"
 
 // ROOT
@@ -213,10 +211,10 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   usesResource("TFileService");
 
   // 5 stage input collections
-  static const std::array<std::string, kNStages> kTagNames = {
+  static const std::array<std::string, kNStages> kTagNames = {{
     "seedVertices", "mergedVertices", "cleanedVertices",
     "disambiguatedVertices", "filteredVertices"
-  };
+  }};
   for (size_t i = 0; i < kNStages; ++i) {
     stageTokens_[i] = consumes<reco::VertexCollection>(
         iConfig.getParameter<edm::InputTag>(kTagNames[i]));
@@ -452,24 +450,24 @@ void HyddraSVsDiagnosticAnalyzer::fillRecoPropsAt(
     size_t s, const reco::Vertex& vtx, const reco::Vertex& pv) {
 
   // Indexed by stage: kSeed=0, kMerged=1, kCleaned=2, kDisambig=3, kFiltered=4
-  std::array<std::vector<float>*, kNStages> massVecs = {
+  std::array<std::vector<float>*, kNStages> massVecs = {{
       &genFunnel_mass_seed_,  &genFunnel_mass_merged_,
-      &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_};
-  std::array<std::vector<float>*, kNStages> dxsVecs = {
+      &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_}};
+  std::array<std::vector<float>*, kNStages> dxsVecs = {{
       &genFunnel_dxySignif_seed_,  &genFunnel_dxySignif_merged_,
-      &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_};
-  std::array<std::vector<float>*, kNStages> chi2Vecs = {
+      &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_}};
+  std::array<std::vector<float>*, kNStages> chi2Vecs = {{
       &genFunnel_normChi2_seed_,  &genFunnel_normChi2_merged_,
-      &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_};
-  std::array<std::vector<int>*, kNStages> ntrkVecs = {
+      &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_}};
+  std::array<std::vector<int>*, kNStages> ntrkVecs = {{
       &genFunnel_nTracks_seed_,  &genFunnel_nTracks_merged_,
-      &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_};
-  std::array<std::vector<float>*, kNStages> ctVecs = {
+      &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_}};
+  std::array<std::vector<float>*, kNStages> ctVecs = {{
       &genFunnel_cosTheta_seed_,  &genFunnel_cosTheta_merged_,
-      &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_};
-  std::array<std::vector<float>*, kNStages> mrVecs = {
+      &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_}};
+  std::array<std::vector<float>*, kNStages> mrVecs = {{
       &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
-      &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_};
+      &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
 
   auto p4 = VertexHelper::GetVertex4Vector(vtx);
 
@@ -621,24 +619,24 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
 
       // Reco properties per stage (-1 sentinel if no match at that stage)
       // Uses the same indexed-pointer pattern as fillRecoPropsAt().
-      std::array<std::vector<float>*, kNStages> massVecs = {
+      std::array<std::vector<float>*, kNStages> massVecs = {{
           &genFunnel_mass_seed_,  &genFunnel_mass_merged_,
-          &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_};
-      std::array<std::vector<float>*, kNStages> dxsVecs = {
+          &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_}};
+      std::array<std::vector<float>*, kNStages> dxsVecs = {{
           &genFunnel_dxySignif_seed_,  &genFunnel_dxySignif_merged_,
-          &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_};
-      std::array<std::vector<float>*, kNStages> chi2Vecs = {
+          &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_}};
+      std::array<std::vector<float>*, kNStages> chi2Vecs = {{
           &genFunnel_normChi2_seed_,  &genFunnel_normChi2_merged_,
-          &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_};
-      std::array<std::vector<int>*, kNStages> ntrkVecs = {
+          &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_}};
+      std::array<std::vector<int>*, kNStages> ntrkVecs = {{
           &genFunnel_nTracks_seed_,  &genFunnel_nTracks_merged_,
-          &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_};
-      std::array<std::vector<float>*, kNStages> ctVecs = {
+          &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_}};
+      std::array<std::vector<float>*, kNStages> ctVecs = {{
           &genFunnel_cosTheta_seed_,  &genFunnel_cosTheta_merged_,
-          &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_};
-      std::array<std::vector<float>*, kNStages> mrVecs = {
+          &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_}};
+      std::array<std::vector<float>*, kNStages> mrVecs = {{
           &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
-          &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_};
+          &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
 
       for (size_t si = 0; si < kNStages; ++si) {
         if (m[si].bestVertex) {
