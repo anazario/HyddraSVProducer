@@ -66,6 +66,59 @@ class HYDDRABase : public TrackVertexSetCollection {
   // Access diagnostics
   const DiagnosticCounters& getDiagnostics() const { return diagnostics_; }
 
+  // Snapshots of each intermediate stage for diagnostic purposes.
+  struct PipelineSnapshots {
+    reco::VertexCollection afterSeeding;
+    reco::VertexCollection afterMerging;
+    reco::VertexCollection afterCleaning;
+    reco::VertexCollection afterDisambiguation;
+    reco::VertexCollection afterFiltering;
+  };
+
+  // Diagnostic entry point. Runs the full pipeline and returns a snapshot of
+  // the vertex collection after each stage. The final state is identical to
+  // what run_reconstruction() would produce.
+  PipelineSnapshots run_with_snapshots(const std::vector<reco::TrackRef>& tracks,
+                                       const TransientTrackBuilder* builder,
+                                       const reco::Vertex& pv) {
+    ttBuilder_ = builder;
+    primaryVertex_ = &pv;
+    this->clear();
+    masterList_.clear();
+    diagnostics_ = DiagnosticCounters();
+
+    Derived& self = static_cast<Derived&>(*this);
+    PipelineSnapshots snaps;
+
+    self.seedingImpl(tracks);
+    diagnostics_.nSeeds = this->size();
+    snaps.afterSeeding = this->vertices();
+
+    self.mergingImpl();
+    diagnostics_.nAfterMerge = this->size();
+    snaps.afterMerging = this->vertices();
+
+    self.cleaningImpl();
+    diagnostics_.nAfterClean = this->size();
+    snaps.afterCleaning = this->vertices();
+
+    self.disambiguationImpl();
+    diagnostics_.nAfterDisambiguate = this->size();
+    snaps.afterDisambiguation = this->vertices();
+
+    self.filteringImpl();
+    diagnostics_.nAfterFilter = this->size();
+    snaps.afterFiltering = this->vertices();
+
+    HYDDRA_DBG("[HYDDRA] Snapshot pipeline summary: seeds=" << diagnostics_.nSeeds
+               << " -> merge=" << diagnostics_.nAfterMerge
+               << " -> clean=" << diagnostics_.nAfterClean
+               << " -> disambig=" << diagnostics_.nAfterDisambiguate
+               << " -> filter=" << diagnostics_.nAfterFilter << "\n");
+
+    return snaps;
+  }
+
   // Main entry point. Runs the full 5-stage pipeline on the given tracks.
   void run_reconstruction(const std::vector<reco::TrackRef>& tracks,
 			  const TransientTrackBuilder* builder,
