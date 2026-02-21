@@ -36,7 +36,7 @@ COLORS_STAGE  = [ROOT.kBlue+2, ROOT.kGreen+2, ROOT.kRed+2, ROOT.kOrange-3, ROOT.
 MARKERS       = [20, 21, 22, 23, 29]
 
 
-def draw_cms_label(subtitle="Leptonic HYDDRA"):
+def draw_cms_label(right_label="Leptonic HYDDRA"):
     """Draw CMS label matching StandardPlots/src/style.py (1D plotter style)."""
     latex = ROOT.TLatex()
     latex.SetNDC()
@@ -46,7 +46,10 @@ def draw_cms_label(subtitle="Leptonic HYDDRA"):
     latex.DrawLatex(0.16, 0.955, "CMS")
     latex.SetTextFont(52)         # italic, matching StandardPlots
     latex.SetTextSize(0.044)      # 0.04 * 1.1
-    latex.DrawLatex(0.26, 0.955, subtitle)
+    latex.DrawLatex(0.26, 0.955, "Simulation Preliminary")
+    latex.SetTextFont(42)
+    latex.SetTextAlign(31)        # right-aligned
+    latex.DrawLatex(0.90, 0.955, right_label)
 
 
 def make_canvas(name, title, logy=True, width=800, height=600):
@@ -63,21 +66,25 @@ def make_canvas(name, title, logy=True, width=800, height=600):
     return c
 
 
-def draw_grid_lines(canvas, n_stages, min_y, max_y):
+def draw_grid_lines(canvas, n_stages, min_y, max_y, logy=True):
     canvas._vlines, canvas._hlines = [], []
     for i in range(1, n_stages):
         ln = ROOT.TLine(i + 0.5, min_y, i + 0.5, max_y)
         ln.SetLineStyle(3); ln.SetLineColor(ROOT.kGray + 2); ln.Draw()
         canvas._vlines.append(ln)
     import math
-    lo = int(math.floor(math.log10(max(min_y, 1e-3))))
-    hi = int(math.ceil(math.log10(max(max_y, 1))))
-    for exp in range(lo, hi):
-        y = 10**exp
-        if min_y <= y <= max_y:
-            ln = ROOT.TLine(0.5, y, n_stages + 0.5, y)
-            ln.SetLineStyle(3); ln.SetLineColor(ROOT.kGray + 2); ln.Draw()
-            canvas._hlines.append(ln)
+    if logy:
+        lo = int(math.floor(math.log10(max(min_y, 1e-3))))
+        hi = int(math.ceil(math.log10(max(max_y, 1))))
+        h_vals = [10**exp for exp in range(lo, hi)]
+    else:
+        step = 10 ** math.floor(math.log10(max(max_y - min_y, 1e-9)) - 1)
+        h_vals = [round(min_y + k * step, 10) for k in range(int((max_y - min_y) / step) + 2)
+                  if min_y < round(min_y + k * step, 10) < max_y]
+    for y in h_vals:
+        ln = ROOT.TLine(0.5, y, n_stages + 0.5, y)
+        ln.SetLineStyle(3); ln.SetLineColor(ROOT.kGray + 2); ln.Draw()
+        canvas._hlines.append(ln)
 
 
 def setup_axis_hist(canvas, stage_names, y_title, min_y, max_y, title=""):
@@ -216,7 +223,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
         canvas._graphs = graphs
 
         add_legend(canvas, graphs)
-        draw_grid_lines(canvas, len(STAGE_NAMES), min_y, max_y)
+        draw_grid_lines(canvas, len(STAGE_NAMES), min_y, max_y, logy=not normalized)
         draw_cms_label()
         canvas.Update()
         out_file.cd()
