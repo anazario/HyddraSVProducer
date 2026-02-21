@@ -11,7 +11,7 @@ import awkward as ak
 import ROOT
 
 from ..src.config  import RECO_OBSERVABLES
-from ..src.style   import draw_cms_label, make_canvas
+from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
 from ..src.plotter import plot_reco_observable
 
 
@@ -141,8 +141,7 @@ def plot_cleaning_track_distributions(tdir, ct):
         for mask, col, lstyle, lbl in cat_colors:
             h = ROOT.TH1F(f"h_{cname}_{lbl[:4]}", "", n_bins, bins)
             for v in var_vals[mask]:
-                if v > -0.5:
-                    h.Fill(float(v))
+                h.Fill(float(v))
             h.SetLineColor(col); h.SetLineWidth(2); h.SetLineStyle(lstyle)
             h.SetFillStyle(0); h.SetStats(0)
             integral = h.Integral()
@@ -170,6 +169,7 @@ def plot_cleaning_track_distributions(tdir, ct):
             if h.Integral() > 0:
                 leg.AddEntry(h, lbl, "l")
         leg.Draw()
+        canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
         draw_cms_label()
         canvas.Update()
         tdir.cd()

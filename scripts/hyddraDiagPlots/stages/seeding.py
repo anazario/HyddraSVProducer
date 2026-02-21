@@ -10,7 +10,7 @@ import awkward as ak
 import ROOT
 
 from ..src.config  import RECO_OBSERVABLES
-from ..src.style   import draw_cms_label, make_canvas
+from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
 from ..src.plotter import plot_reco_observable
 
 
@@ -85,6 +85,7 @@ def plot_seed_track_cos_theta(tdir, st):
     leg.AddEntry(h_ns_nongold,  "Non-sig track, non-gold vtx","l")
     leg.Draw()
 
+    canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
     draw_cms_label()
     canvas.Update()
     tdir.cd()

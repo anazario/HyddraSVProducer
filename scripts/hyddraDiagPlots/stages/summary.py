@@ -17,7 +17,7 @@ from ..src.config import (
     COLOR_BKG, COLORS_STAGE, MARKERS,
     GEN_DXY_BINS, GEN_PT_BINS,
 )
-from ..src.style  import draw_cms_label, make_canvas, draw_grid_lines
+from ..src.style  import draw_cms_label, make_canvas, draw_grid_lines, draw_axis_grid
 from ..src.plotter import setup_axis_hist, make_tgraph, add_legend
 
 _COLOR_SIG = ROOT.kBlue + 2
@@ -128,7 +128,7 @@ def plot_efficiency_funnel(tdir, gf):
 
     h_gold  .SetFillColor(ROOT.kBlue + 2); h_gold  .SetLineColor(ROOT.kBlue + 2)
     h_silver.SetFillColor(ROOT.kAzure + 6);h_silver.SetLineColor(ROOT.kAzure + 6)
-    h_bronze.SetFillColor(ROOT.kCyan - 7); h_bronze.SetLineColor(ROOT.kCyan - 7)
+    h_bronze.SetFillColor(ROOT.kRed - 3);  h_bronze.SetLineColor(ROOT.kRed - 3)
 
     max_y = max(eff_gold + eff_silver + eff_bronze) * 1.3
     h_gold.SetMaximum(max_y)
@@ -200,6 +200,7 @@ def plot_efficiency_vs_var(tdir, gf, var_key, var_label, bins, canvas_name):
     for g in graphs:
         g.Draw("P SAME")
 
+    canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
     add_legend(canvas, graphs, x1=0.6, y1=0.55, x2=0.88, y2=0.88)
     draw_cms_label()
     canvas.Update()
@@ -250,6 +251,7 @@ def plot_silver_to_gold_recovery(tdir, gf):
     h_ax.Draw("AXIS")
     g.Draw("P SAME")
 
+    canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
     canvas._h_ax = h_ax; canvas._eff = eff; canvas._g = g
     canvas._hists = (h_denom, h_numer)
     draw_cms_label()

@@ -9,7 +9,7 @@ from .config import (
     STAGE_NAMES, STAGE_IDX,
     COLOR_GOLD, COLOR_SILVER, COLOR_BRONZE, COLOR_NONSIGNAL, COLOR_BKG,
 )
-from .style import make_canvas, draw_cms_label
+from .style import make_canvas, draw_cms_label, draw_axis_grid
 
 
 # ── Axis / graph helpers ──────────────────────────────────────────────────────
@@ -61,11 +61,10 @@ def add_legend(canvas, graphs, x1=0.6, y1=0.7, x2=0.88, y2=0.88):
 # ── Observable plot ───────────────────────────────────────────────────────────
 
 def _fill_hist(h, vals, mask=None):
-    """Fill a TH1F from a numpy array, skipping -1 sentinels."""
+    """Fill a TH1F from a numpy array."""
     arr = vals if mask is None else vals[mask]
     for v in arr:
-        if v > -0.5:
-            h.Fill(float(v))
+        h.Fill(float(v))
 
 
 def _style_hist(h, color, line_style=1):
@@ -99,12 +98,14 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
         "decayAngle": f"GenFunnel_decayAngle_{stage_key}",
         "pOverE":     f"GenFunnel_pOverE_{stage_key}",
         "dxySignif":  f"GenFunnel_dxySignif_{stage_key}",
+        "mass":       f"GenFunnel_mass_{stage_key}",
     }
     sv_branch_map = {
         "cosTheta":   "StageVtx_cosTheta",
         "decayAngle": "StageVtx_decayAngle",
         "pOverE":     "StageVtx_pOverE",
         "dxySignif":  "StageVtx_dxySignif",
+        "mass":       "StageVtx_mass",
     }
 
     cname  = f"reco_{stage_key}_{obs_key}"
@@ -169,7 +170,7 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
 
     max_y = max((h.GetMaximum() for h, _ in active_hists if h.Integral() > 0), default=1.0)
     y_max = max_y * (5 if logy else 1.3)
-    y_min = 1e-4 if logy else 0
+    y_min = 1e-4
 
     h_ax = ROOT.TH1F(f"h_ax_{cname}", f";{label};Normalised to Unit Area", n_bins, bins)
     h_ax.SetMinimum(y_min)
@@ -188,6 +189,8 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
     for h, _ in active_hists:
         if h.Integral() > 0:
             h.Draw("HIST SAME")
+
+    canvas._grid_lines = draw_axis_grid(h_ax, logy=logy)
 
     leg = ROOT.TLegend(0.62, 0.68, 0.88, 0.88)
     leg.SetFillStyle(0)

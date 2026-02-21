@@ -215,6 +215,7 @@ private:
   // allStageVtx branches (scalar — one TTree::Fill per vertex)
   // ═══════════════════════════════════════════════════════════════════════════
   int   stageVtx_stageIdx_;
+  float stageVtx_mass_;
   float stageVtx_cosTheta_;
   float stageVtx_decayAngle_;
   float stageVtx_pOverE_;
@@ -390,6 +391,7 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   allStageVtxTree_ = fs->make<TTree>("allStageVtx",
       "All vertices at each stage with match quality flags");
   allStageVtxTree_->Branch("StageVtx_stageIdx",   &stageVtx_stageIdx_);
+  allStageVtxTree_->Branch("StageVtx_mass",       &stageVtx_mass_);
   allStageVtxTree_->Branch("StageVtx_cosTheta",   &stageVtx_cosTheta_);
   allStageVtxTree_->Branch("StageVtx_decayAngle", &stageVtx_decayAngle_);
   allStageVtxTree_->Branch("StageVtx_pOverE",     &stageVtx_pOverE_);
@@ -820,6 +822,7 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
         auto p4  = VertexHelper::GetVertex4Vector(vtx);
         double p = p4.P(), mv = p4.M();
         double E = std::sqrt(p*p + mv*mv);
+        stageVtx_mass_   = float(mv);
         stageVtx_pOverE_ = (E > 1e-6) ? float(p / E) : -1.f;
       }
       stageVtx_dxySignif_ = computeDxySignif(vtx, pv);
