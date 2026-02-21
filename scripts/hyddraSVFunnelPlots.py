@@ -24,6 +24,8 @@ import awkward as ak
 import ROOT
 
 ROOT.gROOT.SetBatch(True)
+ROOT.gStyle.SetOptTitle(0)
+ROOT.gStyle.SetOptStat(0)
 
 
 STAGE_NAMES   = ["Seeding", "Merging", "Cleaning", "Disambiguation", "Filtering"]
@@ -34,18 +36,25 @@ COLORS_STAGE  = [ROOT.kBlue+2, ROOT.kGreen+2, ROOT.kRed+2, ROOT.kOrange-3, ROOT.
 MARKERS       = [20, 21, 22, 23, 29]
 
 
-def cms_mark(plot_title=""):
+def draw_cms_label(subtitle="Leptonic HYDDRA"):
+    """Draw CMS label matching StandardPlots/src/style.py (1D plotter style)."""
     latex = ROOT.TLatex()
-    latex.SetTextFont(42)
     latex.SetNDC()
-    latex.SetTextSize(0.035)
-    latex.DrawLatex(0.62, 0.91, plot_title)
-    latex.SetTextSize(0.04)
-    latex.DrawLatex(0.12, 0.915, "#bf{CMS} #it{Simulation Preliminary}")
+    latex.SetTextAlign(11)
+    latex.SetTextFont(61)
+    latex.SetTextSize(0.057)      # 0.052 * 1.1 (1D multiplier)
+    latex.DrawLatex(0.16, 0.955, "CMS")
+    latex.SetTextFont(52)         # italic, matching StandardPlots
+    latex.SetTextSize(0.044)      # 0.04 * 1.1
+    latex.DrawLatex(0.26, 0.955, subtitle)
 
 
-def make_canvas(name, title, logy=True, width=1000, height=700):
+def make_canvas(name, title, logy=True, width=800, height=600):
     c = ROOT.TCanvas(name, title, width, height)
+    c.SetLeftMargin(0.16)         # margin_left(0.12) + 0.04, as 1D plotter
+    c.SetRightMargin(0.10)        # margin_right(0.12) - 0.02
+    c.SetBottomMargin(0.12)
+    c.SetTopMargin(0.10)
     if logy:
         c.SetLogy(1)
     c.SetGridx(1)
@@ -80,7 +89,12 @@ def setup_axis_hist(canvas, stage_names, y_title, min_y, max_y, title=""):
     h.GetYaxis().SetTitle(y_title)
     h.GetXaxis().CenterTitle(True)
     h.GetYaxis().CenterTitle(True)
-    h.GetXaxis().SetTitleOffset(1.2)
+    h.GetXaxis().SetTitleSize(0.045)
+    h.GetYaxis().SetTitleSize(0.045)
+    h.GetXaxis().SetLabelSize(0.04)
+    h.GetYaxis().SetLabelSize(0.04)
+    h.GetXaxis().SetTitleOffset(1.3)
+    h.GetYaxis().SetTitleOffset(1.3)
     h.SetStats(0)
     for i, s in enumerate(stage_names):
         h.GetXaxis().SetBinLabel(i + 1, s)
@@ -98,7 +112,9 @@ def make_tgraph(x, y, color, marker, label, line_style=1):
 
 def add_legend(canvas, graphs, x1=0.6, y1=0.7, x2=0.88, y2=0.88):
     leg = ROOT.TLegend(x1, y1, x2, y2)
-    leg.SetFillStyle(0); leg.SetBorderSize(0)
+    leg.SetFillStyle(0)
+    leg.SetBorderSize(0)
+    leg.SetTextSize(0.03)
     for g in graphs:
         leg.AddEntry(g, g.GetTitle(), "lp")
     leg.Draw()
@@ -201,7 +217,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
 
         add_legend(canvas, graphs)
         draw_grid_lines(canvas, len(STAGE_NAMES), min_y, max_y)
-        cms_mark("Leptonic HYDDRA")
+        draw_cms_label()
         canvas.Update()
         out_file.cd()
         canvas.Write()
@@ -279,7 +295,7 @@ def plot_efficiency_funnel(out_file, gf):
     canvas._leg = leg; canvas._hs = hs
     canvas._hgold = h_gold; canvas._hsilver = h_silver; canvas._hbronze = h_bronze
 
-    cms_mark("Leptonic HYDDRA")
+    draw_cms_label()
     canvas.Update()
     out_file.cd()
     canvas.Write()
@@ -331,7 +347,7 @@ def plot_efficiency_vs_var(out_file, gf, var_key, var_label, bins, canvas_name):
         g.Draw("P SAME")
 
     add_legend(canvas, graphs, x1=0.6, y1=0.55, x2=0.88, y2=0.88)
-    cms_mark("Leptonic HYDDRA")
+    draw_cms_label()
     canvas.Update()
     out_file.cd()
     canvas.Write()
@@ -386,7 +402,7 @@ def plot_silver_to_gold_recovery(out_file, gf):
     g.Draw("P SAME")
 
     canvas._h_ax = h_ax; canvas._eff = eff; canvas._g = g; canvas._hists = (h_denom, h_numer)
-    cms_mark("Leptonic HYDDRA")
+    draw_cms_label()
     canvas.Update()
     out_file.cd()
     canvas.Write()
@@ -431,6 +447,9 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         h.GetXaxis().SetTitle("Track Compatibility (#sigma)")
         h.GetYaxis().SetTitle("Track cos#theta")
         h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
+        h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
+        h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
+        h.GetXaxis().SetTitleOffset(1.3); h.GetYaxis().SetTitleOffset(1.3)
         h.SetStats(0)
         return h
 
@@ -459,8 +478,11 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         (h_cont, "contaminating_tracks","Background tracks in signal vertices"),
         (h_bkg,  "bkg_tracks",          "All tracks in background vertices"),
     ]:
-        c = ROOT.TCanvas(f"cleaning_2d_{suffix}", title, 900, 700)
-        c.SetRightMargin(0.15)
+        c = ROOT.TCanvas(f"cleaning_2d_{suffix}", title, 800, 600)
+        c.SetLeftMargin(0.16)
+        c.SetRightMargin(0.18)    # extra room for z-axis colour bar
+        c.SetBottomMargin(0.12)
+        c.SetTopMargin(0.10)
         #h.Draw("COLZ")
         c.Update()
         lines = draw_cut_lines(h)
@@ -471,7 +493,7 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         l1 = ROOT.TLine(); l1.SetLineColor(ROOT.kRed); l1.SetLineStyle(2); l1.SetLineWidth(2)
         leg.AddEntry(l1, "Cleaning cuts", "l")
         leg.Draw()
-        cms_mark("Leptonic HYDDRA")
+        draw_cms_label()
         c.Update()
 
         c._h = h; c._lines = lines; c._leg = leg
