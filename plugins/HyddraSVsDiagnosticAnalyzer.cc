@@ -43,12 +43,16 @@
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 
-// Gen matching from KUCMSNtupleizer
+// Gen matching and helpers from KUCMSNtupleizer
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
 
-// Local helpers
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackVertexSet.h"
+// Kalman fitter (for cleaningTracks compatibility computation)
+#include "RecoVertex/KalmanVertexFit/interface/KalmanVertexFitter.h"
+#include "RecoVertex/KalmanVertexFit/interface/KalmanVertexTrackCompatibilityEstimator.h"
+#include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
 
 // ROOT
 #include "TTree.h"
@@ -676,20 +680,38 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
         if (gv.isSilver(vtx))      vtxIsSilver = true;
       }
 
-      // Collect track refs, then rebuild TrackVertexSet for compatibility/cosTheta
+      // Collect track refs and build transient tracks for Kalman compatibility
       std::vector<reco::TrackRef> trackRefs;
-      for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+      std::vector<reco::TransientTrack> ttracks;
+      for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
         trackRefs.push_back(it->castTo<reco::TrackRef>());
+        ttracks.push_back(ttBuilder->build(*trackRefs.back()));
+      }
 
-      TrackVertexSet tvs(trackRefs, ttBuilder);
+      // Refit vertex with Kalman fitter for compatibility estimation
+      KalmanVertexFitter fitter;
+      TransientVertex tv;
+      bool validFit = (ttracks.size() >= 2);
+      if (validFit) tv = fitter.vertex(ttracks);
+      validFit = validFit && tv.isValid();
 
-      for (const auto& tref : trackRefs) {
-        reco::Track track(*tref);
-        bool isSignal = (TrackHelper::FindTrackIndex(track, signalTracks_) >= 0);
+      const KalmanVertexTrackCompatibilityEstimator<5> estimator;
+
+      for (size_t ti = 0; ti < trackRefs.size(); ++ti) {
+        const reco::TrackRef& tref = trackRefs[ti];
+        bool isSignal = (TrackHelper::FindTrackIndex(*tref, signalTracks_) >= 0);
         bool isRemoved = (cleanedTrackRefs.find(tref) == cleanedTrackRefs.end());
 
-        cleanTrack_compatibility_.push_back(float(tvs.compatibility(tref)));
-        cleanTrack_cosTheta_     .push_back(float(tvs.trackCosTheta(pv, tref)));
+        float compat = -1.f;
+        if (validFit) {
+          auto res = estimator.estimate(tv, ttracks[ti]);
+          if (res.first) compat = float(std::sqrt(res.second));
+        }
+
+        float cosTheta = float(TrackHelper::CalculateCosTheta(pv, vtx, *tref));
+
+        cleanTrack_compatibility_.push_back(compat);
+        cleanTrack_cosTheta_     .push_back(cosTheta);
         cleanTrack_isSignal_     .push_back(isSignal);
         cleanTrack_isRemoved_    .push_back(isRemoved);
         cleanTrack_vtxIsGold_    .push_back(vtxIsGold);
