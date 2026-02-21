@@ -47,13 +47,13 @@ def draw_cms_label(right_label="Leptonic HYDDRA"):
     latex.SetTextAlign(11)
     latex.SetTextFont(61)
     latex.SetTextSize(0.057)      # 0.052 * 1.1 (1D multiplier)
-    latex.DrawLatex(0.16, 0.955, "CMS")
+    latex.DrawLatex(0.16, 0.91, "CMS")
     latex.SetTextFont(52)         # italic, matching StandardPlots
     latex.SetTextSize(0.044)      # 0.04 * 1.1
-    latex.DrawLatex(0.26, 0.955, "Simulation Preliminary")
+    latex.DrawLatex(0.25, 0.91, "Simulation Preliminary")
     latex.SetTextFont(42)
     latex.SetTextAlign(31)        # right-aligned
-    latex.DrawLatex(0.90, 0.955, right_label)
+    latex.DrawLatex(0.90, 0.91, right_label)
 
 
 def make_canvas(name, title, logy=True, width=800, height=600):
@@ -226,7 +226,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
         canvas._mg = mg
         canvas._graphs = graphs
 
-        add_legend(canvas, graphs)
+        add_legend(canvas, graphs, x1=0.54, y1=0.78, x2=0.82, y2=0.9)
         draw_grid_lines(canvas, len(STAGE_NAMES), min_y, max_y, logy=not normalized)
         draw_cms_label()
         canvas.Update()
