@@ -158,7 +158,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
     for normalized in [False, True]:
         suffix = "norm" if normalized else "unnorm"
         canvas = make_canvas(f"yield_flow_{suffix}",
-                             f"HYDDRA Leptonic Yield Flow ({'Normalized' if normalized else 'Raw'})")
+                             f"HYDDRA Leptonic Yield Flow ({'Normalized' if normalized else 'Raw'})", logy=(suffix != "norm"))
 
         # Signal: gold-matched vertices
         sig_gold = [sig_counts[f"Stage_nGold_{s}"] for s in STAGE_KEYS]
@@ -189,7 +189,7 @@ def plot_yield_flow(out_file, sig_counts, bkg_counts=None):
             sig_y   = [v / norm_sig for v in sig_gold]
             bkg_y   = [v / norm_bkg for v in bkg_total]
             y_title = "Survival Fraction (relative to Seeding)"
-            min_y, max_y = 1e-4, 2.0
+            min_y, max_y = 1e-6, 1.2
         else:
             sig_y   = [float(v) for v in sig_gold]
             bkg_y   = [float(v) for v in bkg_total]
@@ -483,7 +483,7 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         c.SetRightMargin(0.18)    # extra room for z-axis colour bar
         c.SetBottomMargin(0.12)
         c.SetTopMargin(0.10)
-        #h.Draw("COLZ")
+        h.Draw("COLZ")
         c.Update()
         lines = draw_cut_lines(h)
 
@@ -496,6 +496,10 @@ def plot_cleaning_2d(out_file, ct, max_compat=1.5, min_cos_theta=0.5):
         draw_cms_label()
         c.Update()
 
+        pal = h.GetListOfFunctions().FindObject("palette")
+        if pal:
+            h.GetListOfFunctions().Remove(pal)
+        
         c._h = h; c._lines = lines; c._leg = leg
         out_file.cd()
         c.Write()
