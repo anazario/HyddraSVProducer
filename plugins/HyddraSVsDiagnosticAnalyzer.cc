@@ -128,6 +128,8 @@ private:
   TTree* genFunnelTree_;
   TTree* stageCountsTree_;
   TTree* cleaningTracksTree_;
+  TTree* allStageVtxTree_;
+  TTree* seedTracksTree_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // genFunnel branches (vectors — one element per gen vertex)
@@ -178,6 +180,12 @@ private:
   std::vector<float> genFunnel_matchRatio_seed_,  genFunnel_matchRatio_merged_,
                      genFunnel_matchRatio_cleaned_,genFunnel_matchRatio_disambig_,
                      genFunnel_matchRatio_filtered_;
+  std::vector<float> genFunnel_decayAngle_seed_,   genFunnel_decayAngle_merged_,
+                     genFunnel_decayAngle_cleaned_,  genFunnel_decayAngle_disambig_,
+                     genFunnel_decayAngle_filtered_;
+  std::vector<float> genFunnel_pOverE_seed_,       genFunnel_pOverE_merged_,
+                     genFunnel_pOverE_cleaned_,      genFunnel_pOverE_disambig_,
+                     genFunnel_pOverE_filtered_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // stageCounts branches (scalars — one per event)
@@ -202,6 +210,25 @@ private:
   std::vector<bool>  cleanTrack_vtxIsGold_;
   std::vector<bool>  cleanTrack_vtxIsSilver_;
   std::vector<unsigned int> cleanTrack_vtxNTracks_;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // allStageVtx branches (scalar — one TTree::Fill per vertex)
+  // ═══════════════════════════════════════════════════════════════════════════
+  int   stageVtx_stageIdx_;
+  float stageVtx_cosTheta_;
+  float stageVtx_decayAngle_;
+  float stageVtx_pOverE_;
+  float stageVtx_dxySignif_;
+  bool  stageVtx_isGold_;
+  bool  stageVtx_isSilver_;
+  bool  stageVtx_isBronze_;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // seedTracks branches (vectors — one element per track in 2-track OS seeds)
+  // ═══════════════════════════════════════════════════════════════════════════
+  std::vector<float> seedTrack_cosTheta_;
+  std::vector<bool>  seedTrack_isSignal_;
+  std::vector<bool>  seedTrack_vtxIsGold_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -308,6 +335,18 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_matchRatio_disambig",&genFunnel_matchRatio_disambig_);
   genFunnelTree_->Branch("GenFunnel_matchRatio_filtered",&genFunnel_matchRatio_filtered_);
 
+  genFunnelTree_->Branch("GenFunnel_decayAngle_seed",     &genFunnel_decayAngle_seed_);
+  genFunnelTree_->Branch("GenFunnel_decayAngle_merged",   &genFunnel_decayAngle_merged_);
+  genFunnelTree_->Branch("GenFunnel_decayAngle_cleaned",  &genFunnel_decayAngle_cleaned_);
+  genFunnelTree_->Branch("GenFunnel_decayAngle_disambig", &genFunnel_decayAngle_disambig_);
+  genFunnelTree_->Branch("GenFunnel_decayAngle_filtered", &genFunnel_decayAngle_filtered_);
+
+  genFunnelTree_->Branch("GenFunnel_pOverE_seed",         &genFunnel_pOverE_seed_);
+  genFunnelTree_->Branch("GenFunnel_pOverE_merged",       &genFunnel_pOverE_merged_);
+  genFunnelTree_->Branch("GenFunnel_pOverE_cleaned",      &genFunnel_pOverE_cleaned_);
+  genFunnelTree_->Branch("GenFunnel_pOverE_disambig",     &genFunnel_pOverE_disambig_);
+  genFunnelTree_->Branch("GenFunnel_pOverE_filtered",     &genFunnel_pOverE_filtered_);
+
   // ── stageCounts ────────────────────────────────────────────────────────────
   stageCountsTree_ = fs->make<TTree>("stageCounts", "Per-event vertex counts per stage");
 
@@ -346,6 +385,25 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   cleaningTracksTree_->Branch("CleanTrack_vtxIsGold",     &cleanTrack_vtxIsGold_);
   cleaningTracksTree_->Branch("CleanTrack_vtxIsSilver",   &cleanTrack_vtxIsSilver_);
   cleaningTracksTree_->Branch("CleanTrack_vtxNTracks",    &cleanTrack_vtxNTracks_);
+
+  // ── allStageVtx ────────────────────────────────────────────────────────────
+  allStageVtxTree_ = fs->make<TTree>("allStageVtx",
+      "All vertices at each stage with match quality flags");
+  allStageVtxTree_->Branch("StageVtx_stageIdx",   &stageVtx_stageIdx_);
+  allStageVtxTree_->Branch("StageVtx_cosTheta",   &stageVtx_cosTheta_);
+  allStageVtxTree_->Branch("StageVtx_decayAngle", &stageVtx_decayAngle_);
+  allStageVtxTree_->Branch("StageVtx_pOverE",     &stageVtx_pOverE_);
+  allStageVtxTree_->Branch("StageVtx_dxySignif",  &stageVtx_dxySignif_);
+  allStageVtxTree_->Branch("StageVtx_isGold",     &stageVtx_isGold_);
+  allStageVtxTree_->Branch("StageVtx_isSilver",   &stageVtx_isSilver_);
+  allStageVtxTree_->Branch("StageVtx_isBronze",   &stageVtx_isBronze_);
+
+  // ── seedTracks ─────────────────────────────────────────────────────────────
+  seedTracksTree_ = fs->make<TTree>("seedTracks",
+      "Per-track info for tracks in 2-track OS seeded vertices");
+  seedTracksTree_->Branch("SeedTrack_cosTheta",  &seedTrack_cosTheta_);
+  seedTracksTree_->Branch("SeedTrack_isSignal",  &seedTrack_isSignal_);
+  seedTracksTree_->Branch("SeedTrack_vtxIsGold", &seedTrack_vtxIsGold_);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -386,6 +444,12 @@ void HyddraSVsDiagnosticAnalyzer::clearBranches() {
   genFunnel_matchRatio_seed_.clear();  genFunnel_matchRatio_merged_.clear();
   genFunnel_matchRatio_cleaned_.clear();genFunnel_matchRatio_disambig_.clear();
   genFunnel_matchRatio_filtered_.clear();
+  genFunnel_decayAngle_seed_.clear();  genFunnel_decayAngle_merged_.clear();
+  genFunnel_decayAngle_cleaned_.clear();genFunnel_decayAngle_disambig_.clear();
+  genFunnel_decayAngle_filtered_.clear();
+  genFunnel_pOverE_seed_.clear();      genFunnel_pOverE_merged_.clear();
+  genFunnel_pOverE_cleaned_.clear();   genFunnel_pOverE_disambig_.clear();
+  genFunnel_pOverE_filtered_.clear();
 
   stage_n_seed_ = stage_n_merged_ = stage_n_cleaned_ =
   stage_n_disambig_ = stage_n_filtered_ = 0;
@@ -400,6 +464,10 @@ void HyddraSVsDiagnosticAnalyzer::clearBranches() {
   cleanTrack_isSignal_.clear();     cleanTrack_isRemoved_.clear();
   cleanTrack_vtxIsGold_.clear();    cleanTrack_vtxIsSilver_.clear();
   cleanTrack_vtxNTracks_.clear();
+
+  seedTrack_cosTheta_.clear();
+  seedTrack_isSignal_.clear();
+  seedTrack_vtxIsGold_.clear();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,15 +540,27 @@ void HyddraSVsDiagnosticAnalyzer::fillRecoPropsAt(
   std::array<std::vector<float>*, kNStages> mrVecs = {{
       &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
       &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
+  std::array<std::vector<float>*, kNStages> daVecs = {{
+      &genFunnel_decayAngle_seed_,  &genFunnel_decayAngle_merged_,
+      &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_}};
+  std::array<std::vector<float>*, kNStages> poeVecs = {{
+      &genFunnel_pOverE_seed_,  &genFunnel_pOverE_merged_,
+      &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_}};
 
   auto p4 = VertexHelper::GetVertex4Vector(vtx);
+  double p  = p4.P();
+  double m  = p4.M();
+  double E  = std::sqrt(p*p + m*m);
+  float  pOverE = (E > 1e-6) ? float(p / E) : -1.f;
 
-  massVecs[s]->push_back(float(p4.M()));
+  massVecs[s]->push_back(float(m));
   dxsVecs [s]->push_back(computeDxySignif(vtx, pv));
   chi2Vecs[s]->push_back(float(vtx.normalizedChi2()));
   ntrkVecs[s]->push_back(int(vtx.tracksSize()));
   ctVecs  [s]->push_back(float(VertexHelper::CalculateCosTheta(pv, vtx)));
   mrVecs  [s]->push_back(computeMatchRatio(vtx));
+  daVecs  [s]->push_back(float(VertexHelper::CalculateDecayAngle(vtx)));
+  poeVecs [s]->push_back(pOverE);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -641,6 +721,12 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
       std::array<std::vector<float>*, kNStages> mrVecs = {{
           &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
           &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
+      std::array<std::vector<float>*, kNStages> daVecs = {{
+          &genFunnel_decayAngle_seed_,  &genFunnel_decayAngle_merged_,
+          &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_}};
+      std::array<std::vector<float>*, kNStages> poeVecs = {{
+          &genFunnel_pOverE_seed_,  &genFunnel_pOverE_merged_,
+          &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_}};
 
       for (size_t si = 0; si < kNStages; ++si) {
         if (m[si].bestVertex) {
@@ -652,6 +738,8 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
           ntrkVecs[si]->push_back(-1);
           ctVecs  [si]->push_back(-1.f);
           mrVecs  [si]->push_back(-1.f);
+          daVecs  [si]->push_back(-1.f);
+          poeVecs [si]->push_back(-1.f);
         }
       }
     } // end gen vertex loop
@@ -721,10 +809,65 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
     }
   }
 
+  // ── allStageVtx: one row per vertex per stage ─────────────────────────────
+  for (size_t si = 0; si < kNStages; ++si) {
+    if (!stageHandles_[si].isValid()) continue;
+    stageVtx_stageIdx_ = int(si);
+    for (const auto& vtx : *stageHandles_[si]) {
+      stageVtx_cosTheta_   = float(VertexHelper::CalculateCosTheta(pv, vtx));
+      stageVtx_decayAngle_ = float(VertexHelper::CalculateDecayAngle(vtx));
+      {
+        auto p4  = VertexHelper::GetVertex4Vector(vtx);
+        double p = p4.P(), mv = p4.M();
+        double E = std::sqrt(p*p + mv*mv);
+        stageVtx_pOverE_ = (E > 1e-6) ? float(p / E) : -1.f;
+      }
+      stageVtx_dxySignif_ = computeDxySignif(vtx, pv);
+      stageVtx_isGold_    = false;
+      stageVtx_isSilver_  = false;
+      stageVtx_isBronze_  = false;
+      if (hasGenInfo_) {
+        for (const auto& gv : genVertices_) {
+          if      (gv.isGold(vtx))   { stageVtx_isGold_   = true; break; }
+          else if (gv.isSilver(vtx))   stageVtx_isSilver_ = true;
+          else if (gv.isBronze(vtx))   stageVtx_isBronze_ = true;
+        }
+      }
+      allStageVtxTree_->Fill();
+    }
+  }
+
+  // ── seedTracks: per-track info in 2-track OS seeded vertices ──────────────
+  if (stageHandles_[kSeed].isValid()) {
+    for (const auto& vtx : *stageHandles_[kSeed]) {
+      if (vtx.tracksSize() != 2) continue;
+      auto it0 = vtx.tracks_begin();
+      reco::TrackRef tr0 = it0->castTo<reco::TrackRef>();
+      auto it1 = std::next(it0);
+      reco::TrackRef tr1 = it1->castTo<reco::TrackRef>();
+      if (tr0->charge() * tr1->charge() > 0) continue;  // same sign: skip
+
+      bool vtxIsGold = false;
+      if (hasGenInfo_) {
+        for (const auto& gv : genVertices_) {
+          if (gv.isGold(vtx)) { vtxIsGold = true; break; }
+        }
+      }
+
+      for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
+        reco::TrackRef tref = it->castTo<reco::TrackRef>();
+        seedTrack_cosTheta_ .push_back(float(TrackHelper::CalculateCosTheta(pv, vtx, *tref)));
+        seedTrack_isSignal_ .push_back(TrackHelper::FindTrackIndex(*tref, signalTracks_) >= 0);
+        seedTrack_vtxIsGold_.push_back(vtxIsGold);
+      }
+    }
+  }
+
   // ── Fill all trees ─────────────────────────────────────────────────────────
   genFunnelTree_->Fill();
   stageCountsTree_->Fill();
   cleaningTracksTree_->Fill();
+  seedTracksTree_->Fill();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
