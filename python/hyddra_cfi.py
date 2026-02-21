@@ -18,6 +18,12 @@ leptonicHYDDRA = cms.PSet(
     minTrackCosTheta         = cms.double(0.5),
     maxTrackCosThetaCM_Limit = cms.double(0.95),
     maxTrackCosThetaCM_Slope = cms.double(1.8),
+
+    # Stage enable flags (set to False to skip a stage)
+    doMerging        = cms.bool(True),
+    doCleaning       = cms.bool(True),
+    doDisambiguation = cms.bool(True),
+    doFiltering      = cms.bool(True),
 )
 
 hadronicHYDDRA = cms.PSet(
@@ -34,6 +40,12 @@ hadronicHYDDRA = cms.PSet(
     minSize       = cms.int32(5),
     minCosTheta   = cms.double(0.0),
     maxDecayAngle = cms.double(0.9),
+
+    # Stage enable flags (set to False to skip a stage)
+    doMerging        = cms.bool(True),
+    doCleaning       = cms.bool(True),
+    doDisambiguation = cms.bool(True),
+    doFiltering      = cms.bool(True),
 )
 
 hyddraSVs = cms.EDProducer("HyddraSVsProducer",

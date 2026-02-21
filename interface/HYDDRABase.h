@@ -32,6 +32,12 @@ class HYDDRABase : public TrackVertexSetCollection {
   double maxNormChi2_;
   double minDxySignificance_;
 
+  // Stage enable flags
+  bool doMerging_;
+  bool doCleaning_;
+  bool doDisambiguation_;
+  bool doFiltering_;
+
   // Event context (set per-event in run_reconstruction)
   const TransientTrackBuilder* ttBuilder_ = nullptr;
   const reco::Vertex* primaryVertex_ = nullptr;
@@ -61,6 +67,10 @@ class HYDDRABase : public TrackVertexSetCollection {
     minPOverE_          = pset.getParameter<double>("minPOverE");
     maxNormChi2_        = pset.getParameter<double>("maxNormChi2");
     minDxySignificance_ = pset.getParameter<double>("minDxySignificance");
+    doMerging_          = pset.getParameter<bool>("doMerging");
+    doCleaning_         = pset.getParameter<bool>("doCleaning");
+    doDisambiguation_   = pset.getParameter<bool>("doDisambiguation");
+    doFiltering_        = pset.getParameter<bool>("doFiltering");
   }
 
   // Access diagnostics
@@ -94,19 +104,19 @@ class HYDDRABase : public TrackVertexSetCollection {
     diagnostics_.nSeeds = this->size();
     snaps.afterSeeding = this->vertices();
 
-    self.mergingImpl();
+    if (doMerging_) self.mergingImpl();
     diagnostics_.nAfterMerge = this->size();
     snaps.afterMerging = this->vertices();
 
-    self.cleaningImpl();
+    if (doCleaning_) self.cleaningImpl();
     diagnostics_.nAfterClean = this->size();
     snaps.afterCleaning = this->vertices();
 
-    self.disambiguationImpl();
+    if (doDisambiguation_) self.disambiguationImpl();
     diagnostics_.nAfterDisambiguate = this->size();
     snaps.afterDisambiguation = this->vertices();
 
-    self.filteringImpl();
+    if (doFiltering_) self.filteringImpl();
     diagnostics_.nAfterFilter = this->size();
     snaps.afterFiltering = this->vertices();
 
@@ -134,16 +144,16 @@ class HYDDRABase : public TrackVertexSetCollection {
     self.seedingImpl(tracks);
     diagnostics_.nSeeds = this->size();
 
-    self.mergingImpl();
+    if (doMerging_) self.mergingImpl();
     diagnostics_.nAfterMerge = this->size();
 
-    self.cleaningImpl();
+    if (doCleaning_) self.cleaningImpl();
     diagnostics_.nAfterClean = this->size();
 
-    self.disambiguationImpl();
+    if (doDisambiguation_) self.disambiguationImpl();
     diagnostics_.nAfterDisambiguate = this->size();
 
-    self.filteringImpl();
+    if (doFiltering_) self.filteringImpl();
     diagnostics_.nAfterFilter = this->size();
 
     HYDDRA_DBG("[HYDDRA] Pipeline summary: seeds=" << diagnostics_.nSeeds

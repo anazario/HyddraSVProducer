@@ -125,6 +125,10 @@ void HyddraSVsProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
   leptonicDesc.add<double>("minTrackCosTheta", 0.5);
   leptonicDesc.add<double>("maxTrackCosThetaCM_Limit", 0.95);
   leptonicDesc.add<double>("maxTrackCosThetaCM_Slope", 1.8);
+  leptonicDesc.add<bool>("doMerging", true);
+  leptonicDesc.add<bool>("doCleaning", true);
+  leptonicDesc.add<bool>("doDisambiguation", true);
+  leptonicDesc.add<bool>("doFiltering", true);
   desc.add<edm::ParameterSetDescription>("leptonic", leptonicDesc);
 
   // Hadronic PSet
@@ -137,6 +141,10 @@ void HyddraSVsProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
   hadronicDesc.add<int>("minSize", 5);
   hadronicDesc.add<double>("minCosTheta", 0.0);
   hadronicDesc.add<double>("maxDecayAngle", 0.9);
+  hadronicDesc.add<bool>("doMerging", true);
+  hadronicDesc.add<bool>("doCleaning", true);
+  hadronicDesc.add<bool>("doDisambiguation", true);
+  hadronicDesc.add<bool>("doFiltering", true);
   desc.add<edm::ParameterSetDescription>("hadronic", hadronicDesc);
 
   descriptions.addDefault(desc);
