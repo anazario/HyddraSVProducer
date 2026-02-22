@@ -1037,16 +1037,24 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   // Optional leptonic algorithm config — when provided, parameters are stored
   // as metadata in the output ROOT file for use by the diagnostic plot scripts.
   edm::ParameterSetDescription lepDesc;
-  lepDesc.add<double>("maxCompatibility",          1.5);
-  lepDesc.add<double>("minCleanCosTheta",          0.5);
-  lepDesc.add<bool>  ("useDiagonalCut",            false);
-  lepDesc.add<double>("cleanCutSlope",             0.0);
-  lepDesc.add<double>("minTrackCosTheta",          0.5);
-  lepDesc.add<double>("maxTrackCosThetaCM_Limit",  0.95);
+  lepDesc.add<double>("seedCosThetaCut",              0.75);
+  lepDesc.add<double>("minMass",                      2.0);
+  lepDesc.add<double>("minPOverE",                    0.6);
+  lepDesc.add<double>("maxNormChi2",                  5.0);
+  lepDesc.add<double>("minDxySignificance",           25.0);
+  lepDesc.add<double>("maxCompatibility",             1.5);
+  lepDesc.add<double>("minCleanCosTheta",             0.5);
+  lepDesc.add<bool>  ("useDiagonalCut",               false);
+  lepDesc.add<double>("cleanCutSlope",                0.0);
+  lepDesc.add<double>("minTrackCosTheta",             0.5);
+  lepDesc.add<double>("maxTrackCosThetaCM_Limit",     0.95);
   lepDesc.add<double>("maxTrackCosThetaCM_Intercept", 1.8);
-  lepDesc.add<double>("trackCosThetaCM_Slope",     -1.0);
-  lepDesc.add<bool>  ("requireChargeNeutrality",   true);
-  lepDesc.add<double>("minDxySignificance",        25.0);
+  lepDesc.add<double>("trackCosThetaCM_Slope",        -1.0);
+  lepDesc.add<bool>  ("requireChargeNeutrality",      true);
+  lepDesc.add<bool>  ("doMerging",                    true);
+  lepDesc.add<bool>  ("doCleaning",                   true);
+  lepDesc.add<bool>  ("doDisambiguation",             true);
+  lepDesc.add<bool>  ("doFiltering",                  true);
   desc.addOptional<edm::ParameterSetDescription>("leptonic", lepDesc);
 
   descriptions.addDefault(desc);
