@@ -13,6 +13,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     // Cleaning thresholds
     maxCompatibility_ = pset.getParameter<double>("maxCompatibility");
     minCleanCosTheta_ = pset.getParameter<double>("minCleanCosTheta");
+    useDiagonalCut_   = pset.getParameter<bool>("useDiagonalCut");
+    cleanCutSlope_    = pset.getParameter<double>("cleanCutSlope");
 
     // Final filtering cuts (post-disambiguation, 2-track only)
     minTrackCosTheta_         = pset.getParameter<double>("minTrackCosTheta");
@@ -54,7 +56,10 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
 	double compatibility = vertex.compatibility(trackRef);
 	double cosTheta      = vertex.trackCosTheta(*primaryVertex_, trackRef);
 
-	if (compatibility > maxCompatibility_ || cosTheta < minCleanCosTheta_) {
+	const bool isBadTrack = useDiagonalCut_
+	  ? cosTheta < cleanCutSlope_ * compatibility + minCleanCosTheta_
+	  : compatibility > maxCompatibility_ || cosTheta < minCleanCosTheta_;
+	if (isBadTrack) {
 	  tracksToRemove.push_back(trackRef);
 	}
       }
@@ -239,6 +244,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   // Cleaning thresholds
   double maxCompatibility_;
   double minCleanCosTheta_;
+  bool   useDiagonalCut_;
+  double cleanCutSlope_;
 
   // Final filtering thresholds
   double minTrackCosTheta_;

@@ -43,7 +43,8 @@ from hyddraDiagPlots.stages import (
 
 # ── Core plot runner ──────────────────────────────────────────────────────────
 
-def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta):
+def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta,
+                   use_diagonal_cut=False, clean_cut_slope=0.0):
     """Load data and write all stage plots into out_file."""
     stem = os.path.splitext(os.path.basename(sig_path))[0]
     print(f"  [{stem}] Loading signal data...")
@@ -73,7 +74,7 @@ def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta):
 
     print(f"  [{stem}] Cleaning plots...")
     cleaning.make_plots(stage_dirs["cleaning"], gf_sig, sv_sig, sv_bkg,
-                        ct_sig, max_compat, min_cos_theta)
+                        ct_sig, max_compat, min_cos_theta, use_diagonal_cut, clean_cut_slope)
 
     print(f"  [{stem}] Disambiguation plots...")
     disambiguation.make_plots(stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)
@@ -91,11 +92,12 @@ def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta):
 
 def _worker(args_tuple):
     """Multiprocessing worker: process one signal file into a temp ROOT file."""
-    sig_path, bkg_path, tmp_path, max_compat, min_cos_theta = args_tuple
+    sig_path, bkg_path, tmp_path, max_compat, min_cos_theta, use_diagonal_cut, clean_cut_slope = args_tuple
     stem = os.path.splitext(os.path.basename(sig_path))[0]
     print(f"[{stem}] Worker started (PID {os.getpid()})")
     tmp_file = ROOT.TFile(tmp_path, "RECREATE")
-    _run_all_plots(tmp_file, sig_path, bkg_path, max_compat, min_cos_theta)
+    _run_all_plots(tmp_file, sig_path, bkg_path, max_compat, min_cos_theta,
+                   use_diagonal_cut, clean_cut_slope)
     tmp_file.Close()
     return tmp_path
 
@@ -135,10 +137,14 @@ def main():
                         help="Background ROOT file (optional, applied to all signal files)")
     parser.add_argument("--output", default="hyddra_diag_plots.root",
                         help="Output ROOT file (default: hyddra_diag_plots.root)")
-    parser.add_argument("--max-compat",    type=float, default=1.5,
+    parser.add_argument("--max-compat",       type=float, default=1.5,
                         help="maxCompatibility cut value shown on 2D cleaning plot (default: 1.5)")
-    parser.add_argument("--min-cos-theta", type=float, default=0.5,
-                        help="minCleanCosTheta cut value shown on 2D cleaning plot (default: 0.5)")
+    parser.add_argument("--min-cos-theta",    type=float, default=0.5,
+                        help="minCleanCosTheta / diagonal intercept shown on 2D cleaning plot (default: 0.5)")
+    parser.add_argument("--use-diagonal-cut", action="store_true",
+                        help="Draw diagonal cut line instead of square cuts on 2D cleaning plot")
+    parser.add_argument("--clean-cut-slope",  type=float, default=0.0,
+                        help="Slope of the diagonal cut (default: 0.0)")
     parser.add_argument("--jobs", "-j", type=int, default=0,
                         help="Max parallel workers for multi-file mode (0 = cpu_count)")
     args = parser.parse_args()
@@ -164,7 +170,8 @@ def main():
         # ── Single-file mode: plots directly in stage subdirs at root level ──
         out_file = ROOT.TFile(args.output, "RECREATE")
         _run_all_plots(out_file, sig_files[0], args.background,
-                       args.max_compat, args.min_cos_theta)
+                       args.max_compat, args.min_cos_theta,
+                       args.use_diagonal_cut, args.clean_cut_slope)
         out_file.Close()
 
     else:
@@ -178,7 +185,8 @@ def main():
             stem    = os.path.splitext(os.path.basename(sig_path))[0]
             tmp_out = os.path.join(tmpdir, f"{stem}.root")
             work_items.append((sig_path, args.background, tmp_out,
-                               args.max_compat, args.min_cos_theta))
+                               args.max_compat, args.min_cos_theta,
+                               args.use_diagonal_cut, args.clean_cut_slope))
 
         print(f"\n[hyddraDiagPlots] Launching {len(work_items)} workers...")
         with mp.Pool(n_workers) as pool:
