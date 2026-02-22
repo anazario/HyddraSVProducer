@@ -5,6 +5,7 @@ Plots:
   - reco_cleaned_{cosTheta,decayAngle,pOverE,dxySignif}
   - cleaning_2d_{signal_tracks,contaminating_tracks,bkg_tracks}
   - cleaning_track_{compatibility,cos_theta}  (1D signal vs contaminating vs bkg)
+  - cleaning_compat_cosTheta_gt_{wp}  (compatibility at cosTheta WPs: -0.5, 0.0, 0.5, 0.8)
 """
 import numpy as np
 import awkward as ak
@@ -103,12 +104,17 @@ def plot_cleaning_2d(tdir, ct, max_compat=1.5, min_cos_theta=0.5):
         print(f"    [cleaning_2d_{suffix}] done")
 
 
-def plot_cleaning_track_distributions(tdir, ct):
+def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
     """
     1D normalised distributions of compatibility and cosTheta for:
       - signal tracks in signal-matched vertices
       - contaminating tracks (non-signal in signal-matched vertices)
       - all tracks in background-only vertices
+
+    If cos_theta_min is given, only tracks with cosTheta > cos_theta_min are
+    included and only the compatibility plot is produced (the cosTheta plot is
+    skipped since we are cutting on it).  A TLatex label showing the applied
+    cut is drawn on the canvas.
     """
     if ct is None or len(ak.flatten(ct["CleanTrack_compatibility"])) == 0:
         print("    [cleaning_track_1d] No cleaning track data — skipping")
@@ -125,16 +131,26 @@ def plot_cleaning_track_distributions(tdir, ct):
     m_cont   = ~is_signal & sig_vtx
     m_bkg    = ~sig_vtx
 
+    if cos_theta_min is not None:
+        cos_cut = cos_th > cos_theta_min
+        m_sig   = m_sig  & cos_cut
+        m_cont  = m_cont & cos_cut
+        m_bkg   = m_bkg  & cos_cut
+
     cat_colors = [(m_sig,  ROOT.kBlue + 2, 1, "Signal track in sig. vtx"),
                   (m_cont, ROOT.kOrange+ 1, 1, "Contam. track in sig. vtx"),
                   (m_bkg,  ROOT.kRed  + 2, 2, "Track in bkg-only vtx")]
 
-    for var_vals, bins, x_label, cname in [
-        (compat, np.linspace(0, 5, 51),  "Track Compatibility (#sigma)",
-         "cleaning_compat_1d"),
-        (cos_th, np.linspace(-1, 1, 51), "Track cos#theta",
-         "cleaning_costheta_1d"),
-    ]:
+    wp_str = (f"_cosTheta_gt_{f'{cos_theta_min:.1f}'.replace('-','m').replace('.','p')}"
+              if cos_theta_min is not None else "")
+
+    var_list = [(compat, np.linspace(0, 5, 51), "Track Compatibility (#sigma)",
+                 f"cleaning_compat_1d{wp_str}")]
+    if cos_theta_min is None:
+        var_list.append((cos_th, np.linspace(-1, 1, 51), "Track cos#theta",
+                         "cleaning_costheta_1d"))
+
+    for var_vals, bins, x_label, cname in var_list:
         n_bins = len(bins) - 1
         canvas = make_canvas(cname, x_label, logy=False)
         hists  = []
@@ -170,6 +186,14 @@ def plot_cleaning_track_distributions(tdir, ct):
                 leg.AddEntry(h, lbl, "l")
         leg.Draw()
         canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
+
+        if cos_theta_min is not None:
+            lat = ROOT.TLatex()
+            lat.SetNDC(); lat.SetTextFont(42)
+            lat.SetTextSize(0.038); lat.SetTextAlign(11)
+            lat.DrawLatex(0.18, 0.67, f"cos#theta > {cos_theta_min}")
+            canvas._lat = lat
+
         draw_cms_label()
         canvas.Update()
         tdir.cd()
@@ -189,3 +213,6 @@ def make_plots(tdir, gf, sv_sig, sv_bkg, ct, max_compat=1.5, min_cos_theta=0.5):
     plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta)
     print("  [cleaning] 1D cleaning track distributions...")
     plot_cleaning_track_distributions(tdir, ct)
+    print("  [cleaning] Compatibility vs cosTheta working points...")
+    for wp in [-0.5, 0.0, 0.5, 0.8]:
+        plot_cleaning_track_distributions(tdir, ct, cos_theta_min=wp)
