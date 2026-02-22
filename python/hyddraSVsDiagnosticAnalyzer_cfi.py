@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 from KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi import TRACK_COLLECTION_CONFIG
+from KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi import leptonicHYDDRA
 
 # =============================================================================
 # Default diagnostic analyzer — promptMuonBestTrack collection
@@ -21,6 +22,8 @@ hyddraSVsDiagAnalyzer = cms.EDAnalyzer("HyddraSVsDiagnosticAnalyzer",
     tracks           = TRACK_COLLECTION_CONFIG['promptMuonBestTrack'],
     genParticles     = cms.InputTag("genParticles"),
     packedGenParticles = cms.InputTag(""),
+
+    leptonic = leptonicHYDDRA,
 )
 
 # =============================================================================

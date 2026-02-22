@@ -15,6 +15,9 @@ Output:
   Single-file mode  : plots written at root level of --output file,
                       organised under seeding/merging/cleaning/disambiguation/filtering/summary
   Multi-file mode   : per-file stem subdirectories, each with the 6 stage subdirs
+
+Cut values for plot annotations are read automatically from the leptonicConfig
+tree stored inside each signal ROOT file.  No manual flags are required.
 """
 
 import argparse
@@ -43,8 +46,7 @@ from hyddraDiagPlots.stages import (
 
 # ── Core plot runner ──────────────────────────────────────────────────────────
 
-def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta,
-                   use_diagonal_cut=False, clean_cut_slope=0.0):
+def _run_all_plots(out_file, sig_path, bkg_path):
     """Load data and write all stage plots into out_file."""
     stem = os.path.splitext(os.path.basename(sig_path))[0]
     print(f"  [{stem}] Loading signal data...")
@@ -55,6 +57,11 @@ def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta,
         ct_sig = loader.load_cleaning_tracks(sig_f)
         sv_sig = loader.load_all_stage_vtx(sig_f)
         st_sig = loader.load_seed_tracks(sig_f)
+        fv_sig = loader.load_filtering_vtx(sig_f)
+        cfg    = loader.load_leptonic_config(sig_f)
+
+    if cfg is None:
+        print(f"  [{stem}] Warning: leptonicConfig not found; cut annotations will use defaults")
 
     sc_bkg, sv_bkg = None, None
     if bkg_path:
@@ -73,14 +80,13 @@ def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta,
     merging.make_plots(stage_dirs["merging"], gf_sig, sv_sig, sv_bkg)
 
     print(f"  [{stem}] Cleaning plots...")
-    cleaning.make_plots(stage_dirs["cleaning"], gf_sig, sv_sig, sv_bkg,
-                        ct_sig, max_compat, min_cos_theta, use_diagonal_cut, clean_cut_slope)
+    cleaning.make_plots(stage_dirs["cleaning"], gf_sig, sv_sig, sv_bkg, ct_sig, cfg)
 
     print(f"  [{stem}] Disambiguation plots...")
     disambiguation.make_plots(stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)
 
     print(f"  [{stem}] Filtering plots...")
-    filtering.make_plots(stage_dirs["filtering"], gf_sig, sv_sig, sv_bkg)
+    filtering.make_plots(stage_dirs["filtering"], gf_sig, sv_sig, sv_bkg, fv_sig, cfg)
 
     print(f"  [{stem}] Summary plots...")
     summary.make_plots(stage_dirs["summary"], gf_sig, sc_sig, sc_bkg)
@@ -92,12 +98,11 @@ def _run_all_plots(out_file, sig_path, bkg_path, max_compat, min_cos_theta,
 
 def _worker(args_tuple):
     """Multiprocessing worker: process one signal file into a temp ROOT file."""
-    sig_path, bkg_path, tmp_path, max_compat, min_cos_theta, use_diagonal_cut, clean_cut_slope = args_tuple
+    sig_path, bkg_path, tmp_path = args_tuple
     stem = os.path.splitext(os.path.basename(sig_path))[0]
     print(f"[{stem}] Worker started (PID {os.getpid()})")
     tmp_file = ROOT.TFile(tmp_path, "RECREATE")
-    _run_all_plots(tmp_file, sig_path, bkg_path, max_compat, min_cos_theta,
-                   use_diagonal_cut, clean_cut_slope)
+    _run_all_plots(tmp_file, sig_path, bkg_path)
     tmp_file.Close()
     return tmp_path
 
@@ -137,14 +142,6 @@ def main():
                         help="Background ROOT file (optional, applied to all signal files)")
     parser.add_argument("--output", default="hyddra_diag_plots.root",
                         help="Output ROOT file (default: hyddra_diag_plots.root)")
-    parser.add_argument("--max-compat",       type=float, default=1.5,
-                        help="maxCompatibility cut value shown on 2D cleaning plot (default: 1.5)")
-    parser.add_argument("--min-cos-theta",    type=float, default=0.5,
-                        help="minCleanCosTheta / diagonal intercept shown on 2D cleaning plot (default: 0.5)")
-    parser.add_argument("--use-diagonal-cut", action="store_true",
-                        help="Draw diagonal cut line instead of square cuts on 2D cleaning plot")
-    parser.add_argument("--clean-cut-slope",  type=float, default=0.0,
-                        help="Slope of the diagonal cut (default: 0.0)")
     parser.add_argument("--jobs", "-j", type=int, default=0,
                         help="Max parallel workers for multi-file mode (0 = cpu_count)")
     args = parser.parse_args()
@@ -169,9 +166,7 @@ def main():
     if len(sig_files) == 1:
         # ── Single-file mode: plots directly in stage subdirs at root level ──
         out_file = ROOT.TFile(args.output, "RECREATE")
-        _run_all_plots(out_file, sig_files[0], args.background,
-                       args.max_compat, args.min_cos_theta,
-                       args.use_diagonal_cut, args.clean_cut_slope)
+        _run_all_plots(out_file, sig_files[0], args.background)
         out_file.Close()
 
     else:
@@ -184,9 +179,7 @@ def main():
         for sig_path in sig_files:
             stem    = os.path.splitext(os.path.basename(sig_path))[0]
             tmp_out = os.path.join(tmpdir, f"{stem}.root")
-            work_items.append((sig_path, args.background, tmp_out,
-                               args.max_compat, args.min_cos_theta,
-                               args.use_diagonal_cut, args.clean_cut_slope))
+            work_items.append((sig_path, args.background, tmp_out))
 
         print(f"\n[hyddraDiagPlots] Launching {len(work_items)} workers...")
         with mp.Pool(n_workers) as pool:
@@ -195,7 +188,7 @@ def main():
         # Merge: each file gets its own top-level subdirectory
         print(f"\n[hyddraDiagPlots] Merging into {args.output}...")
         out_file = ROOT.TFile(args.output, "RECREATE")
-        for sig_path, _, tmp_path, _, _, _, _ in work_items:
+        for sig_path, _, tmp_path in work_items:
             stem = os.path.splitext(os.path.basename(sig_path))[0]
             print(f"  Copying {stem}...")
             tdir = out_file.mkdir(stem)

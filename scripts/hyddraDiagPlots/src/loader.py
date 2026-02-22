@@ -36,3 +36,20 @@ def load_all_stage_vtx(root_file):
 def load_seed_tracks(root_file):
     """Return seedTracks tree arrays (vectors per event, tracks in 2-track OS seeds)."""
     return root_file[f"{_BASE}/seedTracks"].arrays(library="ak")
+
+
+def load_leptonic_config(root_file):
+    """Return the stored leptonic HYDDRA config as a flat dict, or None if absent."""
+    try:
+        arr = root_file[f"{_BASE}/leptonicConfig"].arrays(library="np")
+        return {k: v[0] for k, v in arr.items()}
+    except KeyError:
+        return None
+
+
+def load_filtering_vtx(root_file):
+    """Return filteringVtx tree arrays (flat, one row per disambig vertex), or None."""
+    try:
+        return root_file[f"{_BASE}/filteringVtx"].arrays(library="ak")
+    except KeyError:
+        return None

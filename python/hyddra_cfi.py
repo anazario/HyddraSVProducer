@@ -17,9 +17,11 @@ leptonicHYDDRA = cms.PSet(
     cleanCutSlope    = cms.double(0.0),
 
     # Final filtering (post-disambiguation, 2-track vertices only)
-    minTrackCosTheta         = cms.double(0.5),
-    maxTrackCosThetaCM_Limit = cms.double(0.95),
-    maxTrackCosThetaCM_Slope = cms.double(1.8),
+    minTrackCosTheta             = cms.double(0.5),
+    maxTrackCosThetaCM_Limit     = cms.double(0.95),
+    maxTrackCosThetaCM_Intercept = cms.double(1.8),
+    trackCosThetaCM_Slope        = cms.double(-1.0),
+    requireChargeNeutrality      = cms.bool(True),
 
     # Stage enable flags (set to False to skip a stage)
     doMerging        = cms.bool(True),

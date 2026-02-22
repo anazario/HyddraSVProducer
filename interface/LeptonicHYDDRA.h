@@ -17,9 +17,11 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     cleanCutSlope_    = pset.getParameter<double>("cleanCutSlope");
 
     // Final filtering cuts (post-disambiguation, 2-track only)
-    minTrackCosTheta_         = pset.getParameter<double>("minTrackCosTheta");
-    maxTrackCosThetaCM_Limit_ = pset.getParameter<double>("maxTrackCosThetaCM_Limit");
-    maxTrackCosThetaCM_Slope_ = pset.getParameter<double>("maxTrackCosThetaCM_Slope");
+    minTrackCosTheta_             = pset.getParameter<double>("minTrackCosTheta");
+    maxTrackCosThetaCM_Limit_     = pset.getParameter<double>("maxTrackCosThetaCM_Limit");
+    maxTrackCosThetaCM_Intercept_ = pset.getParameter<double>("maxTrackCosThetaCM_Intercept");
+    trackCosThetaCM_Slope_        = pset.getParameter<double>("trackCosThetaCM_Slope");
+    requireChargeNeutrality_      = pset.getParameter<bool>("requireChargeNeutrality");
   }
 
   // Stage 1: Seeding
@@ -152,8 +154,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   }
 
   // Stage 5: Filtering
-  // Keep only 2-track, charge-neutral vertices that pass angular and
-  // displacement significance cuts.
+  // Keep only 2-track vertices that pass angular and displacement significance
+  // cuts.  Charge neutrality is applied when requireChargeNeutrality_ is true.
   void filteringImpl() {
     if (this->empty() || !primaryVertex_ || !primaryVertex_->isValid()) return;
 
@@ -188,7 +190,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
           passAngular = false;
           break;
         }
-        if (std::fabs(trackCosThetaCM) > (maxTrackCosThetaCM_Slope_ - trackCosTheta)) {
+        if (std::fabs(trackCosThetaCM) > (trackCosThetaCM_Slope_ * trackCosTheta + maxTrackCosThetaCM_Intercept_)) {
           nFailTrackCosThetaCMSlope++;
           passAngular = false;
           break;
@@ -202,7 +204,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
       if (!passAngular) continue;
 
       // Charge neutrality
-      if (VertexHelper::CalculateTotalCharge(vertex) != 0) {
+      if (requireChargeNeutrality_ && VertexHelper::CalculateTotalCharge(vertex) != 0) {
         nFailCharge++;
         continue;
       }
@@ -231,9 +233,9 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     HYDDRA_DBG("[Leptonic] Filtering summary (" << nInput << " -> " << this->size() << "):\n"
                << "  size != 2:              " << nFailSize << " failed\n"
                << "  trackCosTheta:          " << nFailTrackCosTheta << " failed (cut: " << minTrackCosTheta_ << ")\n"
-               << "  trackCosThetaCM slope:  " << nFailTrackCosThetaCMSlope << " failed (cut: slope " << maxTrackCosThetaCM_Slope_ << ")\n"
+               << "  trackCosThetaCM slope:  " << nFailTrackCosThetaCMSlope << " failed (cut: slope=" << trackCosThetaCM_Slope_ << " intercept=" << maxTrackCosThetaCM_Intercept_ << ")\n"
                << "  trackCosThetaCM limit:  " << nFailTrackCosThetaCMLimit << " failed (cut: " << maxTrackCosThetaCM_Limit_ << ")\n"
-               << "  charge neutrality:      " << nFailCharge << " failed\n"
+               << "  charge neutrality:      " << nFailCharge << " failed" << (requireChargeNeutrality_ ? "" : " (cut disabled)") << "\n"
                << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
                << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
                << "  PASSED:                 " << this->size() << "\n");
@@ -250,7 +252,9 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   // Final filtering thresholds
   double minTrackCosTheta_;
   double maxTrackCosThetaCM_Limit_;
-  double maxTrackCosThetaCM_Slope_;
+  double maxTrackCosThetaCM_Intercept_;
+  double trackCosThetaCM_Slope_;
+  bool   requireChargeNeutrality_;
 
   // Returns true if the vertex fails kinematic selection.
   // Checked after cleaning and before disambiguation.

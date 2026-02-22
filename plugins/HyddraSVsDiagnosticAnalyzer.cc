@@ -130,6 +130,7 @@ private:
   TTree* cleaningTracksTree_;
   TTree* allStageVtxTree_;
   TTree* seedTracksTree_;
+  TTree* filteringVtxTree_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // genFunnel branches (vectors — one element per gen vertex)
@@ -230,6 +231,35 @@ private:
   std::vector<float> seedTrack_cosTheta_;
   std::vector<bool>  seedTrack_isSignal_;
   std::vector<bool>  seedTrack_vtxIsGold_;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // leptonicConfig branches (scalars — single Fill in beginJob)
+  // ═══════════════════════════════════════════════════════════════════════════
+  TTree* leptonicConfigTree_;
+  double cfg_maxCompatibility_;
+  double cfg_minCleanCosTheta_;
+  bool   cfg_useDiagonalCut_;
+  double cfg_cleanCutSlope_;
+  double cfg_minTrackCosTheta_;
+  double cfg_maxTrackCosThetaCM_Limit_;
+  double cfg_maxTrackCosThetaCM_Intercept_;
+  double cfg_trackCosThetaCM_Slope_;
+  bool   cfg_requireChargeNeutrality_;
+  double cfg_minDxySignificance_;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // filteringVtx branches (scalar — one TTree::Fill per disambig vertex)
+  // Summary stats over all tracks sufficient to evaluate each sequential
+  // filtering cut.  maxSlopeMetric = max_i(|cosThetaCM_i| + cosTheta_i),
+  // valid for the default trackCosThetaCM_Slope = -1.
+  // ═══════════════════════════════════════════════════════════════════════════
+  unsigned int filterVtx_nTracks_;
+  float        filterVtx_minTrackCosTheta_;
+  float        filterVtx_maxAbsCosThetaCM_;
+  float        filterVtx_maxSlopeMetric_;
+  int          filterVtx_charge_;
+  float        filterVtx_dxySignif_;
+  bool         filterVtx_isGold_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,6 +289,32 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
       packedGenToken_ = consumes<std::vector<pat::PackedGenParticle>>(
           iConfig.getParameter<edm::InputTag>("packedGenParticles"));
     }
+  }
+
+  // Leptonic algorithm parameters — persisted as metadata in the output file.
+  // Read from an optional 'leptonic' sub-PSet; falls back to defaults otherwise.
+  cfg_maxCompatibility_             = 1.5;
+  cfg_minCleanCosTheta_             = 0.5;
+  cfg_useDiagonalCut_               = false;
+  cfg_cleanCutSlope_                = 0.0;
+  cfg_minTrackCosTheta_             = 0.5;
+  cfg_maxTrackCosThetaCM_Limit_     = 0.95;
+  cfg_maxTrackCosThetaCM_Intercept_ = 1.8;
+  cfg_trackCosThetaCM_Slope_        = -1.0;
+  cfg_requireChargeNeutrality_      = true;
+  cfg_minDxySignificance_           = 25.0;
+  if (iConfig.exists("leptonic")) {
+    const edm::ParameterSet& lep = iConfig.getParameterSet("leptonic");
+    cfg_maxCompatibility_             = lep.getParameter<double>("maxCompatibility");
+    cfg_minCleanCosTheta_             = lep.getParameter<double>("minCleanCosTheta");
+    cfg_useDiagonalCut_               = lep.getParameter<bool>("useDiagonalCut");
+    cfg_cleanCutSlope_                = lep.getParameter<double>("cleanCutSlope");
+    cfg_minTrackCosTheta_             = lep.getParameter<double>("minTrackCosTheta");
+    cfg_maxTrackCosThetaCM_Limit_     = lep.getParameter<double>("maxTrackCosThetaCM_Limit");
+    cfg_maxTrackCosThetaCM_Intercept_ = lep.getParameter<double>("maxTrackCosThetaCM_Intercept");
+    cfg_trackCosThetaCM_Slope_        = lep.getParameter<double>("trackCosThetaCM_Slope");
+    cfg_requireChargeNeutrality_      = lep.getParameter<bool>("requireChargeNeutrality");
+    cfg_minDxySignificance_           = lep.getParameter<double>("minDxySignificance");
   }
 }
 
@@ -406,6 +462,32 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   seedTracksTree_->Branch("SeedTrack_cosTheta",  &seedTrack_cosTheta_);
   seedTracksTree_->Branch("SeedTrack_isSignal",  &seedTrack_isSignal_);
   seedTracksTree_->Branch("SeedTrack_vtxIsGold", &seedTrack_vtxIsGold_);
+
+  // ── leptonicConfig ─────────────────────────────────────────────────────────
+  leptonicConfigTree_ = fs->make<TTree>("leptonicConfig",
+      "Leptonic HYDDRA configuration parameters (single row)");
+  leptonicConfigTree_->Branch("maxCompatibility",          &cfg_maxCompatibility_);
+  leptonicConfigTree_->Branch("minCleanCosTheta",          &cfg_minCleanCosTheta_);
+  leptonicConfigTree_->Branch("useDiagonalCut",            &cfg_useDiagonalCut_);
+  leptonicConfigTree_->Branch("cleanCutSlope",             &cfg_cleanCutSlope_);
+  leptonicConfigTree_->Branch("minTrackCosTheta",          &cfg_minTrackCosTheta_);
+  leptonicConfigTree_->Branch("maxTrackCosThetaCM_Limit",  &cfg_maxTrackCosThetaCM_Limit_);
+  leptonicConfigTree_->Branch("maxTrackCosThetaCM_Intercept", &cfg_maxTrackCosThetaCM_Intercept_);
+  leptonicConfigTree_->Branch("trackCosThetaCM_Slope",     &cfg_trackCosThetaCM_Slope_);
+  leptonicConfigTree_->Branch("requireChargeNeutrality",   &cfg_requireChargeNeutrality_);
+  leptonicConfigTree_->Branch("minDxySignificance",        &cfg_minDxySignificance_);
+  leptonicConfigTree_->Fill();  // values set in constructor; written once here
+
+  // ── filteringVtx ───────────────────────────────────────────────────────────
+  filteringVtxTree_ = fs->make<TTree>("filteringVtx",
+      "Per-disambig-vertex summary stats for sequential filter cut-flow");
+  filteringVtxTree_->Branch("FilterVtx_nTracks",          &filterVtx_nTracks_);
+  filteringVtxTree_->Branch("FilterVtx_minTrackCosTheta", &filterVtx_minTrackCosTheta_);
+  filteringVtxTree_->Branch("FilterVtx_maxAbsCosThetaCM", &filterVtx_maxAbsCosThetaCM_);
+  filteringVtxTree_->Branch("FilterVtx_maxSlopeMetric",   &filterVtx_maxSlopeMetric_);
+  filteringVtxTree_->Branch("FilterVtx_charge",           &filterVtx_charge_);
+  filteringVtxTree_->Branch("FilterVtx_dxySignif",        &filterVtx_dxySignif_);
+  filteringVtxTree_->Branch("FilterVtx_isGold",           &filterVtx_isGold_);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -866,6 +948,36 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
     }
   }
 
+  // ── filteringVtx: per-disambig-vertex summary stats for filter cut-flow ────
+  if (stageHandles_[kDisambig].isValid()) {
+    for (const auto& vtx : *stageHandles_[kDisambig]) {
+      filterVtx_nTracks_   = unsigned(vtx.tracksSize());
+      filterVtx_charge_    = VertexHelper::CalculateTotalCharge(vtx);
+      filterVtx_dxySignif_ = computeDxySignif(vtx, pv);
+
+      float minCT = 1.0f, maxAbsCM = 0.0f, maxSlope = -2.0f;
+      for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
+        reco::TrackRef tref = it->castTo<reco::TrackRef>();
+        float ct    = float(TrackHelper::CalculateCosTheta(pv, vtx, *tref));
+        float absCM = float(std::fabs(VertexHelper::CalculateCMCosTheta(vtx, *tref)));
+        minCT    = std::min(minCT, ct);
+        maxAbsCM = std::max(maxAbsCM, absCM);
+        maxSlope = std::max(maxSlope, absCM + ct);  // metric for slope = -1
+      }
+      filterVtx_minTrackCosTheta_ = (vtx.tracksSize() > 0) ? minCT    : -1.0f;
+      filterVtx_maxAbsCosThetaCM_ = maxAbsCM;
+      filterVtx_maxSlopeMetric_   = (vtx.tracksSize() > 0) ? maxSlope : -1.0f;
+
+      filterVtx_isGold_ = false;
+      if (hasGenInfo_) {
+        for (const auto& gv : genVertices_) {
+          if (gv.isGold(vtx)) { filterVtx_isGold_ = true; break; }
+        }
+      }
+      filteringVtxTree_->Fill();
+    }
+  }
+
   // ── Fill all trees ─────────────────────────────────────────────────────────
   genFunnelTree_->Fill();
   stageCountsTree_->Fill();
@@ -921,6 +1033,22 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   desc.add<edm::InputTag>("tracks",                 edm::InputTag("muonBestTrackProducer", "globalTracks"));
   desc.add<edm::InputTag>("genParticles",           edm::InputTag("genParticles"));
   desc.add<edm::InputTag>("packedGenParticles",     edm::InputTag(""));
+
+  // Optional leptonic algorithm config — when provided, parameters are stored
+  // as metadata in the output ROOT file for use by the diagnostic plot scripts.
+  edm::ParameterSetDescription lepDesc;
+  lepDesc.add<double>("maxCompatibility",          1.5);
+  lepDesc.add<double>("minCleanCosTheta",          0.5);
+  lepDesc.add<bool>  ("useDiagonalCut",            false);
+  lepDesc.add<double>("cleanCutSlope",             0.0);
+  lepDesc.add<double>("minTrackCosTheta",          0.5);
+  lepDesc.add<double>("maxTrackCosThetaCM_Limit",  0.95);
+  lepDesc.add<double>("maxTrackCosThetaCM_Intercept", 1.8);
+  lepDesc.add<double>("trackCosThetaCM_Slope",     -1.0);
+  lepDesc.add<bool>  ("requireChargeNeutrality",   true);
+  lepDesc.add<double>("minDxySignificance",        25.0);
+  desc.addOptional<edm::ParameterSetDescription>("leptonic", lepDesc);
+
   descriptions.addDefault(desc);
 }
 

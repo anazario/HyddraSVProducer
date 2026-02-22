@@ -16,8 +16,8 @@ from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
 from ..src.plotter import plot_reco_observable
 
 
-def plot_cleaning_2d(tdir, ct, max_compat=1.5, min_cos_theta=0.5,
-                     use_diagonal_cut=False, clean_cut_slope=0.0):
+def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
+                     use_diagonal_cut, clean_cut_slope):
     """
     2D (compatibility, cosTheta) for tracks in post-merge multi-track vertices.
     Three canvases: signal tracks, contaminating tracks, background-only tracks.
@@ -219,8 +219,12 @@ def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-def make_plots(tdir, gf, sv_sig, sv_bkg, ct, max_compat=1.5, min_cos_theta=0.5,
-               use_diagonal_cut=False, clean_cut_slope=0.0):
+def make_plots(tdir, gf, sv_sig, sv_bkg, ct, cfg=None):
+    max_compat       = cfg["maxCompatibility"]     if cfg else 1.5
+    min_cos_theta    = cfg["minCleanCosTheta"]     if cfg else 0.5
+    use_diagonal_cut = bool(cfg["useDiagonalCut"]) if cfg else False
+    clean_cut_slope  = cfg["cleanCutSlope"]        if cfg else 0.0
+
     print("  [cleaning] Reco observables...")
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "cleaned", obs_key, obs_cfg, sv_bkg)
