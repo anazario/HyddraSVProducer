@@ -131,15 +131,18 @@ def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
     m_cont   = ~is_signal & sig_vtx
     m_bkg    = ~sig_vtx
 
+    # Keep uncut masks so WP plots can normalize to the full population
+    m_sig_base, m_cont_base, m_bkg_base = m_sig, m_cont, m_bkg
+
     if cos_theta_min is not None:
         cos_cut = cos_th > cos_theta_min
         m_sig   = m_sig  & cos_cut
         m_cont  = m_cont & cos_cut
         m_bkg   = m_bkg  & cos_cut
 
-    cat_colors = [(m_sig,  ROOT.kBlue + 2, 1, "Signal track in sig. vtx"),
-                  (m_cont, ROOT.kOrange+ 1, 1, "Contam. track in sig. vtx"),
-                  (m_bkg,  ROOT.kRed  + 2, 2, "Track in bkg-only vtx")]
+    cat_colors = [(m_sig,  ROOT.kBlue + 2, 1, "Signal track in sig. vtx",  m_sig_base),
+                  (m_cont, ROOT.kOrange+ 1, 1, "Contam. track in sig. vtx", m_cont_base),
+                  (m_bkg,  ROOT.kRed  + 2, 2, "Track in bkg-only vtx",     m_bkg_base)]
 
     wp_str = (f"_cosTheta_gt_{f'{cos_theta_min:.1f}'.replace('-','m').replace('.','p')}"
               if cos_theta_min is not None else "")
@@ -150,24 +153,27 @@ def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
         var_list.append((cos_th, np.linspace(-1, 1, 51), "Track cos#theta",
                          "cleaning_costheta_1d"))
 
+    y_label = ("Fraction of tracks (no cut)" if cos_theta_min is not None
+               else "Normalised to Unit Area")
+
     for var_vals, bins, x_label, cname in var_list:
         n_bins = len(bins) - 1
         canvas = make_canvas(cname, x_label, logy=False)
         hists  = []
-        for mask, col, lstyle, lbl in cat_colors:
+        for mask, col, lstyle, lbl, base_mask in cat_colors:
             h = ROOT.TH1F(f"h_{cname}_{lbl[:4]}", "", n_bins, bins)
             for v in var_vals[mask]:
                 h.Fill(float(v))
             h.SetLineColor(col); h.SetLineWidth(2); h.SetLineStyle(lstyle)
             h.SetFillStyle(0); h.SetStats(0)
-            integral = h.Integral()
-            if integral > 0:
-                h.Scale(1.0 / integral)
+            denom = int(np.sum(base_mask)) if cos_theta_min is not None else h.Integral()
+            if denom > 0:
+                h.Scale(1.0 / denom)
             hists.append((h, lbl))
 
         max_y = max((h.GetMaximum() for h, _ in hists if h.Integral() > 0), default=1.0)
         h_ax = ROOT.TH1F(f"h_ax_{cname}",
-                         f";{x_label};Normalised to Unit Area", n_bins, bins)
+                         f";{x_label};{y_label}", n_bins, bins)
         h_ax.SetMinimum(1e-4); h_ax.SetMaximum(max_y * 1.3)
         h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
         h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
