@@ -195,7 +195,7 @@ def main():
         # Merge: each file gets its own top-level subdirectory
         print(f"\n[hyddraDiagPlots] Merging into {args.output}...")
         out_file = ROOT.TFile(args.output, "RECREATE")
-        for sig_path, _, tmp_path, _, _ in work_items:
+        for sig_path, _, tmp_path, _, _, _, _ in work_items:
             stem = os.path.splitext(os.path.basename(sig_path))[0]
             print(f"  Copying {stem}...")
             tdir = out_file.mkdir(stem)
