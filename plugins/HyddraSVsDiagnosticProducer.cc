@@ -114,16 +114,24 @@ void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescription
 
   // Leptonic PSet — same defaults as HyddraSVsProducer
   edm::ParameterSetDescription leptonicDesc;
-  leptonicDesc.add<double>("seedCosThetaCut",          0.75);
-  leptonicDesc.add<double>("minMass",                  2.0);
-  leptonicDesc.add<double>("minPOverE",                0.6);
-  leptonicDesc.add<double>("maxNormChi2",              5.0);
-  leptonicDesc.add<double>("minDxySignificance",       25.0);
-  leptonicDesc.add<double>("maxCompatibility",         1.5);
-  leptonicDesc.add<double>("minCleanCosTheta",         0.5);
-  leptonicDesc.add<double>("minTrackCosTheta",         0.5);
-  leptonicDesc.add<double>("maxTrackCosThetaCM_Limit", 0.95);
-  leptonicDesc.add<double>("maxTrackCosThetaCM_Slope", 1.8);
+  leptonicDesc.add<double>("seedCosThetaCut",              0.75);
+  leptonicDesc.add<double>("minMass",                      2.0);
+  leptonicDesc.add<double>("minPOverE",                    0.6);
+  leptonicDesc.add<double>("maxNormChi2",                  5.0);
+  leptonicDesc.add<double>("minDxySignificance",           25.0);
+  leptonicDesc.add<double>("maxCompatibility",             1.5);
+  leptonicDesc.add<double>("minCleanCosTheta",             0.5);
+  leptonicDesc.add<bool>  ("useDiagonalCut",               false);
+  leptonicDesc.add<double>("cleanCutSlope",                0.0);
+  leptonicDesc.add<double>("minTrackCosTheta",             0.5);
+  leptonicDesc.add<double>("maxTrackCosThetaCM_Limit",     0.95);
+  leptonicDesc.add<double>("maxTrackCosThetaCM_Intercept", 1.8);
+  leptonicDesc.add<double>("trackCosThetaCM_Slope",        -1.0);
+  leptonicDesc.add<bool>  ("requireChargeNeutrality",      true);
+  leptonicDesc.add<bool>  ("doMerging",                    true);
+  leptonicDesc.add<bool>  ("doCleaning",                   true);
+  leptonicDesc.add<bool>  ("doDisambiguation",             true);
+  leptonicDesc.add<bool>  ("doFiltering",                  true);
   desc.add<edm::ParameterSetDescription>("leptonic", leptonicDesc);
 
   descriptions.addDefault(desc);
