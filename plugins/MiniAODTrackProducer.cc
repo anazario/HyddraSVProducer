@@ -102,6 +102,7 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
   // Merged collections from packed candidates
   produces<reco::TrackCollection>("merged");        // pfCandidates + lostTracks
   produces<reco::TrackCollection>("mergedWithEle"); // pfCandidates + eleLostTracks
+  produces<reco::TrackCollection>("mergedAll");     // pfCandidates + lostTracks + eleLostTracks
 
   // Muon global tracks
   produces<reco::TrackCollection>("muonGlobalTracks");
@@ -161,9 +162,8 @@ void MiniAODTrackProducer::extractMuonTracks(
     reco::TrackCollection& outputTracks) const {
 
   for (const auto& muon : muons) {
-    // Check if muon has a valid global track
-    if (muon.globalTrack().isNonnull()) {
-      outputTracks.push_back(*muon.globalTrack());
+    if (muon.muonBestTrack().isNonnull()) {
+      outputTracks.push_back(*muon.muonBestTrack());
     }
   }
 }
@@ -205,6 +205,7 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   auto eleLostTracks = std::make_unique<reco::TrackCollection>();
   auto mergedTracks = std::make_unique<reco::TrackCollection>();
   auto mergedTracksWithEle = std::make_unique<reco::TrackCollection>();
+  auto mergedTracksAll = std::make_unique<reco::TrackCollection>();
   auto muonGlobalTracks = std::make_unique<reco::TrackCollection>();
   auto displacedMuonGlobalTracks = std::make_unique<reco::TrackCollection>();
 
@@ -249,6 +250,18 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
     mergedTracksWithEle->push_back(track);
   }
 
+  // mergedAll = pfCandidateTracks + lostTracks + eleLostTracks
+  mergedTracksAll->reserve(pfCandidateTracks->size() + lostTracks->size() + eleLostTracks->size());
+  for (const auto& track : *pfCandidateTracks) {
+    mergedTracksAll->push_back(track);
+  }
+  for (const auto& track : *lostTracks) {
+    mergedTracksAll->push_back(track);
+  }
+  for (const auto& track : *eleLostTracks) {
+    mergedTracksAll->push_back(track);
+  }
+
   // Log some stats
   edm::LogInfo("MiniAODTrackProducer")
       << "Extracted tracks - PF: " << pfCandidateTracks->size()
@@ -256,6 +269,7 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
       << ", EleLost: " << eleLostTracks->size()
       << ", Merged: " << mergedTracks->size()
       << ", MergedWithEle: " << mergedTracksWithEle->size()
+      << ", MergedAll: " << mergedTracksAll->size()
       << ", MuonGlobal: " << muonGlobalTracks->size()
       << ", DisplacedMuonGlobal: " << displacedMuonGlobalTracks->size();
 
@@ -265,6 +279,7 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   iEvent.put(std::move(eleLostTracks), "eleLostTracks");
   iEvent.put(std::move(mergedTracks), "merged");
   iEvent.put(std::move(mergedTracksWithEle), "mergedWithEle");
+  iEvent.put(std::move(mergedTracksAll), "mergedAll");
   iEvent.put(std::move(muonGlobalTracks), "muonGlobalTracks");
   iEvent.put(std::move(displacedMuonGlobalTracks), "displacedMuonGlobalTracks");
 }

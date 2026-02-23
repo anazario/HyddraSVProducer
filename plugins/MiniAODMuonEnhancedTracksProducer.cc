@@ -62,12 +62,16 @@ private:
 
   // ----------member data ---------------------------
   edm::EDGetTokenT<reco::TrackCollection> generalTracksToken_;
+  edm::EDGetTokenT<reco::TrackCollection> generalTracksAllToken_;
+  edm::EDGetTokenT<reco::TrackCollection> slimmedDisplacedMuonBestTracksToken_;
   edm::EDGetTokenT<reco::TrackCollection> dsaMuonTracksToken_;
   edm::EDGetTokenT<reco::TrackCollection> displacedGlobalMuonTracksToken_;
   edm::EDGetTokenT<reco::TrackCollection> displacedTracksToken_;
   edm::EDGetTokenT<reco::VertexCollection> pvToken_;
 
   edm::Handle<reco::TrackCollection> generalTracksHandle_;
+  edm::Handle<reco::TrackCollection> generalTracksAllHandle_;
+  edm::Handle<reco::TrackCollection> slimmedDisplacedMuonBestTracksHandle_;
   edm::Handle<reco::TrackCollection> dsaMuonTracksHandle_;
   edm::Handle<reco::TrackCollection> displacedGlobalMuonTracksHandle_;
   edm::Handle<reco::TrackCollection> displacedTracksHandle_;
@@ -85,6 +89,8 @@ private:
 
 MiniAODMuonEnhancedTracksProducer::MiniAODMuonEnhancedTracksProducer(const edm::ParameterSet& iConfig) :
   generalTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("generalTracks")) ),
+  generalTracksAllToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("generalTracksAll")) ),
+  slimmedDisplacedMuonBestTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("slimmedDisplacedMuonBestTracks")) ),
   dsaMuonTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("dsaMuonTracks")) ),
   displacedGlobalMuonTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("dgMuonTracks")) ),
   displacedTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("displacedTracks")) ),
@@ -93,6 +99,8 @@ MiniAODMuonEnhancedTracksProducer::MiniAODMuonEnhancedTracksProducer(const edm::
 {
   produces<reco::TrackCollection>("combinedMuonTracks").setBranchAlias("combinedMuonTracks");
   produces<reco::TrackCollection>("sip2DMuonEnhancedTracks").setBranchAlias("sip2DMuonEnhancedTracks");
+  produces<reco::TrackCollection>("sip2DMuonEnhancedTracksWithEle").setBranchAlias("sip2DMuonEnhancedTracksWithEle");
+  produces<reco::TrackCollection>("sip2DSlimmedDisplacedMuonEnhancedTracksWithEle").setBranchAlias("sip2DSlimmedDisplacedMuonEnhancedTracksWithEle");
 }
 
 //
@@ -103,6 +111,8 @@ void MiniAODMuonEnhancedTracksProducer::produce(edm::Event& iEvent, const edm::E
   using namespace std;
 
   iEvent.getByToken( generalTracksToken_, generalTracksHandle_);
+  iEvent.getByToken( generalTracksAllToken_, generalTracksAllHandle_);
+  iEvent.getByToken( slimmedDisplacedMuonBestTracksToken_, slimmedDisplacedMuonBestTracksHandle_);
   iEvent.getByToken( dsaMuonTracksToken_, dsaMuonTracksHandle_);
   iEvent.getByToken( displacedGlobalMuonTracksToken_, displacedGlobalMuonTracksHandle_);
   iEvent.getByToken( displacedTracksToken_, displacedTracksHandle_);
@@ -114,6 +124,8 @@ void MiniAODMuonEnhancedTracksProducer::produce(edm::Event& iEvent, const edm::E
   // Smart pointers to containers of output collections
   unique_ptr<reco::TrackCollection> combinedMuonTracks = make_unique<reco::TrackCollection>();
   unique_ptr<reco::TrackCollection> sip2DMuonEnhancedTracks = make_unique<reco::TrackCollection>();
+  unique_ptr<reco::TrackCollection> sip2DMuonEnhancedTracksWithEle = make_unique<reco::TrackCollection>();
+  unique_ptr<reco::TrackCollection> sip2DSlimmedDisplacedMuonEnhancedTracksWithEle = make_unique<reco::TrackCollection>();
 
   std::vector<std::set<reco::TrackRef>> allMuonTracks({toTrackSet(displacedGlobalMuonTracksHandle_),
 						       toTrackSet(displacedTracksHandle_),
@@ -178,15 +190,50 @@ void MiniAODMuonEnhancedTracksProducer::produce(edm::Event& iEvent, const edm::E
   for(const auto &trackRef : sip2DMuonEnhancedTrackSet)
     sip2DMuonEnhancedTracks->emplace_back(*trackRef);
 
+  // Fill Sip2D tracks from the mergedAll (PF + lostTracks + eleLostTracks) collection
+  set<reco::TrackRef> sip2DTrackSetAll;
+  for(const auto &track : *generalTracksAllHandle_) {
+
+    reco::TransientTrack ttrack(ttBuilder->build(track));
+    GlobalVector direction(track.px(), track.py(), track.pz());
+    std::pair<bool, Measurement1D> ip2D = IPTools::signedTransverseImpactParameter(ttrack, direction, pvHandle_->at(0));
+
+    const double pt(track.pt());
+    const double normChi2(track.normalizedChi2());
+    const double sip2D(ip2D.second.value() / ip2D.second.error());
+
+    if(pt > 1 && normChi2 < 5 && fabs(sip2D) > 4)
+      sip2DTrackSetAll.insert(TrackHelper::GetTrackRef(track, generalTracksAllHandle_));
+  }
+
+  set<reco::TrackRef> sip2DMuonEnhancedTrackSetWithEle(sip2DTrackSetAll);
+  subMuonTracks(sip2DMuonEnhancedTrackSetWithEle, muonTracks);
+
+  for(const auto &trackRef : sip2DMuonEnhancedTrackSetWithEle)
+    sip2DMuonEnhancedTracksWithEle->emplace_back(*trackRef);
+
+  // Merge sip2D mergedAll tracks with slimmedDisplacedMuons best tracks directly
+  // (no vertex seed processing; uses muonBestTrack hierarchy via miniAODTrackProducer:displacedMuonGlobalTracks)
+  set<reco::TrackRef> slimmedDisplacedMuonTrackSet(toTrackSet(slimmedDisplacedMuonBestTracksHandle_));
+  set<reco::TrackRef> sip2DSlimmedDisplacedMuonEnhancedTrackSetWithEle(sip2DTrackSetAll);
+  subMuonTracks(sip2DSlimmedDisplacedMuonEnhancedTrackSetWithEle, slimmedDisplacedMuonTrackSet);
+
+  for(const auto &trackRef : sip2DSlimmedDisplacedMuonEnhancedTrackSetWithEle)
+    sip2DSlimmedDisplacedMuonEnhancedTracksWithEle->emplace_back(*trackRef);
+
   // Put in EDM
   iEvent.put(std::move(combinedMuonTracks), "combinedMuonTracks");
   iEvent.put(std::move(sip2DMuonEnhancedTracks), "sip2DMuonEnhancedTracks");
+  iEvent.put(std::move(sip2DMuonEnhancedTracksWithEle), "sip2DMuonEnhancedTracksWithEle");
+  iEvent.put(std::move(sip2DSlimmedDisplacedMuonEnhancedTracksWithEle), "sip2DSlimmedDisplacedMuonEnhancedTracksWithEle");
 }// Producer end
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
 void MiniAODMuonEnhancedTracksProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("generalTracks", edm::InputTag("miniAODTrackProducer", "merged"));
+  desc.add<edm::InputTag>("generalTracksAll", edm::InputTag("miniAODTrackProducer", "mergedAll"));
+  desc.add<edm::InputTag>("slimmedDisplacedMuonBestTracks", edm::InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"));
   desc.add<edm::InputTag>("dsaMuonTracks", edm::InputTag("displacedStandAloneMuons"));
   desc.add<edm::InputTag>("dgMuonTracks", edm::InputTag("displacedGlobalMuons"));
   desc.add<edm::InputTag>("displacedTracks", edm::InputTag("displacedTracks"));

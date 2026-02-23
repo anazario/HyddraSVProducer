@@ -13,11 +13,14 @@ MINIAOD_TRACK_COLLECTION_CONFIG = {
     'eleLost': cms.InputTag("miniAODTrackProducer", "eleLostTracks"),
     'merged': cms.InputTag("miniAODTrackProducer", "merged"),
     'mergedWithEle': cms.InputTag("miniAODTrackProducer", "mergedWithEle"),
+    'mergedAll': cms.InputTag("miniAODTrackProducer", "mergedAll"),
     # From muons (global tracks)
     'promptMuonExtracted': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
     'displacedMuonExtracted': cms.InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"),
     # From MiniAODMuonEnhancedTracksProducer (muon-enhanced with sip2D selection)
     'sip2DMuonEnhanced': cms.InputTag("miniAODMuonEnhancedTracks", "sip2DMuonEnhancedTracks"),
+    'sip2DMuonEnhancedWithEle': cms.InputTag("miniAODMuonEnhancedTracks", "sip2DMuonEnhancedTracksWithEle"),
+    'sip2DSlimmedDisplacedMuonEnhancedWithEle': cms.InputTag("miniAODMuonEnhancedTracks", "sip2DSlimmedDisplacedMuonEnhancedTracksWithEle"),
 }
 
 def configureMiniAODTrackCollection(process, trackCollection):
