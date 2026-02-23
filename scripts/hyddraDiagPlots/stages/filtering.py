@@ -11,7 +11,7 @@ import awkward as ak
 import ROOT
 
 from ..src.config  import RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL
-from ..src.style   import draw_cms_label
+from ..src.style   import draw_cms_label, draw_colz_grid, draw_axis_grid
 from ..src.plotter import plot_reco_observable
 
 
@@ -68,6 +68,7 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
         c.SetTopMargin(0.10)
         h.Draw("COLZ")
         c.Update()
+        c._grid_lines = draw_colz_grid(h)
         draw_cms_label()
         c.Update()
 
@@ -184,6 +185,7 @@ def make_cutflow_table(tdir, fv, cfg):
     h_ax.Draw("AXIS")
     h_sig.Draw("BAR HIST SAME")
     h_nonsig.Draw("BAR HIST SAME")
+    c._grid_lines = draw_axis_grid(h_ax, logy=False)
 
     leg = ROOT.TLegend(0.60, 0.76, 0.88, 0.88)
     leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.035)

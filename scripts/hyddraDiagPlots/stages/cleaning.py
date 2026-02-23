@@ -12,7 +12,7 @@ import awkward as ak
 import ROOT
 
 from ..src.config  import RECO_OBSERVABLES
-from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
+from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid, draw_colz_grid
 from ..src.plotter import plot_reco_observable
 
 
@@ -65,12 +65,24 @@ def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
     def draw_cut_lines():
         lines = []
         if use_diagonal_cut:
-            ln = ROOT.TLine(x_bins[0],
-                            clean_cut_slope * x_bins[0] + min_cos_theta,
-                            x_bins[-1],
-                            clean_cut_slope * x_bins[-1] + min_cos_theta)
-            ln.SetLineColor(ROOT.kRed); ln.SetLineWidth(2); ln.SetLineStyle(2)
-            ln.Draw(); lines.append(ln)
+            # Clip line y = slope*x + intercept to the frame [x0,x1]×[y0,y1]
+            x0, x1 = x_bins[0], x_bins[-1]
+            y0, y1 = y_bins[0], y_bins[-1]
+            pts = []
+            for x in [x0, x1]:
+                y = clean_cut_slope * x + min_cos_theta
+                if y0 - 1e-9 <= y <= y1 + 1e-9:
+                    pts.append((x, min(y1, max(y0, y))))
+            if abs(clean_cut_slope) > 1e-10:
+                for y in [y0, y1]:
+                    x = (y - min_cos_theta) / clean_cut_slope
+                    if x0 - 1e-9 <= x <= x1 + 1e-9:
+                        pts.append((min(x1, max(x0, x)), y))
+            pts = sorted(set(pts))
+            if len(pts) >= 2:
+                ln = ROOT.TLine(pts[0][0], pts[0][1], pts[-1][0], pts[-1][1])
+                ln.SetLineColor(ROOT.kRed); ln.SetLineWidth(2); ln.SetLineStyle(2)
+                ln.Draw(); lines.append(ln)
         else:
             ln1 = ROOT.TLine(max_compat, y_bins[0], max_compat, y_bins[-1])
             ln1.SetLineColor(ROOT.kRed); ln1.SetLineWidth(2); ln1.SetLineStyle(2)
@@ -92,6 +104,7 @@ def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
         c.SetTopMargin(0.10)
         h.Draw("COLZ")
         c.Update()
+        c._grid_lines = draw_colz_grid(h)
         lines = draw_cut_lines()
 
         leg = ROOT.TLegend(0.18, 0.75, 0.55, 0.88)

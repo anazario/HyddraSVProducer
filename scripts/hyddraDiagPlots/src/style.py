@@ -33,6 +33,47 @@ def make_canvas(name, title, logy=True, width=800, height=600):
     return c
 
 
+def _nice_ticks(lo, hi):
+    """Return a list of nice round tick positions strictly inside [lo, hi]."""
+    span = hi - lo
+    if span <= 0:
+        return []
+    raw = 10 ** math.floor(math.log10(span) - 0.5)
+    for f in [1, 2, 2.5, 5, 10]:
+        step = raw * f
+        if span / step <= 8:
+            break
+    first = math.ceil(lo / step + 1e-9) * step
+    ticks, v = [], first
+    while v < hi - 1e-9:
+        ticks.append(round(v, 12))
+        v += step
+    return ticks
+
+
+def draw_colz_grid(h2):
+    """
+    Draw dotted grid lines on top of a 2D COLZ histogram.
+    Must be called after h2.Draw("COLZ") and canvas.Update().
+    Returns the list of TLine objects (keep them alive on the canvas).
+    """
+    x_lo = h2.GetXaxis().GetXmin()
+    x_hi = h2.GetXaxis().GetXmax()
+    y_lo = h2.GetYaxis().GetXmin()
+    y_hi = h2.GetYaxis().GetXmax()
+    col  = ROOT.kGray + 1
+    lines = []
+    for x in _nice_ticks(x_lo, x_hi):
+        ln = ROOT.TLine(x, y_lo, x, y_hi)
+        ln.SetLineStyle(3); ln.SetLineColor(col); ln.Draw()
+        lines.append(ln)
+    for y in _nice_ticks(y_lo, y_hi):
+        ln = ROOT.TLine(x_lo, y, x_hi, y)
+        ln.SetLineStyle(3); ln.SetLineColor(col); ln.Draw()
+        lines.append(ln)
+    return lines
+
+
 def draw_axis_grid(h_ax, logy=False):
     """
     Draw dotted grid lines for a plot with a continuous axis.
@@ -45,22 +86,6 @@ def draw_axis_grid(h_ax, logy=False):
     y_hi = h_ax.GetMaximum()
     col  = ROOT.kGray + 1
     lines = []
-
-    def _nice_ticks(lo, hi):
-        span = hi - lo
-        if span <= 0:
-            return []
-        raw = 10 ** math.floor(math.log10(span) - 0.5)
-        for f in [1, 2, 2.5, 5, 10]:
-            step = raw * f
-            if span / step <= 8:
-                break
-        first = math.ceil(lo / step + 1e-9) * step
-        ticks, v = [], first
-        while v < hi - 1e-9:
-            ticks.append(round(v, 12))
-            v += step
-        return ticks
 
     # Horizontal (y) grid lines
     if logy:

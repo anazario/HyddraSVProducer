@@ -144,6 +144,7 @@ def plot_efficiency_funnel(tdir, gf):
     hs.Add(h_silver)
     hs.Add(h_gold)
     hs.Draw("HIST SAME")
+    draw_grid_lines(canvas, n_stages, 1e-4, max_y, logy=False)
 
     leg = ROOT.TLegend(0.65, 0.72, 0.88, 0.88)
     leg.SetFillStyle(0); leg.SetBorderSize(0)
@@ -274,8 +275,8 @@ def plot_loss_stage_distribution(tdir, gf):
     # 2 = gold at merged but not cleaned → lost during Cleaning
     # 3 = gold at cleaned but not disambig → lost during Disambiguation
     # 4 = gold at disambig but not filtered → lost during Filtering
-    labels  = ["Never found", "Lost at Merging", "Lost at Cleaning",
-               "Lost at Disambiguation", "Lost at Filtering"]
+    labels  = ["Never found", "Merging", "Cleaning",
+               "Disambiguation", "Filtering"]
     n_cats  = len(labels)
     counts  = np.array([np.sum(lost_stages == v) for v in range(0, n_cats)], dtype=float)
     n_surv  = int(np.sum(lost_stages == -1))
@@ -295,9 +296,11 @@ def plot_loss_stage_distribution(tdir, gf):
     h.GetXaxis().CenterTitle(True)
     h.GetYaxis().CenterTitle(True)
     h.SetStats(0)
+    max_y_val = max(counts) * 1.4 if max(counts) > 0 else 1.0
     h.SetMinimum(1e-4)
-    h.SetMaximum(max(counts) * 1.4 if max(counts) > 0 else 1)
+    h.SetMaximum(max_y_val)
     h.Draw("HIST")
+    draw_grid_lines(canvas, n_cats, 1e-4, max_y_val, logy=False)
 
     # Annotation: survived count
     latex = ROOT.TLatex()
