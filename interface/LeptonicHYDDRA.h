@@ -22,6 +22,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     maxTrackCosThetaCM_Intercept_ = pset.getParameter<double>("maxTrackCosThetaCM_Intercept");
     trackCosThetaCM_Slope_        = pset.getParameter<double>("trackCosThetaCM_Slope");
     requireChargeNeutrality_      = pset.getParameter<bool>("requireChargeNeutrality");
+    minVtxCosTheta_               = pset.getParameter<double>("minVtxCosTheta");
+    useAbsVtxCosTheta_            = pset.getParameter<bool>("useAbsVtxCosTheta");
   }
 
   // Stage 1: Seeding
@@ -168,6 +170,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     size_t nFailTrackCosThetaCMSlope = 0;
     size_t nFailTrackCosThetaCMLimit = 0;
     size_t nFailCharge = 0;
+    size_t nFailVtxCosTheta = 0;
     size_t nFailDxyError = 0;
     size_t nFailDxySignificance = 0;
 
@@ -209,6 +212,18 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
         continue;
       }
 
+      // Vertex cos theta (pointing angle wrt PV)
+      {
+        const double vtxCosTheta = vertex.cosTheta(*primaryVertex_);
+        const bool failsVtxCos = useAbsVtxCosTheta_
+          ? std::fabs(vtxCosTheta) < minVtxCosTheta_
+          : vtxCosTheta < minVtxCosTheta_;
+        if (failsVtxCos) {
+          nFailVtxCosTheta++;
+          continue;
+        }
+      }
+
       // Displacement significance
       const double dxy      = VertexHelper::CalculateDxy(vertex, *primaryVertex_);
       const double dxyError = VertexHelper::CalculateDxyError(vertex, *primaryVertex_);
@@ -236,6 +251,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
                << "  trackCosThetaCM slope:  " << nFailTrackCosThetaCMSlope << " failed (cut: slope=" << trackCosThetaCM_Slope_ << " intercept=" << maxTrackCosThetaCM_Intercept_ << ")\n"
                << "  trackCosThetaCM limit:  " << nFailTrackCosThetaCMLimit << " failed (cut: " << maxTrackCosThetaCM_Limit_ << ")\n"
                << "  charge neutrality:      " << nFailCharge << " failed" << (requireChargeNeutrality_ ? "" : " (cut disabled)") << "\n"
+               << "  vtxCosTheta:            " << nFailVtxCosTheta << " failed (cut: "
+               << (useAbsVtxCosTheta_ ? "|cos#theta|" : "cos#theta") << " > " << minVtxCosTheta_ << ")\n"
                << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
                << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
                << "  PASSED:                 " << this->size() << "\n");
@@ -255,6 +272,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   double maxTrackCosThetaCM_Intercept_;
   double trackCosThetaCM_Slope_;
   bool   requireChargeNeutrality_;
+  double minVtxCosTheta_;
+  bool   useAbsVtxCosTheta_;
 
   // Returns true if the vertex fails kinematic selection.
   // Checked after cleaning and before disambiguation.

@@ -22,6 +22,8 @@ leptonicHYDDRA = cms.PSet(
     maxTrackCosThetaCM_Intercept = cms.double(1.8),
     trackCosThetaCM_Slope        = cms.double(-1.0),
     requireChargeNeutrality      = cms.bool(True),
+    minVtxCosTheta               = cms.double(-1.0),
+    useAbsVtxCosTheta            = cms.bool(False),
 
     # Stage enable flags (set to False to skip a stage)
     doMerging        = cms.bool(True),

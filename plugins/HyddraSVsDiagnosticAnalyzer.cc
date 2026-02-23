@@ -218,6 +218,7 @@ private:
   int   stageVtx_stageIdx_;
   float stageVtx_mass_;
   float stageVtx_cosTheta_;
+  float stageVtx_minTrackCosTheta_;
   float stageVtx_decayAngle_;
   float stageVtx_pOverE_;
   float stageVtx_dxySignif_;
@@ -246,6 +247,8 @@ private:
   double cfg_trackCosThetaCM_Slope_;
   bool   cfg_requireChargeNeutrality_;
   double cfg_minDxySignificance_;
+  double cfg_minVtxCosTheta_;
+  bool   cfg_useAbsVtxCosTheta_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // filteringVtx branches (scalar — one TTree::Fill per disambig vertex)
@@ -254,6 +257,7 @@ private:
   // valid for the default trackCosThetaCM_Slope = -1.
   // ═══════════════════════════════════════════════════════════════════════════
   unsigned int filterVtx_nTracks_;
+  float        filterVtx_vtxCosTheta_;
   float        filterVtx_minTrackCosTheta_;
   float        filterVtx_maxAbsCosThetaCM_;
   float        filterVtx_maxSlopeMetric_;
@@ -303,6 +307,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   cfg_trackCosThetaCM_Slope_        = -1.0;
   cfg_requireChargeNeutrality_      = true;
   cfg_minDxySignificance_           = 25.0;
+  cfg_minVtxCosTheta_               = -1.0;
+  cfg_useAbsVtxCosTheta_            = false;
   if (iConfig.exists("leptonic")) {
     const edm::ParameterSet& lep = iConfig.getParameterSet("leptonic");
     cfg_maxCompatibility_             = lep.getParameter<double>("maxCompatibility");
@@ -315,6 +321,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
     cfg_trackCosThetaCM_Slope_        = lep.getParameter<double>("trackCosThetaCM_Slope");
     cfg_requireChargeNeutrality_      = lep.getParameter<bool>("requireChargeNeutrality");
     cfg_minDxySignificance_           = lep.getParameter<double>("minDxySignificance");
+    cfg_minVtxCosTheta_               = lep.getParameter<double>("minVtxCosTheta");
+    cfg_useAbsVtxCosTheta_            = lep.getParameter<bool>("useAbsVtxCosTheta");
   }
 }
 
@@ -446,15 +454,16 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   // ── allStageVtx ────────────────────────────────────────────────────────────
   allStageVtxTree_ = fs->make<TTree>("allStageVtx",
       "All vertices at each stage with match quality flags");
-  allStageVtxTree_->Branch("StageVtx_stageIdx",   &stageVtx_stageIdx_);
-  allStageVtxTree_->Branch("StageVtx_mass",       &stageVtx_mass_);
-  allStageVtxTree_->Branch("StageVtx_cosTheta",   &stageVtx_cosTheta_);
-  allStageVtxTree_->Branch("StageVtx_decayAngle", &stageVtx_decayAngle_);
-  allStageVtxTree_->Branch("StageVtx_pOverE",     &stageVtx_pOverE_);
-  allStageVtxTree_->Branch("StageVtx_dxySignif",  &stageVtx_dxySignif_);
-  allStageVtxTree_->Branch("StageVtx_isGold",     &stageVtx_isGold_);
-  allStageVtxTree_->Branch("StageVtx_isSilver",   &stageVtx_isSilver_);
-  allStageVtxTree_->Branch("StageVtx_isBronze",   &stageVtx_isBronze_);
+  allStageVtxTree_->Branch("StageVtx_stageIdx",        &stageVtx_stageIdx_);
+  allStageVtxTree_->Branch("StageVtx_mass",             &stageVtx_mass_);
+  allStageVtxTree_->Branch("StageVtx_cosTheta",         &stageVtx_cosTheta_);
+  allStageVtxTree_->Branch("StageVtx_minTrackCosTheta", &stageVtx_minTrackCosTheta_);
+  allStageVtxTree_->Branch("StageVtx_decayAngle",       &stageVtx_decayAngle_);
+  allStageVtxTree_->Branch("StageVtx_pOverE",           &stageVtx_pOverE_);
+  allStageVtxTree_->Branch("StageVtx_dxySignif",        &stageVtx_dxySignif_);
+  allStageVtxTree_->Branch("StageVtx_isGold",           &stageVtx_isGold_);
+  allStageVtxTree_->Branch("StageVtx_isSilver",         &stageVtx_isSilver_);
+  allStageVtxTree_->Branch("StageVtx_isBronze",         &stageVtx_isBronze_);
 
   // ── seedTracks ─────────────────────────────────────────────────────────────
   seedTracksTree_ = fs->make<TTree>("seedTracks",
@@ -476,12 +485,15 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   leptonicConfigTree_->Branch("trackCosThetaCM_Slope",     &cfg_trackCosThetaCM_Slope_);
   leptonicConfigTree_->Branch("requireChargeNeutrality",   &cfg_requireChargeNeutrality_);
   leptonicConfigTree_->Branch("minDxySignificance",        &cfg_minDxySignificance_);
+  leptonicConfigTree_->Branch("minVtxCosTheta",            &cfg_minVtxCosTheta_);
+  leptonicConfigTree_->Branch("useAbsVtxCosTheta",         &cfg_useAbsVtxCosTheta_);
   leptonicConfigTree_->Fill();  // values set in constructor; written once here
 
   // ── filteringVtx ───────────────────────────────────────────────────────────
   filteringVtxTree_ = fs->make<TTree>("filteringVtx",
       "Per-disambig-vertex summary stats for sequential filter cut-flow");
   filteringVtxTree_->Branch("FilterVtx_nTracks",          &filterVtx_nTracks_);
+  filteringVtxTree_->Branch("FilterVtx_vtxCosTheta",      &filterVtx_vtxCosTheta_);
   filteringVtxTree_->Branch("FilterVtx_minTrackCosTheta", &filterVtx_minTrackCosTheta_);
   filteringVtxTree_->Branch("FilterVtx_maxAbsCosThetaCM", &filterVtx_maxAbsCosThetaCM_);
   filteringVtxTree_->Branch("FilterVtx_maxSlopeMetric",   &filterVtx_maxSlopeMetric_);
@@ -901,6 +913,15 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
       stageVtx_cosTheta_   = float(VertexHelper::CalculateCosTheta(pv, vtx));
       stageVtx_decayAngle_ = float(VertexHelper::CalculateDecayAngle(vtx));
       {
+        float minCT = 1.0f;
+        for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
+          reco::TrackRef tref = it->castTo<reco::TrackRef>();
+          float ct = float(TrackHelper::CalculateCosTheta(pv, vtx, *tref));
+          minCT = std::min(minCT, ct);
+        }
+        stageVtx_minTrackCosTheta_ = (vtx.tracksSize() > 0) ? minCT : -1.0f;
+      }
+      {
         auto p4  = VertexHelper::GetVertex4Vector(vtx);
         double p = p4.P(), mv = p4.M();
         double E = std::sqrt(p*p + mv*mv);
@@ -951,7 +972,8 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
   // ── filteringVtx: per-disambig-vertex summary stats for filter cut-flow ────
   if (stageHandles_[kDisambig].isValid()) {
     for (const auto& vtx : *stageHandles_[kDisambig]) {
-      filterVtx_nTracks_   = unsigned(vtx.tracksSize());
+      filterVtx_nTracks_    = unsigned(vtx.tracksSize());
+      filterVtx_vtxCosTheta_ = float(VertexHelper::CalculateCosTheta(pv, vtx));
       filterVtx_charge_    = VertexHelper::CalculateTotalCharge(vtx);
       filterVtx_dxySignif_ = computeDxySignif(vtx, pv);
 

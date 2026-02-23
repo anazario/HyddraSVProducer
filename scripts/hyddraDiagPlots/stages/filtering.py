@@ -3,7 +3,8 @@ stages/filtering.py — filtering-stage plots for hyddraDiagPlots.
 
 Plots:
   - reco_filtered_{cosTheta,decayAngle,pOverE,dxySignif}
-  - filtering_costheta_decay_{signal,nonsignal}_{before,after}
+  - filtering_mintrackcos_decay_{signal,nonsignal}_{before,after}
+  - reco_filtered_minTrackCosTheta  (1D, filtering stage only)
   - filter_cutflow  (sequential removal efficiency per cut, signal vs non-signal)
 """
 import numpy as np
@@ -17,20 +18,26 @@ from ..src.plotter import plot_reco_observable
 
 def plot_filtering_costheta_decay_2d(tdir, sv_sig):
     """
-    2D (decayAngle, cosTheta) scatter before and after filtering,
+    2D (decayAngle, minTrackCosTheta) scatter before and after filtering,
     split by signal (isGold) and non-signal.  Four canvases total.
+    Y-axis is the minimum per-track cos theta, matching the track-level
+    filter cut applied in LeptonicHYDDRA::filteringImpl.
     """
     if sv_sig is None or len(sv_sig) == 0:
         print("    [filtering_2d] No allStageVtx data — skipping")
         return
 
+    if "StageVtx_minTrackCosTheta" not in sv_sig.fields:
+        print("    [filtering_2d] StageVtx_minTrackCosTheta not in ntuple — skipping")
+        return
+
     sidx_pre  = STAGE_IDX["disambig"]
     sidx_post = STAGE_IDX["filtered"]
 
-    stage   = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
-    cos_th  = ak.to_numpy(sv_sig["StageVtx_cosTheta"]).astype(float)
-    decay   = ak.to_numpy(sv_sig["StageVtx_decayAngle"]).astype(float)
-    is_gold = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
+    stage        = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
+    min_trk_cos  = ak.to_numpy(sv_sig["StageVtx_minTrackCosTheta"]).astype(float)
+    decay        = ak.to_numpy(sv_sig["StageVtx_decayAngle"]).astype(float)
+    is_gold      = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
 
     x_bins = np.linspace(-1, 1, 101)
     y_bins = np.linspace(-1, 1, 101)
@@ -39,10 +46,10 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
         ROOT.gStyle.SetPalette(ROOT.kViridis)
         h = ROOT.TH2F(name, name, len(x_bins)-1, x_bins, len(y_bins)-1, y_bins)
         h.SetDirectory(0)
-        for da, ct in zip(decay[mask], cos_th[mask]):
+        for da, ct in zip(decay[mask], min_trk_cos[mask]):
             h.Fill(da, ct)
         h.GetXaxis().SetTitle("cos#theta^{*}_{CM}")
-        h.GetYaxis().SetTitle("cos#theta (wrt PV)")
+        h.GetYaxis().SetTitle("min track cos#theta")
         h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
         h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
         h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
@@ -58,7 +65,7 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
     ]
 
     for suffix, mask, title in configs:
-        cname = f"filtering_costheta_decay_{suffix}"
+        cname = f"filtering_mintrackcos_decay_{suffix}"
         h = fill_h2(f"h2_filt_{suffix}", mask)
 
         c = ROOT.TCanvas(cname, title, 800, 600)
@@ -82,6 +89,93 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
         print(f"    [{cname}] done")
 
 
+def plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg=None):
+    """
+    1D distribution of min track cos theta at the filtering stage,
+    split by signal/non-signal (and optional dedicated background).
+    """
+    if sv_sig is None or len(sv_sig) == 0:
+        print("    [reco_filtered_minTrackCosTheta] No allStageVtx data — skipping")
+        return
+
+    if "StageVtx_minTrackCosTheta" not in sv_sig.fields:
+        print("    [reco_filtered_minTrackCosTheta] StageVtx_minTrackCosTheta not in ntuple — skipping")
+        return
+
+    sidx = STAGE_IDX["filtered"]
+    bins = np.linspace(-1, 1, 51)
+
+    stage   = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
+    val     = ak.to_numpy(sv_sig["StageVtx_minTrackCosTheta"]).astype(float)
+    is_gold = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
+
+    mask_filt = (stage == sidx)
+    sig_vals     = val[mask_filt &  is_gold]
+    nonsig_vals  = val[mask_filt & ~is_gold]
+
+    from ..src.config import COLOR_GOLD, COLOR_NONSIGNAL, COLOR_BKG
+
+    def make_th1(name, vals, color):
+        h = ROOT.TH1F(name, name, len(bins)-1, bins)
+        h.SetDirectory(0)
+        for v in vals:
+            h.Fill(v)
+        h.SetLineColor(color)
+        h.SetLineWidth(2)
+        h.SetStats(0)
+        h.GetXaxis().SetTitle("min track cos#theta")
+        h.GetYaxis().SetTitle("Vertices")
+        h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
+        h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
+        h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
+        h.GetXaxis().SetTitleOffset(1.2); h.GetYaxis().SetTitleOffset(1.3)
+        return h
+
+    h_sig    = make_th1("h_mintrk_sig",    sig_vals,    COLOR_GOLD)
+    h_nonsig = make_th1("h_mintrk_nonsig", nonsig_vals, COLOR_NONSIGNAL)
+
+    hists = [h_sig, h_nonsig]
+    labels = ["Signal (gold)", "Non-signal"]
+    colors = [COLOR_GOLD, COLOR_NONSIGNAL]
+
+    if sv_bkg is not None and len(sv_bkg) > 0 and "StageVtx_minTrackCosTheta" in sv_bkg.fields:
+        bkg_stage = ak.to_numpy(sv_bkg["StageVtx_stageIdx"])
+        bkg_val   = ak.to_numpy(sv_bkg["StageVtx_minTrackCosTheta"]).astype(float)
+        h_bkg = make_th1("h_mintrk_bkg", bkg_val[bkg_stage == sidx], COLOR_BKG)
+        hists.append(h_bkg)
+        labels.append("Background")
+        colors.append(COLOR_BKG)
+
+    max_y = max((h.GetMaximum() for h in hists), default=1.0)
+
+    c = ROOT.TCanvas("reco_filtered_minTrackCosTheta", "min track cos#theta (filtered)", 800, 600)
+    c.SetLeftMargin(0.14); c.SetRightMargin(0.06)
+    c.SetBottomMargin(0.12); c.SetTopMargin(0.10)
+    c.SetLogy(True)
+
+    for i, h in enumerate(hists):
+        h.SetMaximum(max_y * 5)
+        h.SetMinimum(0.5)
+        h.Draw("HIST" if i == 0 else "HIST SAME")
+
+    from ..src.style import draw_axis_grid
+    c._grid_lines = draw_axis_grid(hists[0], logy=True)
+
+    leg = ROOT.TLegend(0.15, 0.76, 0.45, 0.88)
+    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.035)
+    for h, lbl in zip(hists, labels):
+        leg.AddEntry(h, lbl, "l")
+    leg.Draw()
+    draw_cms_label()
+    c.Update()
+
+    c._hists = hists
+    c._leg   = leg
+    tdir.cd()
+    c.Write()
+    print("    [reco_filtered_minTrackCosTheta] done")
+
+
 def make_cutflow_table(tdir, fv, cfg):
     """
     Sequential removal-efficiency table for the filtering cuts.
@@ -92,6 +186,8 @@ def make_cutflow_table(tdir, fv, cfg):
         return
 
     n_tracks     = ak.to_numpy(fv["FilterVtx_nTracks"]).astype(int)
+    vtx_cos      = ak.to_numpy(fv["FilterVtx_vtxCosTheta"]).astype(float) \
+                   if "FilterVtx_vtxCosTheta" in fv.fields else None
     min_ct       = ak.to_numpy(fv["FilterVtx_minTrackCosTheta"]).astype(float)
     max_abs_cm   = ak.to_numpy(fv["FilterVtx_maxAbsCosThetaCM"]).astype(float)
     max_slope    = ak.to_numpy(fv["FilterVtx_maxSlopeMetric"]).astype(float)
@@ -111,7 +207,17 @@ def make_cutflow_table(tdir, fv, cfg):
               "directly supported; skipping slope cut in table")
         slope_fail = np.zeros(len(n_tracks), dtype=bool)
 
-    req_charge = bool(cfg["requireChargeNeutrality"]) if cfg else True
+    req_charge        = bool(cfg["requireChargeNeutrality"]) if cfg else True
+    min_vtx_cos       = float(cfg["minVtxCosTheta"])   if cfg and "minVtxCosTheta"    in cfg else -1.0
+    use_abs_vtx_cos   = bool(cfg["useAbsVtxCosTheta"]) if cfg and "useAbsVtxCosTheta" in cfg else False
+
+    if vtx_cos is not None:
+        if use_abs_vtx_cos:
+            vtx_cos_fail = np.fabs(vtx_cos) < min_vtx_cos
+        else:
+            vtx_cos_fail = vtx_cos < min_vtx_cos
+    else:
+        vtx_cos_fail = np.zeros(len(n_tracks), dtype=bool)
 
     cuts = [
         ("size #neq 2",        n_tracks != 2),
@@ -119,6 +225,7 @@ def make_cutflow_table(tdir, fv, cfg):
         ("|cos#theta*| slope", slope_fail),
         ("|cos#theta*| limit", max_abs_cm > (float(cfg["maxTrackCosThetaCM_Limit"]) if cfg else 0.95)),
         ("charge",             (charge != 0) if req_charge else np.zeros(len(n_tracks), dtype=bool)),
+        ("vtxcos#theta",       vtx_cos_fail),
         ("dxy significance",   dxy_signif <= (float(cfg["minDxySignificance"]) if cfg else 25.0)),
     ]
 
@@ -208,7 +315,9 @@ def make_plots(tdir, gf, sv_sig, sv_bkg, fv=None, cfg=None):
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg)
         print(f"    [reco_filtered_{obs_key}] done")
-    print("  [filtering] 2D cosTheta vs decay angle...")
+    print("  [filtering] 1D min track cos theta...")
+    plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg)
+    print("  [filtering] 2D min track cos theta vs decay angle...")
     plot_filtering_costheta_decay_2d(tdir, sv_sig)
     print("  [filtering] Sequential cut-flow table...")
     make_cutflow_table(tdir, fv, cfg)
