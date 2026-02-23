@@ -1073,6 +1073,8 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<double>("maxTrackCosThetaCM_Intercept", 1.8);
   lepDesc.add<double>("trackCosThetaCM_Slope",        -1.0);
   lepDesc.add<bool>  ("requireChargeNeutrality",      true);
+  lepDesc.add<double>("minVtxCosTheta",               -1.0);
+  lepDesc.add<bool>  ("useAbsVtxCosTheta",            false);
   lepDesc.add<bool>  ("doMerging",                    true);
   lepDesc.add<bool>  ("doCleaning",                   true);
   lepDesc.add<bool>  ("doDisambiguation",             true);
