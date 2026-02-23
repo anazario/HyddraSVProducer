@@ -269,9 +269,13 @@ def plot_loss_stage_distribution(tdir, gf):
     has_tracks  = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
     lost_stages = ak.to_numpy(ak.flatten(gf["GenFunnel_lostGoldAtStage"]))[has_tracks]
 
-    # -1 = survived, 0 = never found, 1-4 = lost after that stage
-    labels  = ["Never seeded", "Lost at Seeding", "Lost at Merging",
-               "Lost at Cleaning", "Lost at Disambig."]
+    # Encoding: -1 = survived, 0 = never found,
+    # 1 = gold at seed but not merged   → lost during Merging
+    # 2 = gold at merged but not cleaned → lost during Cleaning
+    # 3 = gold at cleaned but not disambig → lost during Disambiguation
+    # 4 = gold at disambig but not filtered → lost during Filtering
+    labels  = ["Never found", "Lost at Merging", "Lost at Cleaning",
+               "Lost at Disambiguation", "Lost at Filtering"]
     n_cats  = len(labels)
     counts  = np.array([np.sum(lost_stages == v) for v in range(0, n_cats)], dtype=float)
     n_surv  = int(np.sum(lost_stages == -1))
