@@ -18,26 +18,35 @@ from ..src.plotter import plot_reco_observable
 
 def plot_filtering_costheta_decay_2d(tdir, sv_sig):
     """
-    2D (decayAngle, minTrackCosTheta) scatter before and after filtering,
+    2D (trackCosThetaCM, trackCosTheta) scatter before and after filtering,
     split by signal (isGold) and non-signal.  Four canvases total.
-    Y-axis is the minimum per-track cos theta, matching the track-level
-    filter cut applied in LeptonicHYDDRA::filteringImpl.
+    One point per track (two points per 2-track vertex), using the exact
+    per-track variables evaluated in LeptonicHYDDRA::filteringImpl so that
+    the slope cut boundary |cos theta*_CM| = slope * cos theta + intercept
+    maps directly onto the plotted axes.
     """
     if sv_sig is None or len(sv_sig) == 0:
         print("    [filtering_2d] No allStageVtx data — skipping")
         return
 
-    if "StageVtx_minTrackCosTheta" not in sv_sig.fields:
-        print("    [filtering_2d] StageVtx_minTrackCosTheta not in ntuple — skipping")
+    if "StageVtx_trackCosTheta" not in sv_sig.fields:
+        print("    [filtering_2d] StageVtx_trackCosTheta not in ntuple — skipping")
         return
 
     sidx_pre  = STAGE_IDX["disambig"]
     sidx_post = STAGE_IDX["filtered"]
 
-    stage        = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
-    min_trk_cos  = ak.to_numpy(sv_sig["StageVtx_minTrackCosTheta"]).astype(float)
-    decay        = ak.to_numpy(sv_sig["StageVtx_decayAngle"]).astype(float)
-    is_gold      = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
+    # Jagged arrays: one inner list per vertex, one element per track
+    trk_ct_jagged   = sv_sig["StageVtx_trackCosTheta"]
+    trk_ctcm_jagged = sv_sig["StageVtx_trackCosThetaCM"]
+
+    # Broadcast vertex-level scalars to per-track level, then flatten
+    stage   = ak.to_numpy(ak.flatten(
+                  ak.broadcast_arrays(sv_sig["StageVtx_stageIdx"], trk_ct_jagged)[0]))
+    is_gold = ak.to_numpy(ak.flatten(
+                  ak.broadcast_arrays(sv_sig["StageVtx_isGold"], trk_ct_jagged)[0])).astype(bool)
+    trk_ct   = ak.to_numpy(ak.flatten(trk_ct_jagged)).astype(float)
+    trk_ctcm = ak.to_numpy(ak.flatten(trk_ctcm_jagged)).astype(float)
 
     x_bins = np.linspace(-1, 1, 101)
     y_bins = np.linspace(-1, 1, 101)
@@ -46,10 +55,10 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
         ROOT.gStyle.SetPalette(ROOT.kViridis)
         h = ROOT.TH2F(name, name, len(x_bins)-1, x_bins, len(y_bins)-1, y_bins)
         h.SetDirectory(0)
-        for da, ct in zip(decay[mask], min_trk_cos[mask]):
+        for da, ct in zip(trk_ctcm[mask], trk_ct[mask]):
             h.Fill(da, ct)
         h.GetXaxis().SetTitle("cos#theta^{*}_{CM}")
-        h.GetYaxis().SetTitle("min track cos#theta")
+        h.GetYaxis().SetTitle("track cos#theta")
         h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
         h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
         h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
@@ -89,66 +98,67 @@ def plot_filtering_costheta_decay_2d(tdir, sv_sig):
         print(f"    [{cname}] done")
 
 
-def plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg=None):
+def _plot_filtering_1d(tdir, sv_sig, sv_bkg, branch, x_title, cname, tag):
     """
-    1D distribution of min track cos theta at the filtering stage,
-    split by signal/non-signal (and optional dedicated background).
+    Generic helper: 1D per-track distribution of a jagged StageVtx branch,
+    showing pre-filter (disambig, solid) and post-filter (filtered, dashed)
+    for signal and non-signal.  Background (post-filter only) added if sv_bkg
+    is provided and contains the branch.
     """
     if sv_sig is None or len(sv_sig) == 0:
-        print("    [reco_filtered_minTrackCosTheta] No allStageVtx data — skipping")
+        print(f"    [{tag}] No allStageVtx data — skipping")
         return
-
-    if "StageVtx_minTrackCosTheta" not in sv_sig.fields:
-        print("    [reco_filtered_minTrackCosTheta] StageVtx_minTrackCosTheta not in ntuple — skipping")
+    if branch not in sv_sig.fields:
+        print(f"    [{tag}] {branch} not in ntuple — skipping")
         return
-
-    sidx = STAGE_IDX["filtered"]
-    bins = np.linspace(-1, 1, 51)
-
-    stage   = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
-    val     = ak.to_numpy(sv_sig["StageVtx_minTrackCosTheta"]).astype(float)
-    is_gold = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
-
-    mask_filt = (stage == sidx)
-    sig_vals     = val[mask_filt &  is_gold]
-    nonsig_vals  = val[mask_filt & ~is_gold]
 
     from ..src.config import COLOR_GOLD, COLOR_NONSIGNAL, COLOR_BKG
 
-    def make_th1(name, vals, color):
+    sidx_pre  = STAGE_IDX["disambig"]
+    sidx_post = STAGE_IDX["filtered"]
+    bins = np.linspace(-1, 1, 51)
+
+    jag     = sv_sig[branch]
+    stage   = ak.to_numpy(ak.flatten(ak.broadcast_arrays(sv_sig["StageVtx_stageIdx"], jag)[0]))
+    is_gold = ak.to_numpy(ak.flatten(ak.broadcast_arrays(sv_sig["StageVtx_isGold"],   jag)[0])).astype(bool)
+    vals    = ak.to_numpy(ak.flatten(jag)).astype(float)
+
+    def make_th1(name, data, mask, color, lstyle):
         h = ROOT.TH1F(name, name, len(bins)-1, bins)
         h.SetDirectory(0)
-        for v in vals:
+        for v in data[mask]:
             h.Fill(v)
-        h.SetLineColor(color)
-        h.SetLineWidth(2)
-        h.SetStats(0)
-        h.GetXaxis().SetTitle("min track cos#theta")
-        h.GetYaxis().SetTitle("Vertices")
+        h.SetLineColor(color); h.SetLineWidth(2); h.SetLineStyle(lstyle)
+        h.SetFillStyle(0); h.SetStats(0)
+        h.GetXaxis().SetTitle(x_title)
+        h.GetYaxis().SetTitle("Tracks")
         h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
         h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
         h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
         h.GetXaxis().SetTitleOffset(1.2); h.GetYaxis().SetTitleOffset(1.3)
         return h
 
-    h_sig    = make_th1("h_mintrk_sig",    sig_vals,    COLOR_GOLD)
-    h_nonsig = make_th1("h_mintrk_nonsig", nonsig_vals, COLOR_NONSIGNAL)
+    h_sig_pre    = make_th1(f"h_{tag}_sig_pre",    vals, (stage == sidx_pre)  &  is_gold, COLOR_GOLD,      1)
+    h_sig_post   = make_th1(f"h_{tag}_sig_post",   vals, (stage == sidx_post) &  is_gold, COLOR_GOLD,      2)
+    h_nonsig_pre = make_th1(f"h_{tag}_nonsig_pre", vals, (stage == sidx_pre)  & ~is_gold, COLOR_NONSIGNAL, 1)
+    h_nonsig_post= make_th1(f"h_{tag}_nonsig_post",vals, (stage == sidx_post) & ~is_gold, COLOR_NONSIGNAL, 2)
 
-    hists = [h_sig, h_nonsig]
-    labels = ["Signal (gold)", "Non-signal"]
-    colors = [COLOR_GOLD, COLOR_NONSIGNAL]
+    hists  = [h_sig_pre, h_sig_post, h_nonsig_pre, h_nonsig_post]
+    labels = ["Signal (pre-filter)", "Signal (post-filter)",
+              "Non-signal (pre-filter)", "Non-signal (post-filter)"]
 
-    if sv_bkg is not None and len(sv_bkg) > 0 and "StageVtx_minTrackCosTheta" in sv_bkg.fields:
-        bkg_stage = ak.to_numpy(sv_bkg["StageVtx_stageIdx"])
-        bkg_val   = ak.to_numpy(sv_bkg["StageVtx_minTrackCosTheta"]).astype(float)
-        h_bkg = make_th1("h_mintrk_bkg", bkg_val[bkg_stage == sidx], COLOR_BKG)
+    if sv_bkg is not None and len(sv_bkg) > 0 and branch in sv_bkg.fields:
+        bkg_jag   = sv_bkg[branch]
+        bkg_stage = ak.to_numpy(ak.flatten(
+                        ak.broadcast_arrays(sv_bkg["StageVtx_stageIdx"], bkg_jag)[0]))
+        bkg_vals  = ak.to_numpy(ak.flatten(bkg_jag)).astype(float)
+        h_bkg = make_th1(f"h_{tag}_bkg", bkg_vals, bkg_stage == sidx_post, COLOR_BKG, 1)
         hists.append(h_bkg)
-        labels.append("Background")
-        colors.append(COLOR_BKG)
+        labels.append("Background (post-filter)")
 
     max_y = max((h.GetMaximum() for h in hists), default=1.0)
 
-    c = ROOT.TCanvas("reco_filtered_minTrackCosTheta", "min track cos#theta (filtered)", 800, 600)
+    c = ROOT.TCanvas(cname, x_title, 800, 600)
     c.SetLeftMargin(0.14); c.SetRightMargin(0.06)
     c.SetBottomMargin(0.12); c.SetTopMargin(0.10)
     c.SetLogy(True)
@@ -158,11 +168,10 @@ def plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg=None):
         h.SetMinimum(0.5)
         h.Draw("HIST" if i == 0 else "HIST SAME")
 
-    from ..src.style import draw_axis_grid
     c._grid_lines = draw_axis_grid(hists[0], logy=True)
 
-    leg = ROOT.TLegend(0.15, 0.76, 0.45, 0.88)
-    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.035)
+    leg = ROOT.TLegend(0.15, 0.70, 0.55, 0.88)
+    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.033)
     for h, lbl in zip(hists, labels):
         leg.AddEntry(h, lbl, "l")
     leg.Draw()
@@ -173,7 +182,31 @@ def plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg=None):
     c._leg   = leg
     tdir.cd()
     c.Write()
-    print("    [reco_filtered_minTrackCosTheta] done")
+    print(f"    [{tag}] done")
+
+
+def plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg=None):
+    """
+    1D per-track distribution of track cos theta (wrt PV) at the filtering
+    stage, with pre-filter (solid) and post-filter (dashed) overlaid.
+    """
+    _plot_filtering_1d(tdir, sv_sig, sv_bkg,
+                       branch="StageVtx_trackCosTheta",
+                       x_title="track cos#theta",
+                       cname="reco_filtering_trackCosTheta",
+                       tag="reco_filtering_trackCosTheta")
+
+
+def plot_filtering_trackcosThetaCM_1d(tdir, sv_sig, sv_bkg=None):
+    """
+    1D per-track distribution of track decay angle in the CM frame at the
+    filtering stage, with pre-filter (solid) and post-filter (dashed) overlaid.
+    """
+    _plot_filtering_1d(tdir, sv_sig, sv_bkg,
+                       branch="StageVtx_trackCosThetaCM",
+                       x_title="cos#theta^{*}_{CM}",
+                       cname="reco_filtering_trackCosThetaCM",
+                       tag="reco_filtering_trackCosThetaCM")
 
 
 def make_cutflow_table(tdir, fv, cfg):
@@ -315,9 +348,11 @@ def make_plots(tdir, gf, sv_sig, sv_bkg, fv=None, cfg=None):
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg)
         print(f"    [reco_filtered_{obs_key}] done")
-    print("  [filtering] 1D min track cos theta...")
+    print("  [filtering] 1D track cos theta (pre/post filter)...")
     plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg)
-    print("  [filtering] 2D min track cos theta vs decay angle...")
+    print("  [filtering] 1D track cos theta CM (pre/post filter)...")
+    plot_filtering_trackcosThetaCM_1d(tdir, sv_sig, sv_bkg)
+    print("  [filtering] 2D track cos theta vs decay angle...")
     plot_filtering_costheta_decay_2d(tdir, sv_sig)
     print("  [filtering] Sequential cut-flow table...")
     make_cutflow_table(tdir, fv, cfg)

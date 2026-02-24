@@ -3,12 +3,18 @@
 // Package:    HyddraSVProducer
 // Class:      EleTrackOverlapAnalyzer
 //
-// Description: Diagnostic analyzer to study the overlap between
-//              packedPFCandidates and lostTracks:eleTracks in MiniAOD.
-//              Compares each eleLost track against the nearest PF electron
-//              candidate (same charge) in (eta, phi) space and fills
-//              deltaR and relative pT difference plots.
-//              Also checks lostTracks vs PF electrons for reference.
+// Description: Diagnostic analyzer to study track overlap between the three
+//              MiniAOD track collections: packedPFCandidates, lostTracks, and
+//              lostTracks:eleTracks.
+//
+//              - eleLost vs PF electrons (|pdgId|==11): characterizes the
+//                GSF/KF dual-representation overlap; opposite-charge version
+//                provided as cross-check.
+//              - lostTracks vs all charged PF candidates: lostTracks is not
+//                an electron-specific collection so the comparison is made
+//                against all charged PF objects.
+//              - lostTracks vs eleLost: checks whether the lostTracks-PF
+//                overlap population is also present in eleLost.
 //
 //              Runs directly on MiniAOD — no geometry or B-field needed.
 //
@@ -63,28 +69,37 @@ private:
   edm::EDGetTokenT<pat::PackedCandidateCollection> lostTracksToken_;
   edm::EDGetTokenT<pat::PackedCandidateCollection> eleLostTracksToken_;
 
-  // --- eleLost vs PF electrons ---
-  TH1F* h_eleLost_pfEle_minDR_;          // min deltaR to nearest same-charge PF electron
-  TH1F* h_eleLost_pfEle_relPt_;          // |pT_eleLost - pT_pfEle| / pT_pfEle, nearest match
-  TH2F* h2_eleLost_pfEle_DR_relPt_;      // 2D: deltaR vs relative pT (nearest same-charge PF ele)
-
-  // same plots but opposite charge (cross-check / background estimate)
+  // --- eleLost vs PF electrons (|pdgId|==11) ---
+  TH1F* h_eleLost_pfEle_minDR_;
+  TH1F* h_eleLost_pfEle_relPt_;
+  TH2F* h2_eleLost_pfEle_DR_relPt_;
+  // opposite-charge cross-check
   TH1F* h_eleLost_pfEle_minDR_opp_;
   TH2F* h2_eleLost_pfEle_DR_relPt_opp_;
-
-  // pT of eleLost tracks with no PF electron match within DR < drNoMatchThreshold_
+  // pT of eleLost with no nearby same-charge PF electron
   TH1F* h_eleLost_unmatched_pt_;
 
-  // --- lost vs PF electrons (reference) ---
-  TH1F* h_lost_pfEle_minDR_;
-  TH2F* h2_lost_pfEle_DR_relPt_;
+  // --- lostTracks vs all charged PF candidates ---
+  TH1F* h_lost_pfCharged_minDR_;
+  TH2F* h2_lost_pfCharged_DR_relPt_;
+  // opposite-charge cross-check
+  TH1F* h_lost_pfCharged_minDR_opp_;
+  TH2F* h2_lost_pfCharged_DR_relPt_opp_;
+
+  // --- lostTracks vs eleLost ---
+  TH1F* h_lost_eleLost_minDR_;
+  TH2F* h2_lost_eleLost_DR_relPt_;
+  // opposite-charge cross-check
+  TH1F* h_lost_eleLost_minDR_opp_;
+  TH2F* h2_lost_eleLost_DR_relPt_opp_;
 
   // --- multiplicity ---
   TH1F* h_nPFElectrons_;
+  TH1F* h_nPFCharged_;
   TH1F* h_nEleLost_;
   TH1F* h_nLost_;
 
-  float drNoMatchThreshold_;  // eleLost tracks with min DR above this are "unmatched"
+  float drNoMatchThreshold_;
 };
 
 
@@ -105,52 +120,68 @@ EleTrackOverlapAnalyzer::EleTrackOverlapAnalyzer(const edm::ParameterSet& iConfi
       "h_eleLost_pfEle_minDR",
       ";#DeltaR(eleLost, nearest same-charge PF e^{#pm});Entries",
       200, 0., 1.0);
-
   h_eleLost_pfEle_relPt_ = fs->make<TH1F>(
       "h_eleLost_pfEle_relPt",
       ";|p_{T}^{eleLost} - p_{T}^{PF e}| / p_{T}^{PF e};Entries",
       200, 0., 2.0);
-
   h2_eleLost_pfEle_DR_relPt_ = fs->make<TH2F>(
       "h2_eleLost_pfEle_DR_relPt",
       ";#DeltaR(eleLost, nearest same-charge PF e^{#pm});|p_{T}^{eleLost} - p_{T}^{PF e}| / p_{T}^{PF e}",
-      200, 0., 1.0,
-      200, 0., 2.0);
-
-  // opposite charge cross-check
+      200, 0., 1.0, 200, 0., 2.0);
   h_eleLost_pfEle_minDR_opp_ = fs->make<TH1F>(
       "h_eleLost_pfEle_minDR_oppCharge",
-      ";#DeltaR(eleLost, nearest opposite-charge PF e^{#pm});Entries",
+      ";#DeltaR(eleLost, nearest opp-charge PF e^{#pm});Entries",
       200, 0., 1.0);
-
   h2_eleLost_pfEle_DR_relPt_opp_ = fs->make<TH2F>(
       "h2_eleLost_pfEle_DR_relPt_oppCharge",
       ";#DeltaR(eleLost, nearest opp-charge PF e^{#pm});|p_{T}^{eleLost} - p_{T}^{PF e}| / p_{T}^{PF e}",
-      200, 0., 1.0,
-      200, 0., 2.0);
-
-  // unmatched eleLost pT spectrum
+      200, 0., 1.0, 200, 0., 2.0);
   h_eleLost_unmatched_pt_ = fs->make<TH1F>(
       "h_eleLost_unmatched_pt",
-      ";p_{T}^{eleLost} [GeV] (no PF e^{#pm} within #DeltaR < threshold);Entries",
+      ";p_{T}^{eleLost} [GeV] (no same-charge PF e^{#pm} within #DeltaR < threshold);Entries",
       100, 0., 50.);
 
-  // lost vs PF electrons
-  h_lost_pfEle_minDR_ = fs->make<TH1F>(
-      "h_lost_pfEle_minDR",
-      ";#DeltaR(lostTrack, nearest same-charge PF e^{#pm});Entries",
+  // lostTracks vs all charged PF candidates
+  h_lost_pfCharged_minDR_ = fs->make<TH1F>(
+      "h_lost_pfCharged_minDR",
+      ";#DeltaR(lostTrack, nearest same-charge PF candidate);Entries",
       200, 0., 1.0);
+  h2_lost_pfCharged_DR_relPt_ = fs->make<TH2F>(
+      "h2_lost_pfCharged_DR_relPt",
+      ";#DeltaR(lostTrack, nearest same-charge PF candidate);|p_{T}^{lost} - p_{T}^{PF}| / p_{T}^{PF}",
+      200, 0., 1.0, 200, 0., 2.0);
+  h_lost_pfCharged_minDR_opp_ = fs->make<TH1F>(
+      "h_lost_pfCharged_minDR_oppCharge",
+      ";#DeltaR(lostTrack, nearest opp-charge PF candidate);Entries",
+      200, 0., 1.0);
+  h2_lost_pfCharged_DR_relPt_opp_ = fs->make<TH2F>(
+      "h2_lost_pfCharged_DR_relPt_oppCharge",
+      ";#DeltaR(lostTrack, nearest opp-charge PF candidate);|p_{T}^{lost} - p_{T}^{PF}| / p_{T}^{PF}",
+      200, 0., 1.0, 200, 0., 2.0);
 
-  h2_lost_pfEle_DR_relPt_ = fs->make<TH2F>(
-      "h2_lost_pfEle_DR_relPt",
-      ";#DeltaR(lostTrack, nearest same-charge PF e^{#pm});|p_{T}^{lost} - p_{T}^{PF e}| / p_{T}^{PF e}",
-      200, 0., 1.0,
-      200, 0., 2.0);
+  // lostTracks vs eleLost
+  h_lost_eleLost_minDR_ = fs->make<TH1F>(
+      "h_lost_eleLost_minDR",
+      ";#DeltaR(lostTrack, nearest same-charge eleLost);Entries",
+      200, 0., 1.0);
+  h2_lost_eleLost_DR_relPt_ = fs->make<TH2F>(
+      "h2_lost_eleLost_DR_relPt",
+      ";#DeltaR(lostTrack, nearest same-charge eleLost);|p_{T}^{lost} - p_{T}^{eleLost}| / p_{T}^{eleLost}",
+      200, 0., 1.0, 200, 0., 2.0);
+  h_lost_eleLost_minDR_opp_ = fs->make<TH1F>(
+      "h_lost_eleLost_minDR_oppCharge",
+      ";#DeltaR(lostTrack, nearest opp-charge eleLost);Entries",
+      200, 0., 1.0);
+  h2_lost_eleLost_DR_relPt_opp_ = fs->make<TH2F>(
+      "h2_lost_eleLost_DR_relPt_oppCharge",
+      ";#DeltaR(lostTrack, nearest opp-charge eleLost);|p_{T}^{lost} - p_{T}^{eleLost}| / p_{T}^{eleLost}",
+      200, 0., 1.0, 200, 0., 2.0);
 
   // multiplicity
-  h_nPFElectrons_ = fs->make<TH1F>("h_nPFElectrons", ";N(PF e^{#pm});Events", 20, 0., 20.);
-  h_nEleLost_     = fs->make<TH1F>("h_nEleLost",     ";N(eleLost tracks);Events",  50, 0., 50.);
-  h_nLost_        = fs->make<TH1F>("h_nLost",        ";N(lostTracks);Events",     200, 0., 200.);
+  h_nPFElectrons_ = fs->make<TH1F>("h_nPFElectrons", ";N(PF e^{#pm});Events",       20,  0.,  20.);
+  h_nPFCharged_   = fs->make<TH1F>("h_nPFCharged",   ";N(charged PF cands);Events", 200, 0., 200.);
+  h_nEleLost_     = fs->make<TH1F>("h_nEleLost",     ";N(eleLost tracks);Events",    50, 0.,  50.);
+  h_nLost_        = fs->make<TH1F>("h_nLost",        ";N(lostTracks);Events",        200, 0., 200.);
 }
 
 
@@ -165,32 +196,34 @@ void EleTrackOverlapAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
   edm::Handle<pat::PackedCandidateCollection> eleLostHandle;
   iEvent.getByToken(eleLostTracksToken_, eleLostHandle);
 
-  // Collect PF electron candidates (|pdgId| == 11)
-  std::vector<const pat::PackedCandidate*> pfElectrons;
+  // Separate PF into electrons and all charged
+  std::vector<const pat::PackedCandidate*> pfElectrons, pfCharged;
   for (const auto& cand : *pfCandsHandle) {
+    if (cand.charge() == 0) continue;
+    pfCharged.push_back(&cand);
     if (std::abs(cand.pdgId()) == 11)
       pfElectrons.push_back(&cand);
   }
 
   h_nPFElectrons_->Fill(pfElectrons.size());
+  h_nPFCharged_->Fill(pfCharged.size());
   h_nEleLost_->Fill(eleLostHandle->size());
   h_nLost_->Fill(lostTracksHandle->size());
 
   const float inf = std::numeric_limits<float>::max();
 
-  // --- eleLost vs PF electrons ---
-  for (const auto& eleLost : *eleLostHandle) {
-
+  // For each probe track, find nearest same- and opposite-charge match and fill histograms
+  auto fillPair = [&](float eta, float phi, float pt, int charge,
+                      const std::vector<const pat::PackedCandidate*>& coll,
+                      TH1F* hDR_same, TH2F* h2_same,
+                      TH1F* hDR_opp,  TH2F* h2_opp) {
     float minDR_same = inf, relPt_same = -1.f;
     float minDR_opp  = inf, relPt_opp  = -1.f;
 
-    for (const auto* pfEle : pfElectrons) {
-      float dr = deltaR(eleLost.eta(), eleLost.phi(), pfEle->eta(), pfEle->phi());
-      float rpt = (pfEle->pt() > 0.)
-                  ? std::abs(eleLost.pt() - pfEle->pt()) / pfEle->pt()
-                  : -1.f;
-
-      if (eleLost.charge() == pfEle->charge()) {
+    for (const auto* c : coll) {
+      float dr  = deltaR(eta, phi, c->eta(), c->phi());
+      float rpt = (c->pt() > 0.f) ? std::abs(pt - c->pt()) / c->pt() : -1.f;
+      if (c->charge() == charge) {
         if (dr < minDR_same) { minDR_same = dr; relPt_same = rpt; }
       } else {
         if (dr < minDR_opp)  { minDR_opp  = dr; relPt_opp  = rpt; }
@@ -198,44 +231,43 @@ void EleTrackOverlapAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
     }
 
     if (minDR_same < inf) {
-      h_eleLost_pfEle_minDR_->Fill(minDR_same);
-      if (relPt_same >= 0.f) {
-        h_eleLost_pfEle_relPt_->Fill(relPt_same);
-        h2_eleLost_pfEle_DR_relPt_->Fill(minDR_same, relPt_same);
-      }
+      hDR_same->Fill(minDR_same);
+      if (relPt_same >= 0.f) h2_same->Fill(minDR_same, relPt_same);
     }
-
     if (minDR_opp < inf) {
-      h_eleLost_pfEle_minDR_opp_->Fill(minDR_opp);
-      if (relPt_opp >= 0.f)
-        h2_eleLost_pfEle_DR_relPt_opp_->Fill(minDR_opp, relPt_opp);
+      hDR_opp->Fill(minDR_opp);
+      if (relPt_opp >= 0.f) h2_opp->Fill(minDR_opp, relPt_opp);
     }
+    return minDR_same;
+  };
 
-    // Unmatched: no same-charge PF electron in the event, or nearest one is far away
+  // --- eleLost vs PF electrons ---
+  for (const auto& eleLost : *eleLostHandle) {
+    float minDR_same = fillPair(eleLost.eta(), eleLost.phi(), eleLost.pt(), eleLost.charge(),
+                                pfElectrons,
+                                h_eleLost_pfEle_minDR_,    h2_eleLost_pfEle_DR_relPt_,
+                                h_eleLost_pfEle_minDR_opp_, h2_eleLost_pfEle_DR_relPt_opp_);
     if (minDR_same >= drNoMatchThreshold_)
       h_eleLost_unmatched_pt_->Fill(eleLost.pt());
   }
 
-  // --- lostTracks vs PF electrons (reference) ---
+  // --- lostTracks vs all charged PF candidates ---
   for (const auto& lost : *lostTracksHandle) {
-    float minDR_same = inf, relPt_same = -1.f;
+    fillPair(lost.eta(), lost.phi(), lost.pt(), lost.charge(),
+             pfCharged,
+             h_lost_pfCharged_minDR_,     h2_lost_pfCharged_DR_relPt_,
+             h_lost_pfCharged_minDR_opp_, h2_lost_pfCharged_DR_relPt_opp_);
+  }
 
-    for (const auto* pfEle : pfElectrons) {
-      if (lost.charge() != pfEle->charge()) continue;
-      float dr = deltaR(lost.eta(), lost.phi(), pfEle->eta(), pfEle->phi());
-      if (dr < minDR_same) {
-        minDR_same = dr;
-        relPt_same = (pfEle->pt() > 0.)
-                     ? std::abs(lost.pt() - pfEle->pt()) / pfEle->pt()
-                     : -1.f;
-      }
-    }
+  // --- lostTracks vs eleLost ---
+  std::vector<const pat::PackedCandidate*> eleLostVec;
+  for (const auto& c : *eleLostHandle) eleLostVec.push_back(&c);
 
-    if (minDR_same < inf) {
-      h_lost_pfEle_minDR_->Fill(minDR_same);
-      if (relPt_same >= 0.f)
-        h2_lost_pfEle_DR_relPt_->Fill(minDR_same, relPt_same);
-    }
+  for (const auto& lost : *lostTracksHandle) {
+    fillPair(lost.eta(), lost.phi(), lost.pt(), lost.charge(),
+             eleLostVec,
+             h_lost_eleLost_minDR_,     h2_lost_eleLost_DR_relPt_,
+             h_lost_eleLost_minDR_opp_, h2_lost_eleLost_DR_relPt_opp_);
   }
 }
 

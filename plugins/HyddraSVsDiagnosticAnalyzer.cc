@@ -225,6 +225,8 @@ private:
   bool  stageVtx_isGold_;
   bool  stageVtx_isSilver_;
   bool  stageVtx_isBronze_;
+  std::vector<float> stageVtx_trackCosTheta_;
+  std::vector<float> stageVtx_trackCosThetaCM_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // seedTracks branches (vectors — one element per track in 2-track OS seeds)
@@ -464,6 +466,8 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   allStageVtxTree_->Branch("StageVtx_isGold",           &stageVtx_isGold_);
   allStageVtxTree_->Branch("StageVtx_isSilver",         &stageVtx_isSilver_);
   allStageVtxTree_->Branch("StageVtx_isBronze",         &stageVtx_isBronze_);
+  allStageVtxTree_->Branch("StageVtx_trackCosTheta",    &stageVtx_trackCosTheta_);
+  allStageVtxTree_->Branch("StageVtx_trackCosThetaCM",  &stageVtx_trackCosThetaCM_);
 
   // ── seedTracks ─────────────────────────────────────────────────────────────
   seedTracksTree_ = fs->make<TTree>("seedTracks",
@@ -913,13 +917,17 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
       stageVtx_cosTheta_   = float(VertexHelper::CalculateCosTheta(pv, vtx));
       stageVtx_decayAngle_ = float(VertexHelper::CalculateDecayAngle(vtx));
       {
-        float minCT = 1.0f;
+        stageVtx_trackCosTheta_.clear();
+        stageVtx_trackCosThetaCM_.clear();
         for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
           reco::TrackRef tref = it->castTo<reco::TrackRef>();
-          float ct = float(TrackHelper::CalculateCosTheta(pv, vtx, *tref));
-          minCT = std::min(minCT, ct);
+          stageVtx_trackCosTheta_.push_back(
+              float(TrackHelper::CalculateCosTheta(pv, vtx, *tref)));
+          stageVtx_trackCosThetaCM_.push_back(
+              float(VertexHelper::CalculateCMCosTheta(vtx, *tref)));
         }
-        stageVtx_minTrackCosTheta_ = (vtx.tracksSize() > 0) ? minCT : -1.0f;
+        stageVtx_minTrackCosTheta_ = stageVtx_trackCosTheta_.empty() ? -1.0f
+            : *std::min_element(stageVtx_trackCosTheta_.begin(), stageVtx_trackCosTheta_.end());
       }
       {
         auto p4  = VertexHelper::GetVertex4Vector(vtx);
