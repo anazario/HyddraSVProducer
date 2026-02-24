@@ -137,9 +137,10 @@ reco::TrackRef MuonGlobalTrackProducer::selectTrack(const reco::Muon& muon) cons
 void MuonGlobalTrackProducer::extractTracks(
     const reco::MuonCollection& muons,
     reco::TrackCollection& outputTracks) const {
+  std::set<reco::TrackRef> seenRefs;
   for (const auto& muon : muons) {
     reco::TrackRef trackRef = selectTrack(muon);
-    if (trackRef.isNonnull()) {
+    if (trackRef.isNonnull() && seenRefs.insert(trackRef).second) {
       outputTracks.push_back(*trackRef);
     }
   }
