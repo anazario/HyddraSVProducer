@@ -579,12 +579,16 @@ def process_file(args):
                 if gi in gold_matched:
                     n_gold_gen += 1
 
+    # Count reco SV totals
+    n_reco_total = sum(len(out['sv_isGold'][ei]) for ei in range(len(out['sv_isGold'])))
+    n_reco_gold = sum(int(v) for ei in range(len(out['sv_isGold'])) for v in out['sv_isGold'][ei])
+
     if n_dupe_genidx_events > 0:
         print(f'  WARNING [{os.path.basename(filename)}]: {n_dupe_genidx_events}/{n_events} events '
               f'have non-exclusive Muon_genPartIdx (multiple reco muons point to same gen particle)',
               file=sys.stderr)
 
-    return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold_gen, n_gen_in_range
+    return out, dsa_dr_vals, dsa_relpt_vals, n_events, n_gold_gen, n_gen_in_range, n_reco_total, n_reco_gold
 
 
 # ============================================================================
@@ -701,19 +705,23 @@ def main():
         total_events = 0
         total_gold = 0
         total_gen = 0
+        total_reco = 0
+        total_reco_gold = 0
         tree_path = 'llpNanoSVAnalyzer/tree'
 
         with uproot.recreate(out_file) as fout:
             first_write = True
 
             def write_result(result):
-                nonlocal first_write, total_events, total_gold, total_gen
+                nonlocal first_write, total_events, total_gold, total_gen, total_reco, total_reco_gold
                 if result is None:
                     return
-                out, dr_vals, relpt_vals, n_ev, n_gold, n_gen = result
+                out, dr_vals, relpt_vals, n_ev, n_gold, n_gen, n_reco, n_reco_g = result
                 total_events += n_ev
                 total_gold += n_gold
                 total_gen += n_gen
+                total_reco += n_reco
+                total_reco_gold += n_reco_g
                 dsa_dr.extend(dr_vals)
                 dsa_relpt.extend(relpt_vals)
                 chunk = build_tree_chunk(out)
@@ -745,8 +753,14 @@ def main():
 
         elapsed = time.time() - t0
         pct = 100. * total_gold / total_gen if total_gen > 0 else 0.
+        total_reco_nongold = total_reco - total_reco_gold
+        pct_gold_reco = 100. * total_reco_gold / total_reco if total_reco > 0 else 0.
+        pct_nongold_reco = 100. * total_reco_nongold / total_reco if total_reco > 0 else 0.
         print(f'  Total events: {total_events}  ({elapsed:.1f}s)')
         print(f'  Gold / Gen signal: {total_gold} / {total_gen} ({pct:.1f}%)')
+        print(f'  Total reco SVs: {total_reco}')
+        print(f'    Signal (gold):  {total_reco_gold} ({pct_gold_reco:.1f}%)')
+        print(f'    Non-signal:     {total_reco_nongold} ({pct_nongold_reco:.1f}%)')
         print(f'  Wrote {total_events} events to {out_file}')
         print()
 
