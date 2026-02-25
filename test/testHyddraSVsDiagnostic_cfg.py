@@ -152,7 +152,7 @@ elif options.trackCollection == 'generalFiltered':
         process.hyddraSVsDiag +
         process.hyddraSVsDiagAnalyzer
     )
-elif options.trackCollection in ['general', 'displacedGlobalMuon']:
+elif options.trackCollection in ['general', 'displacedGlobalMuon', 'displacedStandAloneMuon']:
     process.p = cms.Path(
         process.hyddraSVsDiag +
         process.hyddraSVsDiagAnalyzer

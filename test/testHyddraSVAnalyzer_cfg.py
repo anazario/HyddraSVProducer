@@ -19,6 +19,7 @@ options.register('trackCollection',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
                  "Track collection: general, generalFiltered, selected, displacedGlobalMuon, "
+                 "displacedStandAloneMuon, "
                  "promptMuonExtracted, displacedMuonExtracted, "
                  "promptMuonBestTrack, displacedMuonBestTrack, "
                  "promptMuonPriority, displacedMuonPriority, "
@@ -193,7 +194,7 @@ elif options.trackCollection == 'generalFiltered':
         process.hyddraSVs +              # Produces leptonic/hadronic vertices
         process.hyddraSVAnalyzer         # Writes TTree output
     )
-elif options.trackCollection in ['general', 'displacedGlobalMuon']:
+elif options.trackCollection in ['general', 'displacedGlobalMuon', 'displacedStandAloneMuon']:
     # These collections don't need any track producer
     process.p = cms.Path(
         process.ecalTracks +          # Produces displacedElectronSCs for SC matching

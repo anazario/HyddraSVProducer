@@ -26,6 +26,7 @@ TRACK_COLLECTION_CONFIG = {
     'generalFiltered': cms.InputTag("filteredTrackProducer", "filteredTracks"),
     'selected': cms.InputTag("muonEnhancedTracks", "selectedTracks"),
     'displacedGlobalMuon': cms.InputTag("displacedGlobalMuons"),
+    'displacedStandAloneMuon': cms.InputTag("displacedStandAloneMuons"),
     'promptMuonExtracted': cms.InputTag("muonGlobalTrackProducer", "globalTracks"),
     'displacedMuonExtracted': cms.InputTag("muonGlobalTrackProducer", "displacedGlobalTracks"),
     # Best track from muons (uses CMSSW muonBestTrack)
