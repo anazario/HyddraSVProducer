@@ -23,6 +23,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     trackCosThetaCM_Slope_        = pset.getParameter<double>("trackCosThetaCM_Slope");
     requireChargeNeutrality_      = pset.getParameter<bool>("requireChargeNeutrality");
     minVtxCosTheta_               = pset.getParameter<double>("minVtxCosTheta");
+    maxVtxCosTheta_               = pset.getParameter<double>("maxVtxCosTheta");
     useAbsVtxCosTheta_            = pset.getParameter<bool>("useAbsVtxCosTheta");
     maxVtxDecayAngle_             = pset.getParameter<double>("maxVtxDecayAngle");
     useAbsVtxDecayAngle_          = pset.getParameter<bool>("useAbsVtxDecayAngle");
@@ -220,10 +221,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
       // Vertex cos theta (pointing angle wrt PV)
       {
         const double vtxCosTheta = vertex.cosTheta(*primaryVertex_);
-        const bool failsVtxCos = useAbsVtxCosTheta_
-          ? std::fabs(vtxCosTheta) < minVtxCosTheta_
-          : vtxCosTheta < minVtxCosTheta_;
-        if (failsVtxCos) {
+        const double val = useAbsVtxCosTheta_ ? std::fabs(vtxCosTheta) : vtxCosTheta;
+        if (val < minVtxCosTheta_ || val > maxVtxCosTheta_) {
           nFailVtxCosTheta++;
           continue;
         }
@@ -269,7 +268,9 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
                << "  trackCosThetaCM limit:  " << nFailTrackCosThetaCMLimit << " failed (cut: " << maxTrackCosThetaCM_Limit_ << ")\n"
                << "  charge neutrality:      " << nFailCharge << " failed" << (requireChargeNeutrality_ ? "" : " (cut disabled)") << "\n"
                << "  vtxCosTheta:            " << nFailVtxCosTheta << " failed (cut: "
-               << (useAbsVtxCosTheta_ ? "|cos#theta|" : "cos#theta") << " > " << minVtxCosTheta_ << ")\n"
+               << minVtxCosTheta_ << " < "
+               << (useAbsVtxCosTheta_ ? "|cos#theta|" : "cos#theta")
+               << " < " << maxVtxCosTheta_ << ")\n"
                << "  vtxDecayAngle:          " << nFailVtxDecayAngle << " failed (cut: "
                << (useAbsVtxDecayAngle_ ? "|decayAngle|" : "decayAngle") << " > " << maxVtxDecayAngle_ << ")\n"
                << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
@@ -292,6 +293,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   double trackCosThetaCM_Slope_;
   bool   requireChargeNeutrality_;
   double minVtxCosTheta_;
+  double maxVtxCosTheta_;
   bool   useAbsVtxCosTheta_;
   double maxVtxDecayAngle_;
   bool   useAbsVtxDecayAngle_;

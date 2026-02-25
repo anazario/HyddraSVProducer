@@ -250,6 +250,7 @@ private:
   bool   cfg_requireChargeNeutrality_;
   double cfg_minDxySignificance_;
   double cfg_minVtxCosTheta_;
+  double cfg_maxVtxCosTheta_;
   bool   cfg_useAbsVtxCosTheta_;
   double cfg_maxVtxDecayAngle_;
   bool   cfg_useAbsVtxDecayAngle_;
@@ -264,6 +265,7 @@ private:
   // ═══════════════════════════════════════════════════════════════════════════
   unsigned int filterVtx_nTracks_;
   float        filterVtx_vtxCosTheta_;
+  float        filterVtx_decayAngle_;
   float        filterVtx_minTrackCosTheta_;
   float        filterVtx_maxAbsCosThetaCM_;
   float        filterVtx_maxSlopeMetric_;
@@ -314,6 +316,7 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   cfg_requireChargeNeutrality_      = true;
   cfg_minDxySignificance_           = 25.0;
   cfg_minVtxCosTheta_               = -1.0;
+  cfg_maxVtxCosTheta_               =  1.0;
   cfg_useAbsVtxCosTheta_            = false;
   cfg_maxVtxDecayAngle_             = 1.0;
   cfg_useAbsVtxDecayAngle_          = false;
@@ -332,6 +335,7 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
     cfg_requireChargeNeutrality_      = lep.getParameter<bool>("requireChargeNeutrality");
     cfg_minDxySignificance_           = lep.getParameter<double>("minDxySignificance");
     cfg_minVtxCosTheta_               = lep.getParameter<double>("minVtxCosTheta");
+    cfg_maxVtxCosTheta_               = lep.getParameter<double>("maxVtxCosTheta");
     cfg_useAbsVtxCosTheta_            = lep.getParameter<bool>("useAbsVtxCosTheta");
     cfg_maxVtxDecayAngle_             = lep.getParameter<double>("maxVtxDecayAngle");
     cfg_useAbsVtxDecayAngle_          = lep.getParameter<bool>("useAbsVtxDecayAngle");
@@ -502,6 +506,7 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   leptonicConfigTree_->Branch("requireChargeNeutrality",   &cfg_requireChargeNeutrality_);
   leptonicConfigTree_->Branch("minDxySignificance",        &cfg_minDxySignificance_);
   leptonicConfigTree_->Branch("minVtxCosTheta",            &cfg_minVtxCosTheta_);
+  leptonicConfigTree_->Branch("maxVtxCosTheta",            &cfg_maxVtxCosTheta_);
   leptonicConfigTree_->Branch("useAbsVtxCosTheta",         &cfg_useAbsVtxCosTheta_);
   leptonicConfigTree_->Branch("maxVtxDecayAngle",          &cfg_maxVtxDecayAngle_);
   leptonicConfigTree_->Branch("useAbsVtxDecayAngle",       &cfg_useAbsVtxDecayAngle_);
@@ -514,6 +519,7 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
       "Per-disambig-vertex summary stats for sequential filter cut-flow");
   filteringVtxTree_->Branch("FilterVtx_nTracks",          &filterVtx_nTracks_);
   filteringVtxTree_->Branch("FilterVtx_vtxCosTheta",      &filterVtx_vtxCosTheta_);
+  filteringVtxTree_->Branch("FilterVtx_decayAngle",       &filterVtx_decayAngle_);
   filteringVtxTree_->Branch("FilterVtx_minTrackCosTheta", &filterVtx_minTrackCosTheta_);
   filteringVtxTree_->Branch("FilterVtx_maxAbsCosThetaCM", &filterVtx_maxAbsCosThetaCM_);
   filteringVtxTree_->Branch("FilterVtx_maxSlopeMetric",   &filterVtx_maxSlopeMetric_);
@@ -998,6 +1004,7 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
     for (const auto& vtx : *stageHandles_[kDisambig]) {
       filterVtx_nTracks_    = unsigned(vtx.tracksSize());
       filterVtx_vtxCosTheta_ = float(VertexHelper::CalculateCosTheta(pv, vtx));
+      filterVtx_decayAngle_ = float(VertexHelper::CalculateDecayAngle(vtx));
       filterVtx_charge_    = VertexHelper::CalculateTotalCharge(vtx);
       filterVtx_dxySignif_ = computeDxySignif(vtx, pv);
 
@@ -1098,6 +1105,7 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<double>("trackCosThetaCM_Slope",        -1.0);
   lepDesc.add<bool>  ("requireChargeNeutrality",      true);
   lepDesc.add<double>("minVtxCosTheta",               -1.0);
+  lepDesc.add<double>("maxVtxCosTheta",                1.0);
   lepDesc.add<bool>  ("useAbsVtxCosTheta",            false);
   lepDesc.add<double>("maxVtxDecayAngle",              1.0);
   lepDesc.add<bool>  ("useAbsVtxDecayAngle",          false);

@@ -130,6 +130,7 @@ void HyddraSVsProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
   leptonicDesc.add<double>("trackCosThetaCM_Slope",        -1.0);
   leptonicDesc.add<bool>  ("requireChargeNeutrality",      true);
   leptonicDesc.add<double>("minVtxCosTheta",               -1.0);
+  leptonicDesc.add<double>("maxVtxCosTheta",                1.0);
   leptonicDesc.add<bool>  ("useAbsVtxCosTheta",            false);
   leptonicDesc.add<double>("maxVtxDecayAngle",              1.0);
   leptonicDesc.add<bool>  ("useAbsVtxDecayAngle",          false);

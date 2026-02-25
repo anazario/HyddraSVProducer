@@ -246,15 +246,28 @@ def make_cutflow_table(tdir, fv, cfg):
 
     req_charge        = bool(cfg["requireChargeNeutrality"]) if cfg else True
     min_vtx_cos       = float(cfg["minVtxCosTheta"])   if cfg and "minVtxCosTheta"    in cfg else -1.0
+    max_vtx_cos       = float(cfg["maxVtxCosTheta"])   if cfg and "maxVtxCosTheta"    in cfg else  1.0
     use_abs_vtx_cos   = bool(cfg["useAbsVtxCosTheta"]) if cfg and "useAbsVtxCosTheta" in cfg else False
 
     if vtx_cos is not None:
-        if use_abs_vtx_cos:
-            vtx_cos_fail = np.fabs(vtx_cos) < min_vtx_cos
-        else:
-            vtx_cos_fail = vtx_cos < min_vtx_cos
+        val = np.fabs(vtx_cos) if use_abs_vtx_cos else vtx_cos
+        vtx_cos_fail = (val < min_vtx_cos) | (val > max_vtx_cos)
     else:
         vtx_cos_fail = np.zeros(len(n_tracks), dtype=bool)
+
+    decay_angle      = ak.to_numpy(fv["FilterVtx_decayAngle"]).astype(float) \
+                       if "FilterVtx_decayAngle" in fv.fields else None
+    apply_da_filter  = bool(cfg["applyVtxDecayAngleFiltering"]) if cfg and "applyVtxDecayAngleFiltering" in cfg else False
+    max_vtx_da       = float(cfg["maxVtxDecayAngle"])   if cfg and "maxVtxDecayAngle"    in cfg else 1.0
+    use_abs_vtx_da   = bool(cfg["useAbsVtxDecayAngle"]) if cfg and "useAbsVtxDecayAngle" in cfg else False
+
+    if apply_da_filter and decay_angle is not None:
+        if use_abs_vtx_da:
+            vtx_da_fail = np.fabs(decay_angle) > max_vtx_da
+        else:
+            vtx_da_fail = decay_angle > max_vtx_da
+    else:
+        vtx_da_fail = np.zeros(len(n_tracks), dtype=bool)
 
     cuts = [
         ("size #neq 2",        n_tracks != 2),
@@ -263,6 +276,7 @@ def make_cutflow_table(tdir, fv, cfg):
         ("|cos#theta*| limit", max_abs_cm > (float(cfg["maxTrackCosThetaCM_Limit"]) if cfg else 0.95)),
         ("charge",             (charge != 0) if req_charge else np.zeros(len(n_tracks), dtype=bool)),
         ("vtxcos#theta",       vtx_cos_fail),
+        ("vtx decay angle",    vtx_da_fail),
         ("dxy significance",   dxy_signif <= (float(cfg["minDxySignificance"]) if cfg else 25.0)),
     ]
 

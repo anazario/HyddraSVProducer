@@ -23,6 +23,7 @@ leptonicHYDDRA = cms.PSet(
     trackCosThetaCM_Slope        = cms.double(-1.0),
     requireChargeNeutrality      = cms.bool(True),
     minVtxCosTheta               = cms.double(-1.0),
+    maxVtxCosTheta               = cms.double(1.0),
     useAbsVtxCosTheta            = cms.bool(False),
     maxVtxDecayAngle             = cms.double(1.0),
     useAbsVtxDecayAngle          = cms.bool(False),
