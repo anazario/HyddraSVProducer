@@ -64,12 +64,13 @@ def _compute_summary(stem, gf_sig, sc_sig):
         n_silver_reco= sc_sig.get(f'Stage_nSilver_{key}', 0)
         n_bronze_reco= sc_sig.get(f'Stage_nBronze_{key}', 0)
         rows.append({
-            'label':        label,
-            'n_reco':       n_reco,
-            'n_gold_reco':  n_gold_reco,
+            'label':         label,
+            'n_reco':        n_reco,
+            'n_gold_reco':   n_gold_reco,
             'n_nonsig_reco': max(0, n_reco - n_gold_reco - n_silver_reco - n_bronze_reco),
-            'n_gold_gen':   n_gold_gen,
-            'n_gs_gen':     n_gold_gen + n_silver_gen,
+            'n_gold_gen':    n_gold_gen,
+            'n_gs_gen':      n_gold_gen + n_silver_gen,
+            'n_dup_gold':    max(0, n_gold_reco - n_gold_gen),
         })
     return {'stem': stem, 'n_gen': n_gen, 'rows': rows}
 
@@ -79,12 +80,23 @@ def _print_summaries(summaries):
     # Sort by file stem for deterministic output order
     summaries = sorted(summaries, key=lambda s: s['stem'])
 
-    col_w = [16, 10, 11, 12, 12, 13]  # Stage, Reco vtx, Gold reco, Non-signal, Eff(gold), % NS removed
-    divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
+    # Check if any file has duplicate gold matches at any stage
+    any_dups = any(row['n_dup_gold'] > 0
+                   for s in summaries for row in s['rows'])
 
-    hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
-           f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
-           f"{'Eff (gold)':>{col_w[4]}} {'% NS removed':>{col_w[5]}}")
+    if any_dups:
+        col_w = [16, 10, 11, 12, 9, 12, 13]  # + Dup gold column
+        divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
+        hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
+               f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
+               f"{'Dup gold':>{col_w[4]}} {'Eff (gold)':>{col_w[5]}} "
+               f"{'% NS removed':>{col_w[6]}}")
+    else:
+        col_w = [16, 10, 11, 12, 12, 13]
+        divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
+        hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
+               f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
+               f"{'Eff (gold)':>{col_w[4]}} {'% NS removed':>{col_w[5]}}")
 
     print(f"\n{'=' * 79}")
     print(f"  HYDDRA diagnostic summary")
@@ -107,13 +119,28 @@ def _print_summaries(summaries):
             else:
                 ns_removed = 'N/A'
             prev_nonsig = row['n_nonsig_reco']
-            print(f"  {row['label']:<{col_w[0]}} "
-                  f"{row['n_reco']:>{col_w[1]}} "
-                  f"{row['n_gold_reco']:>{col_w[2]}} "
-                  f"{row['n_nonsig_reco']:>{col_w[3]}} "
-                  f"{gold_eff:>{col_w[4]}} "
-                  f"{ns_removed:>{col_w[5]}}")
+            if any_dups:
+                dup_str = str(row['n_dup_gold']) if row['n_dup_gold'] > 0 else '-'
+                print(f"  {row['label']:<{col_w[0]}} "
+                      f"{row['n_reco']:>{col_w[1]}} "
+                      f"{row['n_gold_reco']:>{col_w[2]}} "
+                      f"{row['n_nonsig_reco']:>{col_w[3]}} "
+                      f"{dup_str:>{col_w[4]}} "
+                      f"{gold_eff:>{col_w[5]}} "
+                      f"{ns_removed:>{col_w[6]}}")
+            else:
+                print(f"  {row['label']:<{col_w[0]}} "
+                      f"{row['n_reco']:>{col_w[1]}} "
+                      f"{row['n_gold_reco']:>{col_w[2]}} "
+                      f"{row['n_nonsig_reco']:>{col_w[3]}} "
+                      f"{gold_eff:>{col_w[4]}} "
+                      f"{ns_removed:>{col_w[5]}}")
         print(divider)
+
+    if any_dups:
+        print(f"\n  WARNING: duplicate gold matches detected (multiple reco SVs matched")
+        print(f"  to the same gen vertex). 'Dup gold' = gold reco SVs beyond unique gen matches.")
+        print(f"  'Eff (gold)' is unaffected (counts unique gen vertices, not reco SVs).")
 
     print()
 
