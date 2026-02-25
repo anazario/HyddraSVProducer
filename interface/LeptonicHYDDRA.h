@@ -24,6 +24,10 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     requireChargeNeutrality_      = pset.getParameter<bool>("requireChargeNeutrality");
     minVtxCosTheta_               = pset.getParameter<double>("minVtxCosTheta");
     useAbsVtxCosTheta_            = pset.getParameter<bool>("useAbsVtxCosTheta");
+    maxVtxDecayAngle_             = pset.getParameter<double>("maxVtxDecayAngle");
+    useAbsVtxDecayAngle_          = pset.getParameter<bool>("useAbsVtxDecayAngle");
+    applyVtxDecayAngleCleaning_   = pset.getParameter<bool>("applyVtxDecayAngleCleaning");
+    applyVtxDecayAngleFiltering_  = pset.getParameter<bool>("applyVtxDecayAngleFiltering");
   }
 
   // Stage 1: Seeding
@@ -171,6 +175,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     size_t nFailTrackCosThetaCMLimit = 0;
     size_t nFailCharge = 0;
     size_t nFailVtxCosTheta = 0;
+    size_t nFailVtxDecayAngle = 0;
     size_t nFailDxyError = 0;
     size_t nFailDxySignificance = 0;
 
@@ -224,6 +229,18 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
         }
       }
 
+      // Vertex decay angle (CM frame, wrt boost axis)
+      if (applyVtxDecayAngleFiltering_) {
+        const double decayAngle = vertex.decayAngle();
+        const bool failsDecayAngle = useAbsVtxDecayAngle_
+          ? std::fabs(decayAngle) > maxVtxDecayAngle_
+          : decayAngle > maxVtxDecayAngle_;
+        if (failsDecayAngle) {
+          nFailVtxDecayAngle++;
+          continue;
+        }
+      }
+
       // Displacement significance
       const double dxy      = VertexHelper::CalculateDxy(vertex, *primaryVertex_);
       const double dxyError = VertexHelper::CalculateDxyError(vertex, *primaryVertex_);
@@ -253,6 +270,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
                << "  charge neutrality:      " << nFailCharge << " failed" << (requireChargeNeutrality_ ? "" : " (cut disabled)") << "\n"
                << "  vtxCosTheta:            " << nFailVtxCosTheta << " failed (cut: "
                << (useAbsVtxCosTheta_ ? "|cos#theta|" : "cos#theta") << " > " << minVtxCosTheta_ << ")\n"
+               << "  vtxDecayAngle:          " << nFailVtxDecayAngle << " failed (cut: "
+               << (useAbsVtxDecayAngle_ ? "|decayAngle|" : "decayAngle") << " > " << maxVtxDecayAngle_ << ")\n"
                << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
                << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
                << "  PASSED:                 " << this->size() << "\n");
@@ -274,6 +293,10 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   bool   requireChargeNeutrality_;
   double minVtxCosTheta_;
   bool   useAbsVtxCosTheta_;
+  double maxVtxDecayAngle_;
+  bool   useAbsVtxDecayAngle_;
+  bool   applyVtxDecayAngleCleaning_;
+  bool   applyVtxDecayAngleFiltering_;
 
   // Returns true if the vertex fails kinematic selection.
   // Checked after cleaning and before disambiguation.
@@ -289,6 +312,14 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     double E = std::sqrt(p * p + mass * mass);
     double pOverE = (E > 1e-6) ? p / E : 0.0;
     if (pOverE < minPOverE_) return true;
+
+    if (applyVtxDecayAngleCleaning_) {
+      const double decayAngle = v.decayAngle();
+      const bool failsDecayAngle = useAbsVtxDecayAngle_
+        ? std::fabs(decayAngle) > maxVtxDecayAngle_
+        : decayAngle > maxVtxDecayAngle_;
+      if (failsDecayAngle) return true;
+    }
 
     return false;
   }

@@ -251,6 +251,10 @@ private:
   double cfg_minDxySignificance_;
   double cfg_minVtxCosTheta_;
   bool   cfg_useAbsVtxCosTheta_;
+  double cfg_maxVtxDecayAngle_;
+  bool   cfg_useAbsVtxDecayAngle_;
+  bool   cfg_applyVtxDecayAngleCleaning_;
+  bool   cfg_applyVtxDecayAngleFiltering_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // filteringVtx branches (scalar — one TTree::Fill per disambig vertex)
@@ -311,6 +315,10 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   cfg_minDxySignificance_           = 25.0;
   cfg_minVtxCosTheta_               = -1.0;
   cfg_useAbsVtxCosTheta_            = false;
+  cfg_maxVtxDecayAngle_             = 1.0;
+  cfg_useAbsVtxDecayAngle_          = false;
+  cfg_applyVtxDecayAngleCleaning_   = false;
+  cfg_applyVtxDecayAngleFiltering_  = false;
   if (iConfig.exists("leptonic")) {
     const edm::ParameterSet& lep = iConfig.getParameterSet("leptonic");
     cfg_maxCompatibility_             = lep.getParameter<double>("maxCompatibility");
@@ -325,6 +333,10 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
     cfg_minDxySignificance_           = lep.getParameter<double>("minDxySignificance");
     cfg_minVtxCosTheta_               = lep.getParameter<double>("minVtxCosTheta");
     cfg_useAbsVtxCosTheta_            = lep.getParameter<bool>("useAbsVtxCosTheta");
+    cfg_maxVtxDecayAngle_             = lep.getParameter<double>("maxVtxDecayAngle");
+    cfg_useAbsVtxDecayAngle_          = lep.getParameter<bool>("useAbsVtxDecayAngle");
+    cfg_applyVtxDecayAngleCleaning_   = lep.getParameter<bool>("applyVtxDecayAngleCleaning");
+    cfg_applyVtxDecayAngleFiltering_  = lep.getParameter<bool>("applyVtxDecayAngleFiltering");
   }
 }
 
@@ -491,6 +503,10 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   leptonicConfigTree_->Branch("minDxySignificance",        &cfg_minDxySignificance_);
   leptonicConfigTree_->Branch("minVtxCosTheta",            &cfg_minVtxCosTheta_);
   leptonicConfigTree_->Branch("useAbsVtxCosTheta",         &cfg_useAbsVtxCosTheta_);
+  leptonicConfigTree_->Branch("maxVtxDecayAngle",          &cfg_maxVtxDecayAngle_);
+  leptonicConfigTree_->Branch("useAbsVtxDecayAngle",       &cfg_useAbsVtxDecayAngle_);
+  leptonicConfigTree_->Branch("applyVtxDecayAngleCleaning",  &cfg_applyVtxDecayAngleCleaning_);
+  leptonicConfigTree_->Branch("applyVtxDecayAngleFiltering", &cfg_applyVtxDecayAngleFiltering_);
   leptonicConfigTree_->Fill();  // values set in constructor; written once here
 
   // ── filteringVtx ───────────────────────────────────────────────────────────
@@ -1083,6 +1099,10 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<bool>  ("requireChargeNeutrality",      true);
   lepDesc.add<double>("minVtxCosTheta",               -1.0);
   lepDesc.add<bool>  ("useAbsVtxCosTheta",            false);
+  lepDesc.add<double>("maxVtxDecayAngle",              1.0);
+  lepDesc.add<bool>  ("useAbsVtxDecayAngle",          false);
+  lepDesc.add<bool>  ("applyVtxDecayAngleCleaning",   false);
+  lepDesc.add<bool>  ("applyVtxDecayAngleFiltering",  false);
   lepDesc.add<bool>  ("doMerging",                    true);
   lepDesc.add<bool>  ("doCleaning",                   true);
   lepDesc.add<bool>  ("doDisambiguation",             true);

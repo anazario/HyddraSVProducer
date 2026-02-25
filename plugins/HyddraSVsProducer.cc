@@ -131,6 +131,10 @@ void HyddraSVsProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
   leptonicDesc.add<bool>  ("requireChargeNeutrality",      true);
   leptonicDesc.add<double>("minVtxCosTheta",               -1.0);
   leptonicDesc.add<bool>  ("useAbsVtxCosTheta",            false);
+  leptonicDesc.add<double>("maxVtxDecayAngle",              1.0);
+  leptonicDesc.add<bool>  ("useAbsVtxDecayAngle",          false);
+  leptonicDesc.add<bool>  ("applyVtxDecayAngleCleaning",   false);
+  leptonicDesc.add<bool>  ("applyVtxDecayAngleFiltering",  false);
   leptonicDesc.add<bool>  ("doMerging",                    true);
   leptonicDesc.add<bool>  ("doCleaning",                   true);
   leptonicDesc.add<bool>  ("doDisambiguation",             true);
