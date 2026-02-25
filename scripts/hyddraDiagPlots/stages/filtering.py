@@ -211,8 +211,12 @@ def plot_filtering_trackcosThetaCM_1d(tdir, sv_sig, sv_bkg=None):
 
 def make_cutflow_table(tdir, fv, cfg):
     """
-    Sequential removal-efficiency table for the filtering cuts.
+    Independent removal-efficiency table for the filtering cuts.
+    Each cut is evaluated against ALL disambiguated vertices so that every
+    fraction shares the same denominator and cuts are directly comparable.
     Produces a grouped bar chart (signal vs non-signal) and prints a text table.
+    The bar chart y-axis is "fraction of disambig SVs removed" — same denominator
+    for all bars, so heights are directly comparable across cuts.
     """
     if fv is None or len(fv) == 0:
         print("    [filter_cutflow] No filteringVtx data — skipping")
@@ -262,32 +266,39 @@ def make_cutflow_table(tdir, fv, cfg):
         ("dxy significance",   dxy_signif <= (float(cfg["minDxySignificance"]) if cfg else 25.0)),
     ]
 
-    surviving = np.ones(len(n_tracks), dtype=bool)
+    # Fixed denominators: all disambiguated SVs, split by gold / non-signal.
+    # Every cut fraction is relative to these totals so cuts are comparable.
+    n_gold_total   = int(np.sum( is_gold))
+    n_nonsig_total = int(np.sum(~is_gold))
+
     cut_labels, sig_fracs, nonsig_fracs = [], [], []
 
-    header = f"  {'Cut':<22} | {'Signal':>18} | {'Non-signal':>18}"
-    print("  [filter_cutflow] Sequential removal per cut:")
+    col_w = 24
+    header = (f"  {'Cut':<22} | {'Gold lost':{col_w}} | "
+              f"{'Non-sig reduction':{col_w}} | {'Non-sig removed':>10}")
+    sep    = "  " + "-" * (len(header) - 2)
+    print("  [filter_cutflow] Per-cut removal (denominator = all disambig SVs):")
+    print(f"  {'Denominator':<22} | "
+          f"{'':>5}{n_gold_total:<5}{'':>14}| "
+          f"{'':>5}{n_nonsig_total:<5}{'':>14}|")
     print(header)
-    print("  " + "-" * (len(header) - 2))
+    print(sep)
 
     for label, fail_mask in cuts:
-        n_sig_in    = int(np.sum( surviving &  is_gold))
-        n_nonsig_in = int(np.sum( surviving & ~is_gold))
-        fails       = surviving & fail_mask
-        n_sig_fail    = int(np.sum(fails &  is_gold))
-        n_nonsig_fail = int(np.sum(fails & ~is_gold))
+        n_sig_fail    = int(np.sum(fail_mask &  is_gold))
+        n_nonsig_fail = int(np.sum(fail_mask & ~is_gold))
 
-        sig_frac    = n_sig_fail    / n_sig_in    if n_sig_in    > 0 else 0.0
-        nonsig_frac = n_nonsig_fail / n_nonsig_in if n_nonsig_in > 0 else 0.0
+        sig_frac    = n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0
+        nonsig_frac = n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0
 
         print(f"  {label:<22} | "
-              f"{n_sig_fail:>5}/{n_sig_in:<5} ({sig_frac*100:>5.1f}%) | "
-              f"{n_nonsig_fail:>5}/{n_nonsig_in:<5} ({nonsig_frac*100:>5.1f}%)")
+              f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
+              f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
+              f"{n_nonsig_fail:>10}")
 
         cut_labels.append(label)
         sig_fracs.append(sig_frac)
         nonsig_fracs.append(nonsig_frac)
-        surviving &= ~fail_mask
 
     # ── ROOT bar chart ────────────────────────────────────────────────────────
     n_bins = len(cut_labels)
@@ -307,7 +318,7 @@ def make_cutflow_table(tdir, fv, cfg):
     h_nonsig.SetBarWidth(0.4);          h_nonsig.SetBarOffset(0.55)
 
     max_y = max(max(sig_fracs, default=0.0), max(nonsig_fracs, default=0.0))
-    h_ax = ROOT.TH1F("h_ax_cutflow", ";Filter cut;Fraction removed",
+    h_ax = ROOT.TH1F("h_ax_cutflow", ";Filter cut;Fraction of disambig SVs removed",
                      n_bins, 0.5, n_bins + 0.5)
     h_ax.SetMinimum(0.0)
     h_ax.SetMaximum(max_y * 1.4 if max_y > 0 else 1.0)
