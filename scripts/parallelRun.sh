@@ -18,6 +18,7 @@ set -e
 
 # Default values
 N_JOBS=8
+FILES_PER_JOB=1
 CONFIG="testHyddraSVAnalyzer_cfg.py"
 OUTPUT_DIR="parallel_output"
 OUTPUT_NAME="merged_ntuple.root"
@@ -36,7 +37,8 @@ print_usage() {
     echo "  file_list.txt    Text file containing input ROOT files (one per line)"
     echo ""
     echo "Options:"
-    echo "  -j, --jobs N          Number of parallel jobs (default: 8)"
+    echo "  -j, --jobs N          Number of parallel jobs (default: 8)
+  --files-per-job N     Input files to process per job (default: 1)"
     echo "  -c, --config FILE     cmsRun config file (default: testHyddraSVAnalyzer_cfg.py)"
     echo "  -o, --output-dir DIR  Output directory (default: parallel_output)"
     echo "  -n, --output-name     Merged output filename (default: merged_ntuple.root)"
@@ -88,6 +90,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -j|--jobs)
             N_JOBS="$2"
+            shift 2
+            ;;
+        --files-per-job)
+            FILES_PER_JOB="$2"
             shift 2
             ;;
         -c|--config)
@@ -218,6 +224,7 @@ if [[ "$CONTINUE" == true ]]; then
 echo "  Already done:    $N_SKIPPED"
 fi
 echo "  Files to run:    $N_TO_PROCESS"
+echo "  Files per job:   $FILES_PER_JOB"
 echo "  Parallel jobs:   $N_JOBS"
 echo "  Config file:     $CONFIG"
 echo "  Output dir:      $OUTPUT_DIR"
@@ -247,52 +254,72 @@ if [[ $N_TO_PROCESS -eq 0 ]]; then
     exit 0
 fi
 
-# Create a temporary script for parallel to run
-# This handles the file naming properly
+# Split FILES_TO_PROCESS into chunks of FILES_PER_JOB lines each.
+# Each chunk is a temp file whose path is fed to parallel as one job.
+CHUNK_DIR=$(mktemp -d)
+CHUNK_LIST=$(mktemp)
+chunk_idx=0
+line_count=0
+current_chunk=""
+
+while IFS= read -r f; do
+    if [[ $line_count -eq 0 ]]; then
+        current_chunk="$CHUNK_DIR/chunk_$(printf '%04d' $chunk_idx)"
+        echo "$current_chunk" >> "$CHUNK_LIST"
+        chunk_idx=$((chunk_idx + 1))
+    fi
+    echo "$f" >> "$current_chunk"
+    line_count=$((line_count + 1))
+    if [[ $line_count -ge $FILES_PER_JOB ]]; then
+        line_count=0
+        current_chunk=""
+    fi
+done < "$FILES_TO_PROCESS"
+
+N_CHUNKS=$(wc -l < "$CHUNK_LIST" | tr -d ' ')
+
+# Create a temporary script that processes all files in a chunk sequentially
 TEMP_SCRIPT=$(mktemp)
 cat > "$TEMP_SCRIPT" << 'SCRIPT_EOF'
 #!/bin/bash
-INPUT_FILE="$1"
+CHUNK_FILE="$1"
 CONFIG="$2"
 OUTPUT_DIR="$3"
 EXTRA_ARGS="$4"
 
-# Extract base name for output
-BASENAME=$(basename "$INPUT_FILE" .root)
-# Handle file: prefix
-BASENAME=${BASENAME#file:}
-OUTPUT_FILE="$OUTPUT_DIR/${BASENAME}_ntuple.root"
-LOG_FILE="$OUTPUT_DIR/logs/${BASENAME}.log"
+while IFS= read -r INPUT_FILE; do
+    [[ -z "$INPUT_FILE" ]] && continue
+    BASENAME=$(basename "$INPUT_FILE" .root)
+    BASENAME=${BASENAME#file:}
+    OUTPUT_FILE="$OUTPUT_DIR/${BASENAME}_ntuple.root"
+    LOG_FILE="$OUTPUT_DIR/logs/${BASENAME}.log"
 
-echo "[$(date '+%H:%M:%S')] Starting: $BASENAME"
+    echo "[$(date '+%H:%M:%S')] Starting: $BASENAME"
 
-# Run cmsRun
-if cmsRun "$CONFIG" inputFiles="$INPUT_FILE" outputFile="$OUTPUT_FILE" $EXTRA_ARGS > "$LOG_FILE" 2>&1; then
-    echo "CMSRUN_EXIT_SUCCESS" >> "$LOG_FILE"
-    echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
-    exit 0
-else
-    echo "[$(date '+%H:%M:%S')] FAILED: $BASENAME (see $LOG_FILE)"
-    exit 1
-fi
+    if cmsRun "$CONFIG" inputFiles="$INPUT_FILE" outputFile="$OUTPUT_FILE" $EXTRA_ARGS > "$LOG_FILE" 2>&1; then
+        echo "CMSRUN_EXIT_SUCCESS" >> "$LOG_FILE"
+        echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
+    else
+        echo "[$(date '+%H:%M:%S')] FAILED: $BASENAME (see $LOG_FILE)"
+    fi
+done < "$CHUNK_FILE"
 SCRIPT_EOF
 chmod +x "$TEMP_SCRIPT"
 
 # Run parallel processing
-echo -e "${YELLOW}Starting parallel processing...${NC}"
+echo -e "${YELLOW}Starting parallel processing ($N_CHUNKS chunks, $FILES_PER_JOB file(s)/job)...${NC}"
 echo ""
 
 START_TIME=$(date +%s)
 
-# Use parallel to process files
-# --bar shows progress, --halt soon,fail=1 stops on first failure (optional)
-cat "$FILES_TO_PROCESS" | \
+cat "$CHUNK_LIST" | \
     parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
 
 PARALLEL_EXIT=$?
 
 # Cleanup temp files
-rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS"
+rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS" "$CHUNK_LIST"
+rm -rf "$CHUNK_DIR"
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))

@@ -59,12 +59,17 @@ def _compute_summary(stem, gf_sig, sc_sig):
     for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
         n_gold_gen   = int(ak.sum(ak.flatten(gf_sig[f'GenFunnel_gold_{key}'])))
         n_silver_gen = int(ak.sum(ak.flatten(gf_sig[f'GenFunnel_silver_{key}'])))
+        n_reco       = sc_sig.get(f'Stage_n_{key}',       0)
+        n_gold_reco  = sc_sig.get(f'Stage_nGold_{key}',   0)
+        n_silver_reco= sc_sig.get(f'Stage_nSilver_{key}', 0)
+        n_bronze_reco= sc_sig.get(f'Stage_nBronze_{key}', 0)
         rows.append({
-            'label':       label,
-            'n_reco':      sc_sig.get(f'Stage_n_{key}',     0),
-            'n_gold_reco': sc_sig.get(f'Stage_nGold_{key}', 0),
-            'n_gold_gen':  n_gold_gen,
-            'n_gs_gen':    n_gold_gen + n_silver_gen,
+            'label':        label,
+            'n_reco':       n_reco,
+            'n_gold_reco':  n_gold_reco,
+            'n_nonsig_reco': max(0, n_reco - n_gold_reco - n_silver_reco - n_bronze_reco),
+            'n_gold_gen':   n_gold_gen,
+            'n_gs_gen':     n_gold_gen + n_silver_gen,
         })
     return {'stem': stem, 'n_gen': n_gen, 'rows': rows}
 
@@ -74,16 +79,16 @@ def _print_summaries(summaries):
     # Sort by file stem for deterministic output order
     summaries = sorted(summaries, key=lambda s: s['stem'])
 
-    col_w = [16, 10, 11, 12, 16]  # Stage, Reco vtx, Gold reco, Eff(gold), Eff(gold+sil)
+    col_w = [16, 10, 11, 12, 12, 13]  # Stage, Reco vtx, Gold reco, Non-signal, Eff(gold), % NS removed
     divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
 
     hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
-           f"{'Gold reco':>{col_w[2]}} {'Eff (gold)':>{col_w[3]}} "
-           f"{'Eff (gld+sil)':>{col_w[4]}}")
+           f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
+           f"{'Eff (gold)':>{col_w[4]}} {'% NS removed':>{col_w[5]}}")
 
-    print(f"\n{'=' * 72}")
+    print(f"\n{'=' * 79}")
     print(f"  HYDDRA diagnostic summary")
-    print(f"{'=' * 72}")
+    print(f"{'=' * 79}")
 
     for s in summaries:
         n_gen = s['n_gen']
@@ -92,17 +97,22 @@ def _print_summaries(summaries):
         print(divider)
         print(hdr)
         print(divider)
+        prev_nonsig = None
         for row in s['rows']:
-            if n_gen > 0:
-                gold_eff = f"{row['n_gold_gen'] / n_gen * 100:.1f}%"
-                gs_eff   = f"{row['n_gs_gen']   / n_gen * 100:.1f}%"
+            gold_eff = f"{row['n_gold_gen'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
+            if prev_nonsig is None:
+                ns_removed = '---'
+            elif prev_nonsig > 0:
+                ns_removed = f"{(prev_nonsig - row['n_nonsig_reco']) / prev_nonsig * 100:.1f}%"
             else:
-                gold_eff = gs_eff = 'N/A'
+                ns_removed = 'N/A'
+            prev_nonsig = row['n_nonsig_reco']
             print(f"  {row['label']:<{col_w[0]}} "
                   f"{row['n_reco']:>{col_w[1]}} "
                   f"{row['n_gold_reco']:>{col_w[2]}} "
-                  f"{gold_eff:>{col_w[3]}} "
-                  f"{gs_eff:>{col_w[4]}}")
+                  f"{row['n_nonsig_reco']:>{col_w[3]}} "
+                  f"{gold_eff:>{col_w[4]}} "
+                  f"{ns_removed:>{col_w[5]}}")
         print(divider)
 
     print()
