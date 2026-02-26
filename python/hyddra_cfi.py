@@ -29,6 +29,8 @@ leptonicHYDDRA = cms.PSet(
     useAbsVtxDecayAngle          = cms.bool(False),
     applyVtxDecayAngleCleaning   = cms.bool(False),
     applyVtxDecayAngleFiltering  = cms.bool(False),
+    minMassFilter                = cms.double(0.0),
+    minBetaFilter                = cms.double(0.0),
 
     # Stage enable flags (set to False to skip a stage)
     doMerging        = cms.bool(True),

@@ -29,6 +29,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     useAbsVtxDecayAngle_          = pset.getParameter<bool>("useAbsVtxDecayAngle");
     applyVtxDecayAngleCleaning_   = pset.getParameter<bool>("applyVtxDecayAngleCleaning");
     applyVtxDecayAngleFiltering_  = pset.getParameter<bool>("applyVtxDecayAngleFiltering");
+    minMassFilter_                = pset.getParameter<double>("minMassFilter");
+    minBetaFilter_                = pset.getParameter<double>("minBetaFilter");
   }
 
   // Stage 1: Seeding
@@ -179,6 +181,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
     size_t nFailVtxDecayAngle = 0;
     size_t nFailDxyError = 0;
     size_t nFailDxySignificance = 0;
+    size_t nFailMass = 0;
+    size_t nFailBeta = 0;
 
     TrackVertexSetCollection finalVertices;
 
@@ -253,6 +257,25 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
         continue;
       }
 
+      // Mass filter
+      if (vertex.mass() < minMassFilter_) {
+        nFailMass++;
+        continue;
+      }
+
+      // Beta filter (beta = p/E)
+      {
+        const auto p4 = VertexHelper::GetVertex4Vector(vertex);
+        const double mass = p4.M();
+        const double p    = p4.P();
+        const double E    = std::sqrt(p * p + mass * mass);
+        const double beta = (E > 1e-6) ? p / E : 0.0;
+        if (beta < minBetaFilter_) {
+          nFailBeta++;
+          continue;
+        }
+      }
+
       finalVertices.add(vertex);
     }
 
@@ -275,6 +298,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
                << (useAbsVtxDecayAngle_ ? "|decayAngle|" : "decayAngle") << " > " << maxVtxDecayAngle_ << ")\n"
                << "  dxyError <= 0:          " << nFailDxyError << " failed\n"
                << "  dxy significance:       " << nFailDxySignificance << " failed (cut: " << minDxySignificance_ << ")\n"
+               << "  mass filter:            " << nFailMass << " failed (cut: " << minMassFilter_ << ")\n"
+               << "  beta filter:            " << nFailBeta << " failed (cut: " << minBetaFilter_ << ")\n"
                << "  PASSED:                 " << this->size() << "\n");
   }
 
@@ -299,6 +324,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   bool   useAbsVtxDecayAngle_;
   bool   applyVtxDecayAngleCleaning_;
   bool   applyVtxDecayAngleFiltering_;
+  double minMassFilter_;
+  double minBetaFilter_;
 
   // Returns true if the vertex fails kinematic selection.
   // Checked after cleaning and before disambiguation.
