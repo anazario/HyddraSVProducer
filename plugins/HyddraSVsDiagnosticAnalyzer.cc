@@ -130,7 +130,6 @@ private:
   TTree* cleaningTracksTree_;
   TTree* allStageVtxTree_;
   TTree* seedTracksTree_;
-  TTree* filteringVtxTree_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // genFunnel branches (vectors — one element per gen vertex)
@@ -222,6 +221,7 @@ private:
   float stageVtx_decayAngle_;
   float stageVtx_pOverE_;
   float stageVtx_dxySignif_;
+  int   stageVtx_charge_;
   bool  stageVtx_isGold_;
   bool  stageVtx_isSilver_;
   bool  stageVtx_isBronze_;
@@ -256,22 +256,9 @@ private:
   bool   cfg_useAbsVtxDecayAngle_;
   bool   cfg_applyVtxDecayAngleCleaning_;
   bool   cfg_applyVtxDecayAngleFiltering_;
+  double cfg_minMassFilter_;
+  double cfg_minBetaFilter_;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // filteringVtx branches (scalar — one TTree::Fill per disambig vertex)
-  // Summary stats over all tracks sufficient to evaluate each sequential
-  // filtering cut.  maxSlopeMetric = max_i(|cosThetaCM_i| + cosTheta_i),
-  // valid for the default trackCosThetaCM_Slope = -1.
-  // ═══════════════════════════════════════════════════════════════════════════
-  unsigned int filterVtx_nTracks_;
-  float        filterVtx_vtxCosTheta_;
-  float        filterVtx_decayAngle_;
-  float        filterVtx_minTrackCosTheta_;
-  float        filterVtx_maxAbsCosThetaCM_;
-  float        filterVtx_maxSlopeMetric_;
-  int          filterVtx_charge_;
-  float        filterVtx_dxySignif_;
-  bool         filterVtx_isGold_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,6 +309,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   cfg_useAbsVtxDecayAngle_          = false;
   cfg_applyVtxDecayAngleCleaning_   = false;
   cfg_applyVtxDecayAngleFiltering_  = false;
+  cfg_minMassFilter_                = 0.0;
+  cfg_minBetaFilter_                = 0.0;
   if (iConfig.exists("leptonic")) {
     const edm::ParameterSet& lep = iConfig.getParameterSet("leptonic");
     cfg_maxCompatibility_             = lep.getParameter<double>("maxCompatibility");
@@ -341,6 +330,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
     cfg_useAbsVtxDecayAngle_          = lep.getParameter<bool>("useAbsVtxDecayAngle");
     cfg_applyVtxDecayAngleCleaning_   = lep.getParameter<bool>("applyVtxDecayAngleCleaning");
     cfg_applyVtxDecayAngleFiltering_  = lep.getParameter<bool>("applyVtxDecayAngleFiltering");
+    cfg_minMassFilter_                = lep.getParameter<double>("minMassFilter");
+    cfg_minBetaFilter_                = lep.getParameter<double>("minBetaFilter");
   }
 }
 
@@ -479,6 +470,7 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   allStageVtxTree_->Branch("StageVtx_decayAngle",       &stageVtx_decayAngle_);
   allStageVtxTree_->Branch("StageVtx_pOverE",           &stageVtx_pOverE_);
   allStageVtxTree_->Branch("StageVtx_dxySignif",        &stageVtx_dxySignif_);
+  allStageVtxTree_->Branch("StageVtx_charge",           &stageVtx_charge_);
   allStageVtxTree_->Branch("StageVtx_isGold",           &stageVtx_isGold_);
   allStageVtxTree_->Branch("StageVtx_isSilver",         &stageVtx_isSilver_);
   allStageVtxTree_->Branch("StageVtx_isBronze",         &stageVtx_isBronze_);
@@ -512,20 +504,10 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
   leptonicConfigTree_->Branch("useAbsVtxDecayAngle",       &cfg_useAbsVtxDecayAngle_);
   leptonicConfigTree_->Branch("applyVtxDecayAngleCleaning",  &cfg_applyVtxDecayAngleCleaning_);
   leptonicConfigTree_->Branch("applyVtxDecayAngleFiltering", &cfg_applyVtxDecayAngleFiltering_);
+  leptonicConfigTree_->Branch("minMassFilter",               &cfg_minMassFilter_);
+  leptonicConfigTree_->Branch("minBetaFilter",               &cfg_minBetaFilter_);
   leptonicConfigTree_->Fill();  // values set in constructor; written once here
 
-  // ── filteringVtx ───────────────────────────────────────────────────────────
-  filteringVtxTree_ = fs->make<TTree>("filteringVtx",
-      "Per-disambig-vertex summary stats for sequential filter cut-flow");
-  filteringVtxTree_->Branch("FilterVtx_nTracks",          &filterVtx_nTracks_);
-  filteringVtxTree_->Branch("FilterVtx_vtxCosTheta",      &filterVtx_vtxCosTheta_);
-  filteringVtxTree_->Branch("FilterVtx_decayAngle",       &filterVtx_decayAngle_);
-  filteringVtxTree_->Branch("FilterVtx_minTrackCosTheta", &filterVtx_minTrackCosTheta_);
-  filteringVtxTree_->Branch("FilterVtx_maxAbsCosThetaCM", &filterVtx_maxAbsCosThetaCM_);
-  filteringVtxTree_->Branch("FilterVtx_maxSlopeMetric",   &filterVtx_maxSlopeMetric_);
-  filteringVtxTree_->Branch("FilterVtx_charge",           &filterVtx_charge_);
-  filteringVtxTree_->Branch("FilterVtx_dxySignif",        &filterVtx_dxySignif_);
-  filteringVtxTree_->Branch("FilterVtx_isGold",           &filterVtx_isGold_);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -959,6 +941,7 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
         stageVtx_pOverE_ = (E > 1e-6) ? float(p / E) : -1.f;
       }
       stageVtx_dxySignif_ = computeDxySignif(vtx, pv);
+      stageVtx_charge_    = VertexHelper::CalculateTotalCharge(vtx);
       stageVtx_isGold_    = false;
       stageVtx_isSilver_  = false;
       stageVtx_isBronze_  = false;
@@ -996,38 +979,6 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
         seedTrack_isSignal_ .push_back(TrackHelper::FindTrackIndex(*tref, signalTracks_) >= 0);
         seedTrack_vtxIsGold_.push_back(vtxIsGold);
       }
-    }
-  }
-
-  // ── filteringVtx: per-disambig-vertex summary stats for filter cut-flow ────
-  if (stageHandles_[kDisambig].isValid()) {
-    for (const auto& vtx : *stageHandles_[kDisambig]) {
-      filterVtx_nTracks_    = unsigned(vtx.tracksSize());
-      filterVtx_vtxCosTheta_ = float(VertexHelper::CalculateCosTheta(pv, vtx));
-      filterVtx_decayAngle_ = float(VertexHelper::CalculateDecayAngle(vtx));
-      filterVtx_charge_    = VertexHelper::CalculateTotalCharge(vtx);
-      filterVtx_dxySignif_ = computeDxySignif(vtx, pv);
-
-      float minCT = 1.0f, maxAbsCM = 0.0f, maxSlope = -2.0f;
-      for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
-        reco::TrackRef tref = it->castTo<reco::TrackRef>();
-        float ct    = float(TrackHelper::CalculateCosTheta(pv, vtx, *tref));
-        float absCM = float(std::fabs(VertexHelper::CalculateCMCosTheta(vtx, *tref)));
-        minCT    = std::min(minCT, ct);
-        maxAbsCM = std::max(maxAbsCM, absCM);
-        maxSlope = std::max(maxSlope, absCM + ct);  // metric for slope = -1
-      }
-      filterVtx_minTrackCosTheta_ = (vtx.tracksSize() > 0) ? minCT    : -1.0f;
-      filterVtx_maxAbsCosThetaCM_ = maxAbsCM;
-      filterVtx_maxSlopeMetric_   = (vtx.tracksSize() > 0) ? maxSlope : -1.0f;
-
-      filterVtx_isGold_ = false;
-      if (hasGenInfo_) {
-        for (const auto& gv : genVertices_) {
-          if (gv.isGold(vtx)) { filterVtx_isGold_ = true; break; }
-        }
-      }
-      filteringVtxTree_->Fill();
     }
   }
 
@@ -1111,6 +1062,8 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<bool>  ("useAbsVtxDecayAngle",          false);
   lepDesc.add<bool>  ("applyVtxDecayAngleCleaning",   false);
   lepDesc.add<bool>  ("applyVtxDecayAngleFiltering",  false);
+  lepDesc.add<double>("minMassFilter",                 0.0);
+  lepDesc.add<double>("minBetaFilter",                 0.0);
   lepDesc.add<bool>  ("doMerging",                    true);
   lepDesc.add<bool>  ("doCleaning",                   true);
   lepDesc.add<bool>  ("doDisambiguation",             true);

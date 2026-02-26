@@ -157,7 +157,6 @@ def _run_all_plots(out_file, sig_path, bkg_path):
         ct_sig = loader.load_cleaning_tracks(sig_f)
         sv_sig = loader.load_all_stage_vtx(sig_f)
         st_sig = loader.load_seed_tracks(sig_f)
-        fv_sig = loader.load_filtering_vtx(sig_f)
         cfg    = loader.load_leptonic_config(sig_f)
 
     if cfg is None:
@@ -177,7 +176,7 @@ def _run_all_plots(out_file, sig_path, bkg_path):
         ("merging",        lambda: merging.make_plots(       stage_dirs["merging"],        gf_sig, sv_sig, sv_bkg)),
         ("cleaning",       lambda: cleaning.make_plots(      stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, ct_sig, cfg)),
         ("disambiguation", lambda: disambiguation.make_plots(stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
-        ("filtering",      lambda: filtering.make_plots(     stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, fv_sig, cfg)),
+        ("filtering",      lambda: filtering.make_plots(     stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
         ("summary",        lambda: summary.make_plots(       stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 

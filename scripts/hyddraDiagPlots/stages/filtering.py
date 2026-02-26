@@ -209,7 +209,7 @@ def plot_filtering_trackcosThetaCM_1d(tdir, sv_sig, sv_bkg=None):
                        tag="reco_filtering_trackCosThetaCM")
 
 
-def make_cutflow_table(tdir, fv, cfg):
+def make_cutflow_table(tdir, sv_sig, cfg):
     """
     Independent removal-efficiency table for the filtering cuts.
     Each cut is evaluated against ALL disambiguated vertices so that every
@@ -218,22 +218,35 @@ def make_cutflow_table(tdir, fv, cfg):
     The bar chart y-axis is "fraction of disambig SVs removed" — same denominator
     for all bars, so heights are directly comparable across cuts.
     """
-    if fv is None or len(fv) == 0:
-        print("    [filter_cutflow] No filteringVtx data — skipping")
+    if sv_sig is None or len(sv_sig) == 0:
+        print("    [filter_cutflow] No allStageVtx data — skipping")
         return
 
-    n_tracks     = ak.to_numpy(fv["FilterVtx_nTracks"]).astype(int)
-    vtx_cos      = ak.to_numpy(fv["FilterVtx_vtxCosTheta"]).astype(float) \
-                   if "FilterVtx_vtxCosTheta" in fv.fields else None
-    min_ct       = ak.to_numpy(fv["FilterVtx_minTrackCosTheta"]).astype(float)
-    max_abs_cm   = ak.to_numpy(fv["FilterVtx_maxAbsCosThetaCM"]).astype(float)
-    max_slope    = ak.to_numpy(fv["FilterVtx_maxSlopeMetric"]).astype(float)
-    charge       = ak.to_numpy(fv["FilterVtx_charge"]).astype(int)
-    dxy_signif   = ak.to_numpy(fv["FilterVtx_dxySignif"]).astype(float)
-    is_gold      = ak.to_numpy(fv["FilterVtx_isGold"]).astype(bool)
+    # Slice to the disambiguation stage
+    sidx_disambig = STAGE_IDX["disambig"]
+    mask = ak.to_numpy(sv_sig["StageVtx_stageIdx"]) == sidx_disambig
+    if not np.any(mask):
+        print("    [filter_cutflow] No disambiguated vertices found — skipping")
+        return
 
-    # Build slope-cut mask using stored metric when slope ≈ -1, else maxAbsCosThetaCM
-    slope     = float(cfg["trackCosThetaCM_Slope"])     if cfg else -1.0
+    trk_ct_jag   = sv_sig["StageVtx_trackCosTheta"][mask]
+    trk_ctcm_jag = sv_sig["StageVtx_trackCosThetaCM"][mask]
+
+    n_tracks   = ak.to_numpy(ak.num(trk_ct_jag)).astype(int)
+    min_ct     = ak.to_numpy(ak.min(trk_ct_jag,             axis=1)).astype(float)
+    max_abs_cm = ak.to_numpy(ak.max(ak.abs(trk_ctcm_jag),   axis=1)).astype(float)
+    max_slope  = ak.to_numpy(ak.max(ak.abs(trk_ctcm_jag) + trk_ct_jag, axis=1)).astype(float)
+
+    vtx_cos    = ak.to_numpy(sv_sig["StageVtx_cosTheta"  ][mask]).astype(float)
+    decay_angle= ak.to_numpy(sv_sig["StageVtx_decayAngle"][mask]).astype(float)
+    dxy_signif = ak.to_numpy(sv_sig["StageVtx_dxySignif" ][mask]).astype(float)
+    charge     = ak.to_numpy(sv_sig["StageVtx_charge"    ][mask]).astype(int)
+    sv_mass    = ak.to_numpy(sv_sig["StageVtx_mass"      ][mask]).astype(float)
+    sv_beta    = ak.to_numpy(sv_sig["StageVtx_pOverE"    ][mask]).astype(float)
+    is_gold    = ak.to_numpy(sv_sig["StageVtx_isGold"    ][mask]).astype(bool)
+
+    # Build slope-cut mask using pre-computed metric when slope ≈ -1
+    slope     = float(cfg["trackCosThetaCM_Slope"])        if cfg else -1.0
     intercept = float(cfg["maxTrackCosThetaCM_Intercept"]) if cfg else 1.8
     if abs(slope + 1.0) < 1e-6:
         slope_fail = max_slope > intercept
@@ -244,30 +257,24 @@ def make_cutflow_table(tdir, fv, cfg):
               "directly supported; skipping slope cut in table")
         slope_fail = np.zeros(len(n_tracks), dtype=bool)
 
-    req_charge        = bool(cfg["requireChargeNeutrality"]) if cfg else True
-    min_vtx_cos       = float(cfg["minVtxCosTheta"])   if cfg and "minVtxCosTheta"    in cfg else -1.0
-    max_vtx_cos       = float(cfg["maxVtxCosTheta"])   if cfg and "maxVtxCosTheta"    in cfg else  1.0
-    use_abs_vtx_cos   = bool(cfg["useAbsVtxCosTheta"]) if cfg and "useAbsVtxCosTheta" in cfg else False
+    req_charge      = bool(cfg["requireChargeNeutrality"]) if cfg else True
+    min_vtx_cos     = float(cfg["minVtxCosTheta"])   if cfg and "minVtxCosTheta"    in cfg else -1.0
+    max_vtx_cos     = float(cfg["maxVtxCosTheta"])   if cfg and "maxVtxCosTheta"    in cfg else  1.0
+    use_abs_vtx_cos = bool(cfg["useAbsVtxCosTheta"]) if cfg and "useAbsVtxCosTheta" in cfg else False
+    val_cos = np.fabs(vtx_cos) if use_abs_vtx_cos else vtx_cos
+    vtx_cos_fail = (val_cos < min_vtx_cos) | (val_cos > max_vtx_cos)
 
-    if vtx_cos is not None:
-        val = np.fabs(vtx_cos) if use_abs_vtx_cos else vtx_cos
-        vtx_cos_fail = (val < min_vtx_cos) | (val > max_vtx_cos)
-    else:
-        vtx_cos_fail = np.zeros(len(n_tracks), dtype=bool)
-
-    decay_angle      = ak.to_numpy(fv["FilterVtx_decayAngle"]).astype(float) \
-                       if "FilterVtx_decayAngle" in fv.fields else None
-    apply_da_filter  = bool(cfg["applyVtxDecayAngleFiltering"]) if cfg and "applyVtxDecayAngleFiltering" in cfg else False
-    max_vtx_da       = float(cfg["maxVtxDecayAngle"])   if cfg and "maxVtxDecayAngle"    in cfg else 1.0
-    use_abs_vtx_da   = bool(cfg["useAbsVtxDecayAngle"]) if cfg and "useAbsVtxDecayAngle" in cfg else False
-
-    if apply_da_filter and decay_angle is not None:
-        if use_abs_vtx_da:
-            vtx_da_fail = np.fabs(decay_angle) > max_vtx_da
-        else:
-            vtx_da_fail = decay_angle > max_vtx_da
+    apply_da_filter = bool(cfg["applyVtxDecayAngleFiltering"]) if cfg and "applyVtxDecayAngleFiltering" in cfg else False
+    max_vtx_da      = float(cfg["maxVtxDecayAngle"])   if cfg and "maxVtxDecayAngle"    in cfg else 1.0
+    use_abs_vtx_da  = bool(cfg["useAbsVtxDecayAngle"]) if cfg and "useAbsVtxDecayAngle" in cfg else False
+    if apply_da_filter:
+        val_da = np.fabs(decay_angle) if use_abs_vtx_da else decay_angle
+        vtx_da_fail = val_da > max_vtx_da
     else:
         vtx_da_fail = np.zeros(len(n_tracks), dtype=bool)
+
+    min_mass_filter = float(cfg["minMassFilter"]) if cfg and "minMassFilter" in cfg else 0.0
+    min_beta_filter = float(cfg["minBetaFilter"]) if cfg and "minBetaFilter" in cfg else 0.0
 
     cuts = [
         ("size #neq 2",        n_tracks != 2),
@@ -278,6 +285,8 @@ def make_cutflow_table(tdir, fv, cfg):
         ("vtxcos#theta",       vtx_cos_fail),
         ("vtx decay angle",    vtx_da_fail),
         ("dxy significance",   dxy_signif <= (float(cfg["minDxySignificance"]) if cfg else 25.0)),
+        ("mass filter",        sv_mass < min_mass_filter),
+        ("beta filter",        sv_beta < min_beta_filter),
     ]
 
     # Fixed denominators: all disambiguated SVs, split by gold / non-signal.
@@ -368,7 +377,7 @@ def make_cutflow_table(tdir, fv, cfg):
 
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
-def make_plots(tdir, gf, sv_sig, sv_bkg, fv=None, cfg=None):
+def make_plots(tdir, gf, sv_sig, sv_bkg, cfg=None):
     print("  [filtering] Reco observables...")
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg)
@@ -380,4 +389,4 @@ def make_plots(tdir, gf, sv_sig, sv_bkg, fv=None, cfg=None):
     print("  [filtering] 2D track cos theta vs decay angle...")
     plot_filtering_costheta_decay_2d(tdir, sv_sig)
     print("  [filtering] Sequential cut-flow table...")
-    make_cutflow_table(tdir, fv, cfg)
+    make_cutflow_table(tdir, sv_sig, cfg)

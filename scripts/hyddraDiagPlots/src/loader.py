@@ -45,11 +45,3 @@ def load_leptonic_config(root_file):
         return {k: v[0] for k, v in arr.items()}
     except KeyError:
         return None
-
-
-def load_filtering_vtx(root_file):
-    """Return filteringVtx tree arrays (flat, one row per disambig vertex), or None."""
-    try:
-        return root_file[f"{_BASE}/filteringVtx"].arrays(library="ak")
-    except KeyError:
-        return None
