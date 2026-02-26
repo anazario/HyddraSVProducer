@@ -234,8 +234,8 @@ def make_cutflow_table(tdir, sv_sig, cfg):
 
     n_tracks   = ak.to_numpy(ak.num(trk_ct_jag)).astype(int)
     min_ct     = ak.to_numpy(ak.min(trk_ct_jag,             axis=1)).astype(float)
-    max_abs_cm = ak.to_numpy(ak.max(ak.abs(trk_ctcm_jag),   axis=1)).astype(float)
-    max_slope  = ak.to_numpy(ak.max(ak.abs(trk_ctcm_jag) + trk_ct_jag, axis=1)).astype(float)
+    max_abs_cm = ak.to_numpy(ak.max(np.abs(trk_ctcm_jag),   axis=1)).astype(float)
+    max_slope  = ak.to_numpy(ak.max(np.abs(trk_ctcm_jag) + trk_ct_jag, axis=1)).astype(float)
 
     vtx_cos    = ak.to_numpy(sv_sig["StageVtx_cosTheta"  ][mask]).astype(float)
     decay_angle= ak.to_numpy(sv_sig["StageVtx_decayAngle"][mask]).astype(float)
