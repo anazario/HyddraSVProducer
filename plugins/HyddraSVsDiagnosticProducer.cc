@@ -135,6 +135,8 @@ void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescription
   leptonicDesc.add<bool>  ("useAbsVtxDecayAngle",          false);
   leptonicDesc.add<bool>  ("applyVtxDecayAngleCleaning",   false);
   leptonicDesc.add<bool>  ("applyVtxDecayAngleFiltering",  false);
+  leptonicDesc.add<double>("minMassFilter",                 0.0);
+  leptonicDesc.add<double>("minBetaFilter",                 0.0);
   leptonicDesc.add<bool>  ("doMerging",                    true);
   leptonicDesc.add<bool>  ("doCleaning",                   true);
   leptonicDesc.add<bool>  ("doDisambiguation",             true);
