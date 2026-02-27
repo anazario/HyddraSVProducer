@@ -7,15 +7,22 @@ output trees compatible with muonSVEfficiencyComparison.py and
 svEfficiencyAnalysis.py.
 
 Supports PatMuonVertex and PatDSAMuonVertex collections.
-Uses multiprocessing for parallel file processing.
 
-Usage:
+Default mode: all input files merged into one output per collection.
     python processLLPNanoSV.py -i file1.root file2.root --collections PatMuonVertex
     python processLLPNanoSV.py -i file1.root file2.root --collections PatMuonVertex PatDSAMuonVertex -j 8
     python processLLPNanoSV.py --input-file-list files.txt --collections PatDSAMuonVertex -o output.root
+
+Per-sample mode (--samples): each txt file is treated as a separate sample whose ROOT
+files are merged, producing one output per sample per collection named:
+    {SAMPLENAME}_{COLLECTION}[_{FLAG}].root
+Glob patterns are expanded for the txt file paths.
+    python processLLPNanoSV.py --samples sample1.txt sample2.txt --collections PatMuonVertex -o outdir/
+    python processLLPNanoSV.py --samples 'samples/*.txt' --collections PatMuonVertex PatDSAMuonVertex -o outdir/ --flag v2
 """
 
 import argparse
+import glob as glob_module
 import os
 import sys
 import time
@@ -135,12 +142,12 @@ def match_dsa_to_gen(dsa_eta, dsa_phi, dsa_pt, evt, gen_vertices, dr_cut, relpt_
 # Pass selection (track acceptance)
 # ============================================================================
 
-def check_pass_selection(evt, gv, pass_dr_cut):
+def check_pass_selection(evt, gv, pass_dr_cut, check_pat=True, check_dsa=False):
     """Check if all gen muons from a gen vertex have a reco muon match within deltaR.
 
-    For each gen muon, checks PAT muons (via Muon_genPartIdx) and DSA muons
-    (via deltaR scan). No pT cut is applied — purely geometric matching,
-    consistent with HYDDRA passSelection behavior.
+    Only checks the muon collections relevant to the vertex collection being processed:
+      PatMuonVertex    -> check_pat=True,  check_dsa=False
+      PatDSAMuonVertex -> check_pat=True,  check_dsa=True
 
     Returns True only if every gen muon has at least one reco match.
     """
@@ -153,21 +160,22 @@ def check_pass_selection(evt, gv, pass_dr_cut):
         found = False
 
         # Check PAT muons via Muon_genPartIdx
-        n_pat = len(evt.get('Muon_genPartIdx', []))
-        for j in range(n_pat):
-            gp_idx = int(evt['Muon_genPartIdx'][j])
-            if gp_idx == mu_idx:
-                mu_eta = float(evt['Muon_eta'][j])
-                mu_phi = float(evt['Muon_phi'][j])
-                deta = mu_eta - g_eta
-                dphi = (mu_phi - g_phi + np.pi) % (2 * np.pi) - np.pi
-                dr = np.sqrt(deta**2 + dphi**2)
-                if dr < pass_dr_cut:
-                    found = True
-                    break
+        if check_pat:
+            n_pat = len(evt.get('Muon_genPartIdx', []))
+            for j in range(n_pat):
+                gp_idx = int(evt['Muon_genPartIdx'][j])
+                if gp_idx == mu_idx:
+                    mu_eta = float(evt['Muon_eta'][j])
+                    mu_phi = float(evt['Muon_phi'][j])
+                    deta = mu_eta - g_eta
+                    dphi = (mu_phi - g_phi + np.pi) % (2 * np.pi) - np.pi
+                    dr = np.sqrt(deta**2 + dphi**2)
+                    if dr < pass_dr_cut:
+                        found = True
+                        break
 
         # Check DSA muons via deltaR scan
-        if not found:
+        if check_dsa and not found:
             n_dsa = len(evt.get('DSAMuon_pt', []))
             for j in range(n_dsa):
                 dsa_eta = float(evt['DSAMuon_eta'][j])
@@ -355,7 +363,8 @@ def process_file(args):
         out['gv_isMuon'].append(np.ones(n_gv, dtype=np.bool_))
         out['gv_isElectron'].append(np.zeros(n_gv, dtype=np.bool_))
         out['gv_isHadronic'].append(np.zeros(n_gv, dtype=np.bool_))
-        pass_sel = np.array([check_pass_selection(evt, gv, pass_dr_cut)
+        use_dsa = 'DSA' in collection
+        pass_sel = np.array([check_pass_selection(evt, gv, pass_dr_cut, check_pat=True, check_dsa=use_dsa)
                              for gv in gen_vertices], dtype=np.bool_) if n_gv > 0 else np.array([], dtype=np.bool_)
         out['gv_passSelection'].append(pass_sel)
 
@@ -631,6 +640,79 @@ def build_tree_chunk(out):
 # Main
 # ============================================================================
 
+def _run_collection(input_files, collection, args, out_file):
+    """Process a list of input ROOT files for one collection, writing to out_file."""
+    print(f'  [{collection}] -> {os.path.basename(out_file)}')
+    t0 = time.time()
+
+    worker_args = [(fn, collection, args.mother_pdg_id,
+                    args.delta_r, args.rel_pt_diff, args.max_chi2,
+                    args.min_cos_theta, args.min_p_over_e, args.min_mass,
+                    args.max_decay_angle, args.pass_selection_dr)
+                   for fn in input_files]
+
+    dsa_dr = []
+    dsa_relpt = []
+    total_events = 0
+    total_gold = 0
+    total_gen = 0
+    total_reco = 0
+    total_reco_gold = 0
+    tree_path = 'llpNanoSVAnalyzer/tree'
+
+    with uproot.recreate(out_file) as fout:
+        first_write = True
+
+        def write_result(result):
+            nonlocal first_write, total_events, total_gold, total_gen, total_reco, total_reco_gold
+            if result is None:
+                return
+            out, dr_vals, relpt_vals, n_ev, n_gold, n_gen, n_reco, n_reco_g = result
+            total_events += n_ev
+            total_gold += n_gold
+            total_gen += n_gen
+            total_reco += n_reco
+            total_reco_gold += n_reco_g
+            dsa_dr.extend(dr_vals)
+            dsa_relpt.extend(relpt_vals)
+            chunk = build_tree_chunk(out)
+            if first_write:
+                fout[tree_path] = chunk
+                first_write = False
+            else:
+                fout[tree_path].extend(chunk)
+
+        if args.workers > 1 and len(input_files) > 1:
+            with Pool(args.workers) as pool:
+                for i, result in enumerate(pool.imap_unordered(process_file, worker_args)):
+                    write_result(result)
+                    print(f'\r    Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
+                print()
+        else:
+            for i, wa in enumerate(worker_args):
+                result = process_file(wa)
+                write_result(result)
+                print(f'\r    Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
+            print()
+
+        if dsa_dr:
+            fout['h_dsaGenDeltaR'] = np.histogram(dsa_dr, bins=150, range=(0., 3.))
+            fout['h_dsaGenRelPtDiff'] = np.histogram(dsa_relpt, bins=200, range=(-5., 5.))
+
+    elapsed = time.time() - t0
+    pct = 100. * total_gold / total_gen if total_gen > 0 else 0.
+    total_reco_nongold = total_reco - total_reco_gold
+    pct_gold_reco = 100. * total_reco_gold / total_reco if total_reco > 0 else 0.
+    pct_nongold_reco = 100. * total_reco_nongold / total_reco if total_reco > 0 else 0.
+    print(f'    Total events: {total_events}  ({elapsed:.1f}s)')
+    print(f'    Gold / Gen signal: {total_gold} / {total_gen} ({pct:.1f}%)')
+    print(f'    Total reco SVs: {total_reco}')
+    print(f'      Signal (gold):  {total_reco_gold} ({pct_gold_reco:.1f}%)')
+    print(f'      Non-signal:     {total_reco_nongold} ({pct_nongold_reco:.1f}%)')
+    print(f'    Wrote {total_events} events to {out_file}')
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Process LLPNanoAOD files to HyddraSV-compatible ntuples')
@@ -638,11 +720,18 @@ def main():
                         help='Input NanoAOD ROOT files')
     parser.add_argument('--input-file-list', default='',
                         help='Text file with input file paths (one per line)')
+    parser.add_argument('--samples', nargs='+', default=[],
+                        help='Per-sample mode: one or more txt file lists, each treated as a '
+                             'separate sample. Glob patterns are expanded. Output named '
+                             '{SAMPLENAME}_{COLLECTION}[_{FLAG}].root in the -o directory.')
+    parser.add_argument('--flag', default='',
+                        help='Optional label appended to output filenames in --samples mode')
     parser.add_argument('--collections', nargs='+',
                         default=['PatMuonVertex'],
                         help='Collections to process (default: PatMuonVertex)')
-    parser.add_argument('-o', '--output', default='llpNanoSV',
-                        help='Output file basename (default: llpNanoSV)')
+    parser.add_argument('-o', '--output', default=None,
+                        help='Output file basename (default mode, default: llpNanoSV) '
+                             'or output directory (--samples mode, default: .)')
     parser.add_argument('-j', '--workers', type=int, default=4,
                         help='Number of parallel workers (default: 4)')
     parser.add_argument('--mother-pdg-id', type=int, default=54,
@@ -665,7 +754,54 @@ def main():
                         help='DeltaR cut for passSelection track matching (default: 0.02)')
     args = parser.parse_args()
 
-    # Build input file list
+    # ---- Per-sample mode ----
+    if args.samples:
+        # Expand glob patterns for txt file paths
+        sample_txts = []
+        for pattern in args.samples:
+            expanded = sorted(glob_module.glob(pattern))
+            if expanded:
+                sample_txts.extend(expanded)
+            else:
+                print(f'WARNING: no files matched: {pattern}', file=sys.stderr)
+        if not sample_txts:
+            parser.error('No sample txt files found.')
+
+        output_dir = args.output if args.output is not None else '.'
+        os.makedirs(output_dir, exist_ok=True)
+
+        print(f'Samples:     {len(sample_txts)}')
+        print(f'Collections: {", ".join(args.collections)}')
+        print(f'Output dir:  {output_dir}')
+        if args.flag:
+            print(f'Flag:        {args.flag}')
+        print(f'Workers:     {args.workers}')
+        print()
+
+        for sample_txt in sample_txts:
+            if not os.path.exists(sample_txt):
+                print(f'ERROR: sample file not found: {sample_txt}', file=sys.stderr)
+                continue
+            input_files = []
+            with open(sample_txt) as flist:
+                for line in flist:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        input_files.append(line)
+            if not input_files:
+                print(f'WARNING: no input files in {sample_txt}', file=sys.stderr)
+                continue
+
+            sample_name = os.path.splitext(os.path.basename(sample_txt))[0]
+            print(f'Sample: {sample_name} ({len(input_files)} input files)')
+
+            suffix = f'_{args.flag}' if args.flag else ''
+            for collection in args.collections:
+                out_file = os.path.join(output_dir, f'{sample_name}_{collection}{suffix}.root')
+                _run_collection(input_files, collection, args, out_file)
+        return
+
+    # ---- Default mode (unchanged) ----
     input_files = list(args.input)
     if args.input_file_list:
         if not os.path.exists(args.input_file_list):
@@ -678,7 +814,9 @@ def main():
                     input_files.append(line)
 
     if not input_files:
-        parser.error('No input files specified. Use -i or --input-file-list.')
+        parser.error('No input files specified. Use -i, --input-file-list, or --samples.')
+
+    output_base = args.output if args.output is not None else 'llpNanoSV'
 
     print(f'Input files: {len(input_files)}')
     print(f'Collections: {", ".join(args.collections)}')
@@ -687,82 +825,10 @@ def main():
 
     for collection in args.collections:
         if len(args.collections) > 1:
-            out_file = f'{args.output}_{collection}.root'
+            out_file = f'{output_base}_{collection}.root'
         else:
-            out_file = args.output if args.output.endswith('.root') else args.output + '.root'
-
-        print(f'Processing {collection} ...')
-        t0 = time.time()
-
-        worker_args = [(fn, collection, args.mother_pdg_id,
-                        args.delta_r, args.rel_pt_diff, args.max_chi2,
-                        args.min_cos_theta, args.min_p_over_e, args.min_mass,
-                        args.max_decay_angle, args.pass_selection_dr)
-                       for fn in input_files]
-
-        dsa_dr = []
-        dsa_relpt = []
-        total_events = 0
-        total_gold = 0
-        total_gen = 0
-        total_reco = 0
-        total_reco_gold = 0
-        tree_path = 'llpNanoSVAnalyzer/tree'
-
-        with uproot.recreate(out_file) as fout:
-            first_write = True
-
-            def write_result(result):
-                nonlocal first_write, total_events, total_gold, total_gen, total_reco, total_reco_gold
-                if result is None:
-                    return
-                out, dr_vals, relpt_vals, n_ev, n_gold, n_gen, n_reco, n_reco_g = result
-                total_events += n_ev
-                total_gold += n_gold
-                total_gen += n_gen
-                total_reco += n_reco
-                total_reco_gold += n_reco_g
-                dsa_dr.extend(dr_vals)
-                dsa_relpt.extend(relpt_vals)
-                chunk = build_tree_chunk(out)
-                if first_write:
-                    fout[tree_path] = chunk
-                    first_write = False
-                else:
-                    fout[tree_path].extend(chunk)
-
-            if args.workers > 1 and len(input_files) > 1:
-                with Pool(args.workers) as pool:
-                    for i, result in enumerate(pool.imap_unordered(process_file, worker_args)):
-                        write_result(result)
-                        print(f'\r  Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
-                    print()
-            else:
-                for i, wa in enumerate(worker_args):
-                    result = process_file(wa)
-                    write_result(result)
-                    print(f'\r  Files processed: {i + 1}/{len(input_files)}', end='', flush=True)
-                print()
-
-            # Write histograms
-            if dsa_dr:
-                fout['h_dsaGenDeltaR'] = np.histogram(
-                    dsa_dr, bins=150, range=(0., 3.))
-                fout['h_dsaGenRelPtDiff'] = np.histogram(
-                    dsa_relpt, bins=200, range=(-5., 5.))
-
-        elapsed = time.time() - t0
-        pct = 100. * total_gold / total_gen if total_gen > 0 else 0.
-        total_reco_nongold = total_reco - total_reco_gold
-        pct_gold_reco = 100. * total_reco_gold / total_reco if total_reco > 0 else 0.
-        pct_nongold_reco = 100. * total_reco_nongold / total_reco if total_reco > 0 else 0.
-        print(f'  Total events: {total_events}  ({elapsed:.1f}s)')
-        print(f'  Gold / Gen signal: {total_gold} / {total_gen} ({pct:.1f}%)')
-        print(f'  Total reco SVs: {total_reco}')
-        print(f'    Signal (gold):  {total_reco_gold} ({pct_gold_reco:.1f}%)')
-        print(f'    Non-signal:     {total_reco_nongold} ({pct_nongold_reco:.1f}%)')
-        print(f'  Wrote {total_events} events to {out_file}')
-        print()
+            out_file = output_base if output_base.endswith('.root') else output_base + '.root'
+        _run_collection(input_files, collection, args, out_file)
 
 
 if __name__ == '__main__':
