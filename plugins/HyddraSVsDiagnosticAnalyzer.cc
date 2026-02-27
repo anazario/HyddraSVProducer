@@ -241,6 +241,8 @@ private:
   TTree* leptonicConfigTree_;
   double cfg_maxCompatibility_;
   double cfg_minCleanCosTheta_;
+  double cfg_maxCleanCosTheta_;
+  bool   cfg_invertCleanCosThetaCut_;
   bool   cfg_useDiagonalCut_;
   double cfg_cleanCutSlope_;
   double cfg_minTrackCosTheta_;
@@ -294,6 +296,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
   // Read from an optional 'leptonic' sub-PSet; falls back to defaults otherwise.
   cfg_maxCompatibility_             = 1.5;
   cfg_minCleanCosTheta_             = 0.5;
+  cfg_maxCleanCosTheta_             = 1.0;
+  cfg_invertCleanCosThetaCut_       = false;
   cfg_useDiagonalCut_               = false;
   cfg_cleanCutSlope_                = 0.0;
   cfg_minTrackCosTheta_             = 0.5;
@@ -315,6 +319,8 @@ HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet
     const edm::ParameterSet& lep = iConfig.getParameterSet("leptonic");
     cfg_maxCompatibility_             = lep.getParameter<double>("maxCompatibility");
     cfg_minCleanCosTheta_             = lep.getParameter<double>("minCleanCosTheta");
+    cfg_maxCleanCosTheta_             = lep.getParameter<double>("maxCleanCosTheta");
+    cfg_invertCleanCosThetaCut_       = lep.getParameter<bool>("invertCleanCosThetaCut");
     cfg_useDiagonalCut_               = lep.getParameter<bool>("useDiagonalCut");
     cfg_cleanCutSlope_                = lep.getParameter<double>("cleanCutSlope");
     cfg_minTrackCosTheta_             = lep.getParameter<double>("minTrackCosTheta");
@@ -489,6 +495,8 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
       "Leptonic HYDDRA configuration parameters (single row)");
   leptonicConfigTree_->Branch("maxCompatibility",          &cfg_maxCompatibility_);
   leptonicConfigTree_->Branch("minCleanCosTheta",          &cfg_minCleanCosTheta_);
+  leptonicConfigTree_->Branch("maxCleanCosTheta",          &cfg_maxCleanCosTheta_);
+  leptonicConfigTree_->Branch("invertCleanCosThetaCut",    &cfg_invertCleanCosThetaCut_);
   leptonicConfigTree_->Branch("useDiagonalCut",            &cfg_useDiagonalCut_);
   leptonicConfigTree_->Branch("cleanCutSlope",             &cfg_cleanCutSlope_);
   leptonicConfigTree_->Branch("minTrackCosTheta",          &cfg_minTrackCosTheta_);
@@ -1048,6 +1056,8 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<double>("minDxySignificance",           25.0);
   lepDesc.add<double>("maxCompatibility",             1.5);
   lepDesc.add<double>("minCleanCosTheta",             0.5);
+  lepDesc.add<double>("maxCleanCosTheta",             1.0);
+  lepDesc.add<bool>  ("invertCleanCosThetaCut",       false);
   lepDesc.add<bool>  ("useDiagonalCut",               false);
   lepDesc.add<double>("cleanCutSlope",                0.0);
   lepDesc.add<double>("minTrackCosTheta",             0.5);

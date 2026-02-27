@@ -11,10 +11,12 @@ leptonicHYDDRA = cms.PSet(
     minDxySignificance = cms.double(25.0),
 
     # Cleaning (track removal for vertices with > 2 tracks)
-    maxCompatibility = cms.double(1.5),
-    minCleanCosTheta = cms.double(0.5),
-    useDiagonalCut   = cms.bool(False),
-    cleanCutSlope    = cms.double(0.0),
+    maxCompatibility       = cms.double(1.5),
+    minCleanCosTheta       = cms.double(0.5),
+    maxCleanCosTheta       = cms.double(1.0),
+    invertCleanCosThetaCut = cms.bool(False),
+    useDiagonalCut         = cms.bool(False),
+    cleanCutSlope          = cms.double(0.0),
 
     # Final filtering (post-disambiguation, 2-track vertices only)
     minTrackCosTheta             = cms.double(0.5),

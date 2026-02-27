@@ -11,10 +11,12 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
 
   LeptonicHYDDRA(const edm::ParameterSet& pset) : HYDDRABase(pset) {
     // Cleaning thresholds
-    maxCompatibility_ = pset.getParameter<double>("maxCompatibility");
-    minCleanCosTheta_ = pset.getParameter<double>("minCleanCosTheta");
-    useDiagonalCut_   = pset.getParameter<bool>("useDiagonalCut");
-    cleanCutSlope_    = pset.getParameter<double>("cleanCutSlope");
+    maxCompatibility_       = pset.getParameter<double>("maxCompatibility");
+    minCleanCosTheta_       = pset.getParameter<double>("minCleanCosTheta");
+    maxCleanCosTheta_       = pset.getParameter<double>("maxCleanCosTheta");
+    invertCleanCosThetaCut_ = pset.getParameter<bool>("invertCleanCosThetaCut");
+    useDiagonalCut_         = pset.getParameter<bool>("useDiagonalCut");
+    cleanCutSlope_          = pset.getParameter<double>("cleanCutSlope");
 
     // Final filtering cuts (post-disambiguation, 2-track only)
     minTrackCosTheta_             = pset.getParameter<double>("minTrackCosTheta");
@@ -67,9 +69,17 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
 	double compatibility = vertex.compatibility(trackRef);
 	double cosTheta      = vertex.trackCosTheta(*primaryVertex_, trackRef);
 
+	bool failsCosTheta;
+	if (useDiagonalCut_) {
+	  failsCosTheta = cosTheta < cleanCutSlope_ * compatibility + minCleanCosTheta_
+	               || cosTheta > maxCleanCosTheta_;
+	} else {
+	  failsCosTheta = cosTheta < minCleanCosTheta_ || cosTheta > maxCleanCosTheta_;
+	}
+	if (invertCleanCosThetaCut_) failsCosTheta = !failsCosTheta;
 	const bool isBadTrack = useDiagonalCut_
-	  ? cosTheta < cleanCutSlope_ * compatibility + minCleanCosTheta_
-	  : compatibility > maxCompatibility_ || cosTheta < minCleanCosTheta_;
+	  ? failsCosTheta
+	  : (compatibility > maxCompatibility_ || failsCosTheta);
 	if (isBadTrack) {
 	  tracksToRemove.push_back(trackRef);
 	}
@@ -308,6 +318,8 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
   // Cleaning thresholds
   double maxCompatibility_;
   double minCleanCosTheta_;
+  double maxCleanCosTheta_;
+  bool   invertCleanCosThetaCut_;
   bool   useDiagonalCut_;
   double cleanCutSlope_;
 

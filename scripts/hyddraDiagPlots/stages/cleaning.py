@@ -16,8 +16,8 @@ from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid, draw_colz
 from ..src.plotter import plot_reco_observable
 
 
-def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
-                     use_diagonal_cut, clean_cut_slope):
+def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta, max_cos_theta,
+                     use_diagonal_cut, clean_cut_slope, invert_cos_theta_cut=False):
     """
     2D (compatibility, cosTheta) for tracks in post-merge multi-track vertices.
     Three canvases: signal tracks, contaminating tracks, background-only tracks.
@@ -83,6 +83,10 @@ def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
                 ln = ROOT.TLine(pts[0][0], pts[0][1], pts[-1][0], pts[-1][1])
                 ln.SetLineColor(ROOT.kRed); ln.SetLineWidth(2); ln.SetLineStyle(2)
                 ln.Draw(); lines.append(ln)
+            if max_cos_theta < y1:
+                ln_max = ROOT.TLine(x0, max_cos_theta, x1, max_cos_theta)
+                ln_max.SetLineColor(ROOT.kRed); ln_max.SetLineWidth(2); ln_max.SetLineStyle(2)
+                ln_max.Draw(); lines.append(ln_max)
         else:
             ln1 = ROOT.TLine(max_compat, y_bins[0], max_compat, y_bins[-1])
             ln1.SetLineColor(ROOT.kRed); ln1.SetLineWidth(2); ln1.SetLineStyle(2)
@@ -90,6 +94,10 @@ def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta,
             ln2 = ROOT.TLine(x_bins[0], min_cos_theta, x_bins[-1], min_cos_theta)
             ln2.SetLineColor(ROOT.kRed); ln2.SetLineWidth(2); ln2.SetLineStyle(2)
             ln2.Draw(); lines.append(ln2)
+            if max_cos_theta < y_bins[-1]:
+                ln3 = ROOT.TLine(x_bins[0], max_cos_theta, x_bins[-1], max_cos_theta)
+                ln3.SetLineColor(ROOT.kRed); ln3.SetLineWidth(2); ln3.SetLineStyle(2)
+                ln3.Draw(); lines.append(ln3)
         return lines
 
     for h, suffix, title in [
@@ -233,17 +241,20 @@ def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 def make_plots(tdir, gf, sv_sig, sv_bkg, ct, cfg=None):
-    max_compat       = cfg["maxCompatibility"]     if cfg else 1.5
-    min_cos_theta    = cfg["minCleanCosTheta"]     if cfg else 0.5
-    use_diagonal_cut = bool(cfg["useDiagonalCut"]) if cfg else False
-    clean_cut_slope  = cfg["cleanCutSlope"]        if cfg else 0.0
+    max_compat            = cfg["maxCompatibility"]         if cfg else 1.5
+    min_cos_theta         = cfg["minCleanCosTheta"]         if cfg else 0.5
+    max_cos_theta         = cfg["maxCleanCosTheta"]         if cfg else 1.0
+    invert_cos_theta_cut  = bool(cfg["invertCleanCosThetaCut"]) if cfg else False
+    use_diagonal_cut      = bool(cfg["useDiagonalCut"])     if cfg else False
+    clean_cut_slope       = cfg["cleanCutSlope"]            if cfg else 0.0
 
     print("  [cleaning] Reco observables...")
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "cleaned", obs_key, obs_cfg, sv_bkg)
         print(f"    [reco_cleaned_{obs_key}] done")
     print("  [cleaning] 2D cleaning variables...")
-    plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta, use_diagonal_cut, clean_cut_slope)
+    plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta, max_cos_theta,
+                     use_diagonal_cut, clean_cut_slope, invert_cos_theta_cut)
     print("  [cleaning] 1D cleaning track distributions...")
     plot_cleaning_track_distributions(tdir, ct)
     print("  [cleaning] Compatibility vs cosTheta working points...")

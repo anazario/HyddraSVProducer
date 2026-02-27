@@ -121,6 +121,8 @@ void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescription
   leptonicDesc.add<double>("minDxySignificance",           25.0);
   leptonicDesc.add<double>("maxCompatibility",             1.5);
   leptonicDesc.add<double>("minCleanCosTheta",             0.5);
+  leptonicDesc.add<double>("maxCleanCosTheta",             1.0);
+  leptonicDesc.add<bool>  ("invertCleanCosThetaCut",       false);
   leptonicDesc.add<bool>  ("useDiagonalCut",               false);
   leptonicDesc.add<double>("cleanCutSlope",                0.0);
   leptonicDesc.add<double>("minTrackCosTheta",             0.5);
