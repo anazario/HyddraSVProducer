@@ -205,6 +205,7 @@ private:
   // ═══════════════════════════════════════════════════════════════════════════
   std::vector<float> cleanTrack_compatibility_;
   std::vector<float> cleanTrack_cosTheta_;
+  std::vector<float> cleanTrack_pOverE_;
   std::vector<bool>  cleanTrack_isSignal_;
   std::vector<bool>  cleanTrack_isRemoved_;
   std::vector<bool>  cleanTrack_vtxIsGold_;
@@ -460,6 +461,7 @@ void HyddraSVsDiagnosticAnalyzer::beginJob() {
 
   cleaningTracksTree_->Branch("CleanTrack_compatibility", &cleanTrack_compatibility_);
   cleaningTracksTree_->Branch("CleanTrack_cosTheta",      &cleanTrack_cosTheta_);
+  cleaningTracksTree_->Branch("CleanTrack_pOverE",        &cleanTrack_pOverE_);
   cleaningTracksTree_->Branch("CleanTrack_isSignal",      &cleanTrack_isSignal_);
   cleaningTracksTree_->Branch("CleanTrack_isRemoved",     &cleanTrack_isRemoved_);
   cleaningTracksTree_->Branch("CleanTrack_vtxIsGold",     &cleanTrack_vtxIsGold_);
@@ -572,7 +574,7 @@ void HyddraSVsDiagnosticAnalyzer::clearBranches() {
   stage_nBronze_seed_ = stage_nBronze_merged_ = stage_nBronze_cleaned_ =
   stage_nBronze_disambig_ = stage_nBronze_filtered_ = 0;
 
-  cleanTrack_compatibility_.clear();cleanTrack_cosTheta_.clear();
+  cleanTrack_compatibility_.clear();cleanTrack_cosTheta_.clear();cleanTrack_pOverE_.clear();
   cleanTrack_isSignal_.clear();     cleanTrack_isRemoved_.clear();
   cleanTrack_vtxIsGold_.clear();    cleanTrack_vtxIsSilver_.clear();
   cleanTrack_vtxNTracks_.clear();
@@ -897,6 +899,11 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
 
       const KalmanVertexTrackCompatibilityEstimator<5> estimator;
 
+      auto   vtxP4    = VertexHelper::GetVertex4Vector(vtx);
+      double vtxP     = vtxP4.P(), vtxM = vtxP4.M();
+      double vtxE     = std::sqrt(vtxP*vtxP + vtxM*vtxM);
+      float  vtxPOverE = (vtxE > 1e-6) ? float(vtxP / vtxE) : -1.f;
+
       for (size_t ti = 0; ti < trackRefs.size(); ++ti) {
         const reco::TrackRef& tref = trackRefs[ti];
         bool isSignal = (TrackHelper::FindTrackIndex(*tref, signalTracks_) >= 0);
@@ -912,6 +919,7 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
 
         cleanTrack_compatibility_.push_back(compat);
         cleanTrack_cosTheta_     .push_back(cosTheta);
+        cleanTrack_pOverE_       .push_back(vtxPOverE);
         cleanTrack_isSignal_     .push_back(isSignal);
         cleanTrack_isRemoved_    .push_back(isRemoved);
         cleanTrack_vtxIsGold_    .push_back(vtxIsGold);

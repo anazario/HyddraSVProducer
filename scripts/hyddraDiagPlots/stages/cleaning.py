@@ -134,6 +134,100 @@ def plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta, max_cos_theta,
         print(f"    [cleaning_2d_{suffix}] done")
 
 
+def plot_cleaning_2d_pOverE(tdir, ct, min_cos_theta, max_cos_theta,
+                            invert_cos_theta_cut=False):
+    """
+    2D (vertex p/E, track cosTheta) for tracks in post-merge multi-track vertices.
+    Three canvases: signal tracks, contaminating tracks, background-only tracks.
+    Mirrors plot_cleaning_2d but replaces compatibility on the x-axis with
+    the parent vertex p/E.
+    """
+    if ct is None or len(ak.flatten(ct["CleanTrack_pOverE"])) == 0:
+        print("    [cleaning_2d_pOverE] No cleaning track data — skipping")
+        return
+
+    poe        = ak.to_numpy(ak.flatten(ct["CleanTrack_pOverE"])).astype(float)
+    cos_th     = ak.to_numpy(ak.flatten(ct["CleanTrack_cosTheta"])).astype(float)
+    is_signal  = ak.to_numpy(ak.flatten(ct["CleanTrack_isSignal"])).astype(bool)
+    vtx_gold   = ak.to_numpy(ak.flatten(ct["CleanTrack_vtxIsGold"])).astype(bool)
+    vtx_silver = ak.to_numpy(ak.flatten(ct["CleanTrack_vtxIsSilver"])).astype(bool)
+
+    sig_vtx              = vtx_gold | vtx_silver
+    sig_track_in_sig_vtx = is_signal & sig_vtx
+    bkg_track_in_sig_vtx = ~is_signal & sig_vtx
+    bkg_vtx_tracks       = ~sig_vtx
+
+    x_bins = np.linspace(0, 1, 51)
+    y_bins = np.linspace(-1, 1, 101)
+
+    def fill_h2(name, title, mask):
+        ROOT.gStyle.SetPalette(ROOT.kViridis)
+        h = ROOT.TH2F(name, title, len(x_bins)-1, x_bins, len(y_bins)-1, y_bins)
+        h.SetDirectory(0)
+        for p, ct_v in zip(poe[mask], cos_th[mask]):
+            h.Fill(p, ct_v)
+        h.GetXaxis().SetTitle("Vertex p/E")
+        h.GetYaxis().SetTitle("Track cos#theta")
+        h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
+        h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
+        h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
+        h.GetXaxis().SetTitleOffset(1.3); h.GetYaxis().SetTitleOffset(1.3)
+        h.SetStats(0)
+        return h
+
+    h_sig  = fill_h2("h2_poe_sig_track",  "Signal tracks in signal vtx",
+                     sig_track_in_sig_vtx)
+    h_cont = fill_h2("h2_poe_cont_track", "Bkg tracks in signal vtx",
+                     bkg_track_in_sig_vtx)
+    h_bkg  = fill_h2("h2_poe_bkg_track",  "All tracks in bkg vtx",
+                     bkg_vtx_tracks)
+
+    def draw_cut_lines():
+        lines = []
+        y0, y1 = y_bins[0], y_bins[-1]
+        ln_min = ROOT.TLine(x_bins[0], min_cos_theta, x_bins[-1], min_cos_theta)
+        ln_min.SetLineColor(ROOT.kRed); ln_min.SetLineWidth(2); ln_min.SetLineStyle(2)
+        ln_min.Draw(); lines.append(ln_min)
+        if max_cos_theta < y1:
+            ln_max = ROOT.TLine(x_bins[0], max_cos_theta, x_bins[-1], max_cos_theta)
+            ln_max.SetLineColor(ROOT.kRed); ln_max.SetLineWidth(2); ln_max.SetLineStyle(2)
+            ln_max.Draw(); lines.append(ln_max)
+        return lines
+
+    for h, suffix, title in [
+        (h_sig,  "signal_tracks",        "Signal tracks in signal vertices"),
+        (h_cont, "contaminating_tracks", "Background tracks in signal vertices"),
+        (h_bkg,  "bkg_tracks",           "All tracks in background vertices"),
+    ]:
+        c = ROOT.TCanvas(f"cleaning_2d_pOverE_{suffix}", title, 800, 600)
+        c.SetLeftMargin(0.16)
+        c.SetRightMargin(0.18)
+        c.SetBottomMargin(0.12)
+        c.SetTopMargin(0.10)
+        h.Draw("COLZ")
+        c.Update()
+        c._grid_lines = draw_colz_grid(h)
+        lines = draw_cut_lines()
+
+        leg = ROOT.TLegend(0.18, 0.75, 0.55, 0.88)
+        leg.SetFillStyle(0); leg.SetBorderSize(0)
+        l1 = ROOT.TLine()
+        l1.SetLineColor(ROOT.kRed); l1.SetLineStyle(2); l1.SetLineWidth(2)
+        leg.AddEntry(l1, "cos#theta cuts", "l")
+        leg.Draw()
+        draw_cms_label()
+        c.Update()
+
+        pal = h.GetListOfFunctions().FindObject("palette")
+        if pal:
+            h.GetListOfFunctions().Remove(pal)
+
+        c._h = h; c._lines = lines; c._leg = leg
+        tdir.cd()
+        c.Write()
+        print(f"    [cleaning_2d_pOverE_{suffix}] done")
+
+
 def plot_cleaning_track_distributions(tdir, ct, cos_theta_min=None):
     """
     1D normalised distributions of compatibility and cosTheta for:
@@ -255,6 +349,9 @@ def make_plots(tdir, gf, sv_sig, sv_bkg, ct, cfg=None):
     print("  [cleaning] 2D cleaning variables...")
     plot_cleaning_2d(tdir, ct, max_compat, min_cos_theta, max_cos_theta,
                      use_diagonal_cut, clean_cut_slope, invert_cos_theta_cut)
+    print("  [cleaning] 2D cosTheta vs p/E...")
+    plot_cleaning_2d_pOverE(tdir, ct, min_cos_theta, max_cos_theta,
+                            invert_cos_theta_cut)
     print("  [cleaning] 1D cleaning track distributions...")
     plot_cleaning_track_distributions(tdir, ct)
     print("  [cleaning] Compatibility vs cosTheta working points...")
