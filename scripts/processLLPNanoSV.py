@@ -645,8 +645,9 @@ def _run_collection(input_files, collection, args, out_file):
     print(f'  [{collection}] -> {os.path.basename(out_file)}')
     t0 = time.time()
 
+    relpt_cut = args.rel_pt_diff if args.rel_pt_diff is not None else float('inf')
     worker_args = [(fn, collection, args.mother_pdg_id,
-                    args.delta_r, args.rel_pt_diff, args.max_chi2,
+                    args.delta_r, relpt_cut, args.max_chi2,
                     args.min_cos_theta, args.min_p_over_e, args.min_mass,
                     args.max_decay_angle, args.pass_selection_dr)
                    for fn in input_files]
@@ -738,8 +739,8 @@ def main():
                         help='Signal mother PDG ID (default: 54)')
     parser.add_argument('--delta-r', type=float, default=0.3,
                         help='Gen-match deltaR cut for gold matching (default: 0.3)')
-    parser.add_argument('--rel-pt-diff', type=float, default=0.5,
-                        help='Gen-match relative pT diff cut for gold matching (default: 0.5)')
+    parser.add_argument('--rel-pt-diff', type=float, default=None,
+                        help='Gen-match relative pT diff cut for gold matching (default: no cut)')
     parser.add_argument('--max-chi2', type=float, default=5.0,
                         help='Max normalized chi2 for vertex fit (default: 5.0)')
     parser.add_argument('--min-cos-theta', type=float, default=0.75,
