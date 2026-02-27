@@ -142,8 +142,9 @@ def plot_cleaning_2d_pOverE(tdir, ct, min_cos_theta, max_cos_theta,
     Mirrors plot_cleaning_2d but replaces compatibility on the x-axis with
     the parent vertex p/E.
     """
-    if ct is None or len(ak.flatten(ct["CleanTrack_pOverE"])) == 0:
-        print("    [cleaning_2d_pOverE] No cleaning track data — skipping")
+    if ct is None or "CleanTrack_pOverE" not in ct.fields \
+            or len(ak.flatten(ct["CleanTrack_pOverE"])) == 0:
+        print("    [cleaning_2d_pOverE] No CleanTrack_pOverE branch — skipping (regenerate with updated analyzer)")
         return
 
     poe        = ak.to_numpy(ak.flatten(ct["CleanTrack_pOverE"])).astype(float)
