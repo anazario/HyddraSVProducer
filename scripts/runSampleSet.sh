@@ -23,7 +23,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FILES_DIR="$PROJECT_ROOT/files"
 TEST_DIR="$PROJECT_ROOT/test"
 PARALLEL_SCRIPT="$SCRIPT_DIR/parallelRun.sh"
-TEMP_OUTPUT="$PROJECT_ROOT/parallel_output"
+TEMP_OUTPUT=""  # set interactively below
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -380,6 +380,14 @@ echo ""
 read -rp "$(echo -e "${CYAN}Extra flags [none]: ${NC}")" CUSTOM_EXTRA
 [[ -n "$CUSTOM_EXTRA" ]] && EXTRA_ARGS="$EXTRA_ARGS $CUSTOM_EXTRA"
 
+# ── Step 9: Temporary working directory ──────────────────────────────────────
+echo ""
+echo -e "${BOLD}Step 9: Temporary working directory name${NC}"
+echo "  (created under the project root; deleted between samples)"
+echo ""
+read -rp "$(echo -e "${CYAN}Temp dir name [parallel_output]: ${NC}")" TEMP_DIR_INPUT
+TEMP_OUTPUT="$PROJECT_ROOT/${TEMP_DIR_INPUT:-parallel_output}"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}================================================${NC}"
@@ -395,6 +403,7 @@ printf "  %-22s %s\n" "Analyzer name:"     "$ANALYZER_NAME"
 printf "  %-22s %s\n" "Track collection:"  "$TRACK_COLLECTION"
 printf "  %-22s %s\n" "Output dir:"        "$OUTPUT_DIR"
 printf "  %-22s %s\n" "Optional flag:"     "${OPTIONAL_FLAG:-<none>}"
+printf "  %-22s %s\n" "Temp work dir:"     "$TEMP_OUTPUT"
 printf "  %-22s %s\n" "Parallel jobs:"     "8"
 printf "  %-22s %s\n" "Extra args:"        "${EXTRA_ARGS:-<none>}"
 echo ""
