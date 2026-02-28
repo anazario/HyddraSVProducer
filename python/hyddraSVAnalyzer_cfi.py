@@ -76,6 +76,7 @@ def configureTrackCollection(process, trackCollection):
 hyddraSVAnalyzer = cms.EDAnalyzer("HyddraSVAnalyzer",
     hasGenInfo = cms.bool(True),
     isFullAOD = cms.bool(True),
+    genMatchDeltaRCut = cms.double(0.02),
     leptonicVertices = cms.InputTag("hyddraSVs", "leptonicVertices"),
     hadronicVertices = cms.InputTag("hyddraSVs", "hadronicVertices"),
     pvCollection = cms.InputTag("offlinePrimaryVertices"),

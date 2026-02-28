@@ -10,6 +10,7 @@ hyddraSVsDiagAnalyzer = cms.EDAnalyzer("HyddraSVsDiagnosticAnalyzer",
 
     hasGenInfo = cms.bool(True),
     isFullAOD  = cms.bool(True),
+    genMatchDeltaRCut = cms.double(0.02),
 
     # Intermediate stage collections from HyddraSVsDiagnosticProducer
     seedVertices         = cms.InputTag("hyddraSVsDiag", "leptonicSeeds"),

@@ -90,6 +90,7 @@ private:
   // Configuration
   bool hasGenInfo_;
   bool isFullAOD_;
+  double genMatchDeltaRCut_;
 
   // Tokens
   edm::EDGetTokenT<reco::VertexCollection> leptonicVerticesToken_;
@@ -228,6 +229,7 @@ private:
 HyddraSVAnalyzer::HyddraSVAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
   isFullAOD_(iConfig.getParameter<bool>("isFullAOD")),
+  genMatchDeltaRCut_(iConfig.getParameter<double>("genMatchDeltaRCut")),
   leptonicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("leptonicVertices"))),
   hadronicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("hadronicVertices"))),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
@@ -529,7 +531,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       genMatch_genMotherPdgId_.push_back(motherPdgId);
     }
 
-    genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), 0.02);
+    genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), genMatchDeltaRCut_);
     allSignalSVs += genVertices_;
     genVertices_ = allSignalSVs;
 
@@ -876,6 +878,7 @@ void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descript
 
   desc.add<bool>("hasGenInfo", true);
   desc.add<bool>("isFullAOD", true);
+  desc.add<double>("genMatchDeltaRCut", 0.02);
   desc.add<edm::InputTag>("leptonicVertices", edm::InputTag("hyddraSVs", "leptonicVertices"));
   desc.add<edm::InputTag>("hadronicVertices", edm::InputTag("hyddraSVs", "hadronicVertices"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));

@@ -104,6 +104,7 @@ private:
   // ── Configuration ──────────────────────────────────────────────────────────
   bool hasGenInfo_;
   bool isFullAOD_;
+  double genMatchDeltaRCut_;
 
   // ── Tokens ─────────────────────────────────────────────────────────────────
   std::array<edm::EDGetTokenT<reco::VertexCollection>, kNStages> stageTokens_;
@@ -268,6 +269,7 @@ private:
 HyddraSVsDiagnosticAnalyzer::HyddraSVsDiagnosticAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
   isFullAOD_( iConfig.getParameter<bool>("isFullAOD")),
+  genMatchDeltaRCut_(iConfig.getParameter<double>("genMatchDeltaRCut")),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
   tracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("tracks"))),
   ttBuilderToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder")))
@@ -720,7 +722,7 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
     DeltaRGenMatchHungarian<reco::TransientTrack> assigner(
         ttracks, allSignalSVs.getAllGenParticles());
 
-    genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), 0.02);
+    genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), genMatchDeltaRCut_);
     allSignalSVs += genVertices_;
     genVertices_ = allSignalSVs;
 
@@ -1044,6 +1046,7 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   edm::ParameterSetDescription desc;
   desc.add<bool>("hasGenInfo", true);
   desc.add<bool>("isFullAOD",  true);
+  desc.add<double>("genMatchDeltaRCut", 0.02);
   desc.add<edm::InputTag>("seedVertices",          edm::InputTag("hyddraSVsDiag", "leptonicSeeds"));
   desc.add<edm::InputTag>("mergedVertices",         edm::InputTag("hyddraSVsDiag", "leptonicMerged"));
   desc.add<edm::InputTag>("cleanedVertices",        edm::InputTag("hyddraSVsDiag", "leptonicCleaned"));
