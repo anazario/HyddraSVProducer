@@ -17,6 +17,12 @@ options.register('trackCollection',
                  "promptMuonExtracted, displacedMuonExtracted, "
                  "promptMuonPriority, displacedMuonPriority, "
                  "general, generalFiltered, selected, sip2D, sip2DMuonEnhanced, muonEnhanced")
+options.register('processMode',
+                 'leptonic',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "Processing mode: leptonic or hadronic (diagnostic is leptonic-only; "
+                 "this argument is accepted for script compatibility)")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
