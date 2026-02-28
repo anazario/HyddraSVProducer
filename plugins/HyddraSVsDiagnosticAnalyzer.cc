@@ -1086,6 +1086,7 @@ void HyddraSVsDiagnosticAnalyzer::fillDescriptions(
   lepDesc.add<bool>  ("doCleaning",                   true);
   lepDesc.add<bool>  ("doDisambiguation",             true);
   lepDesc.add<bool>  ("doFiltering",                  true);
+  lepDesc.add<bool>  ("useVertexSmoothing",           false);
   desc.addOptional<edm::ParameterSetDescription>("leptonic", lepDesc);
 
   descriptions.addDefault(desc);
