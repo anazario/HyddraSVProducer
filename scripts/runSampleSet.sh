@@ -477,10 +477,12 @@ for i in "${!SELECTED_FILES[@]}"; do
     PARALLEL_EXIT=$?
     set -e
 
+    SAMPLE_FAILED=false
     if [[ $PARALLEL_EXIT -ne 0 ]]; then
         echo -e "${RED}  parallelRun.sh exited with status $PARALLEL_EXIT for $SAMPLE${NC}"
         N_FAILED=$((N_FAILED+1))
         FAILED_SAMPLES+=("$SAMPLE")
+        SAMPLE_FAILED=true
     elif [[ -f "$TEMP_OUTPUT/$OUTPUT_NAME" ]]; then
         mv "$TEMP_OUTPUT/$OUTPUT_NAME" "$OUTPUT_DIR/$OUTPUT_NAME"
         echo -e "${GREEN}  Saved: $OUTPUT_DIR/$OUTPUT_NAME${NC}"
@@ -489,12 +491,18 @@ for i in "${!SELECTED_FILES[@]}"; do
         echo -e "${RED}  WARNING: parallelRun.sh succeeded but merged output not found: $TEMP_OUTPUT/$OUTPUT_NAME${NC}"
         N_FAILED=$((N_FAILED+1))
         FAILED_SAMPLES+=("$SAMPLE")
+        SAMPLE_FAILED=true
     fi
 
-    # Always discard the temp directory between samples
+    # On failure, preserve the temp directory so logs can be inspected;
+    # on success, clean it up to avoid mixing files across samples.
     if [[ -d "$TEMP_OUTPUT" ]]; then
-        echo "  Removing $TEMP_OUTPUT..."
-        rm -rf "$TEMP_OUTPUT"
+        if $SAMPLE_FAILED; then
+            echo -e "${YELLOW}  Preserving $TEMP_OUTPUT for log inspection.${NC}"
+        else
+            echo "  Removing $TEMP_OUTPUT..."
+            rm -rf "$TEMP_OUTPUT"
+        fi
     fi
 done
 
