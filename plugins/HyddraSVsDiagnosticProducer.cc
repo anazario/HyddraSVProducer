@@ -143,6 +143,7 @@ void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescription
   leptonicDesc.add<bool>  ("doCleaning",                   true);
   leptonicDesc.add<bool>  ("doDisambiguation",             true);
   leptonicDesc.add<bool>  ("doFiltering",                  true);
+  leptonicDesc.add<bool>  ("useVertexSmoothing",           false);
   desc.add<edm::ParameterSetDescription>("leptonic", leptonicDesc);
 
   descriptions.addDefault(desc);
