@@ -35,6 +35,9 @@ TRACK_COLLECTION_CONFIG = {
     # Priority-based fallback from muons (default: global->inner->outer)
     'promptMuonPriority': cms.InputTag("muonPriorityTrackProducer", "globalTracks"),
     'displacedMuonPriority': cms.InputTag("muonPriorityTrackProducer", "displacedGlobalTracks"),
+    # LLPNanoAOD-style selection: isGlobalMuon->combinedMuon, isStandAlone->standAloneMuon, else tunePBestTrack
+    'promptMuonLLPNano': cms.InputTag("muonLLPNanoTrackProducer", "globalTracks"),
+    'displacedMuonLLPNano': cms.InputTag("muonLLPNanoTrackProducer", "displacedGlobalTracks"),
     'sip2D': cms.InputTag("muonEnhancedTracks", "sip2DTracks"),
     'sip2DMuonEnhanced': cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     'muonEnhanced': cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
