@@ -69,6 +69,7 @@ private:
   // Track selection configuration
   std::string mode_;
   std::vector<std::string> trackPriority_;
+  double minMuonPt_;
 
   // Valid track type names
   static const std::set<std::string> validTrackTypes_;
@@ -83,7 +84,8 @@ MuonGlobalTrackProducer::MuonGlobalTrackProducer(const edm::ParameterSet& iConfi
       displacedMuonsToken_(consumes<reco::MuonCollection>(
           iConfig.getParameter<edm::InputTag>("displacedMuons"))),
       mode_(iConfig.getParameter<std::string>("mode")),
-      trackPriority_(iConfig.getParameter<std::vector<std::string>>("trackPriority")) {
+      trackPriority_(iConfig.getParameter<std::vector<std::string>>("trackPriority")),
+      minMuonPt_(iConfig.getParameter<double>("minMuonPt")) {
 
   // Validate mode
   if (mode_ != "globalTrack" && mode_ != "bestTrack" &&
@@ -155,6 +157,7 @@ void MuonGlobalTrackProducer::extractTracks(
     reco::TrackCollection& outputTracks) const {
   std::set<reco::TrackRef> seenRefs;
   for (const auto& muon : muons) {
+    if (minMuonPt_ > 0.0 && muon.pt() < minMuonPt_) continue;
     reco::TrackRef trackRef = selectTrack(muon);
     if (trackRef.isNonnull() && seenRefs.insert(trackRef).second) {
       outputTracks.push_back(*trackRef);
@@ -205,6 +208,8 @@ void MuonGlobalTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& d
   // Input collections (AOD defaults)
   desc.add<edm::InputTag>("muons", edm::InputTag("muons"));
   desc.add<edm::InputTag>("displacedMuons", edm::InputTag("displacedMuons"));
+
+  desc.add<double>("minMuonPt", 0.0);
 
   // Track selection mode: "globalTrack", "bestTrack", "priority", or "llpNano"
   desc.add<std::string>("mode", "priority");

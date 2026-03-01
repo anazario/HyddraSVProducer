@@ -175,8 +175,10 @@ MUON_TRACK_COLLECTIONS = {
                                ['globalTrack', 'innerTrack', 'outerTrack']),
     'displacedMuonPriority':  ('muonPriorityTrackProducer', 'priority',
                                ['globalTrack', 'innerTrack', 'outerTrack']),
-    'promptMuonLLPNano':      ('muonLLPNanoTrackProducer',  'llpNano', []),
-    'displacedMuonLLPNano':   ('muonLLPNanoTrackProducer',  'llpNano', []),
+    'promptMuonLLPNano':      ('muonLLPNanoTrackProducer',  'llpNano', [],
+                               {'minMuonPt': cms.double(3.0)}),
+    'displacedMuonLLPNano':   ('muonLLPNanoTrackProducer',  'llpNano', [],
+                               {'minMuonPt': cms.double(3.0)}),
 }
 
 # ============================================================================
@@ -184,12 +186,15 @@ MUON_TRACK_COLLECTIONS = {
 # ============================================================================
 # Build the path based on track collection
 if options.trackCollection in MUON_TRACK_COLLECTIONS:
-    moduleName, mode, priority = MUON_TRACK_COLLECTIONS[options.trackCollection]
+    entry = MUON_TRACK_COLLECTIONS[options.trackCollection]
+    moduleName, mode, priority = entry[0], entry[1], entry[2]
+    extraKwargs = entry[3] if len(entry) > 3 else {}
     # Create/clone the producer module with the right mode if it doesn't exist yet
     if not hasattr(process, moduleName):
         cloneArgs = dict(mode = cms.string(mode))
         if priority:
             cloneArgs['trackPriority'] = cms.vstring(*priority)
+        cloneArgs.update(extraKwargs)
         setattr(process, moduleName,
                 process.muonGlobalTrackProducer.clone(**cloneArgs))
     else:
@@ -198,6 +203,8 @@ if options.trackCollection in MUON_TRACK_COLLECTIONS:
         getattr(process, moduleName).mode = cms.string(mode)
         if priority:
             getattr(process, moduleName).trackPriority = cms.vstring(*priority)
+        for k, v in extraKwargs.items():
+            setattr(getattr(process, moduleName), k, v)
     process.p = cms.Path(
         getattr(process, moduleName) +
         process.ecalTracks +
