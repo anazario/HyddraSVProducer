@@ -83,6 +83,8 @@ TRACK_COLLECTIONS_AOD=(
     "displacedMuonExtracted"
     "promptMuonPriority"
     "displacedMuonPriority"
+    "promptMuonLLPNano"
+    "displacedMuonLLPNano"
     "muonEnhanced"
     "sip2D"
     "general"
@@ -380,9 +382,35 @@ echo ""
 read -rp "$(echo -e "${CYAN}Extra flags [none]: ${NC}")" CUSTOM_EXTRA
 [[ -n "$CUSTOM_EXTRA" ]] && EXTRA_ARGS="$EXTRA_ARGS $CUSTOM_EXTRA"
 
-# ── Step 9: Temporary working directory ──────────────────────────────────────
+# ── Step 9: HYDDRA leptonic preset ───────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Step 9: Temporary working directory name${NC}"
+echo -e "${BOLD}Step 9: HYDDRA leptonic algorithm preset${NC}"
+echo ""
+echo "  1) default   (use config as-is)"
+echo "  2) NonIso    (merging OFF, cleaning OFF, smoothing ON, filter: charge neutrality only)"
+echo "  3) TightIso  (merging ON,  cleaning OFF, smoothing ON, filter: charge neutrality only)"
+echo ""
+
+HYDDRA_PRESET_CHOICE=""
+while [[ -z "$HYDDRA_PRESET_CHOICE" ]]; do
+    read -rp "$(echo -e "${CYAN}Preset [1/2/3, default 1]: ${NC}")" HYDDRA_PRESET_CHOICE
+    HYDDRA_PRESET_CHOICE="${HYDDRA_PRESET_CHOICE:-1}"
+    case "$HYDDRA_PRESET_CHOICE" in
+        1) HYDDRA_PRESET="default" ;;
+        2) HYDDRA_PRESET="NonIso"
+           EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset NonIso" ;;
+        3) HYDDRA_PRESET="TightIso"
+           EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset TightIso" ;;
+        *)
+            echo -e "${RED}  Please enter 1, 2, or 3.${NC}"
+            HYDDRA_PRESET_CHOICE=""
+            ;;
+    esac
+done
+
+# ── Step 10: Temporary working directory ─────────────────────────────────────
+echo ""
+echo -e "${BOLD}Step 10: Temporary working directory name${NC}"
 echo "  (created under the project root; deleted between samples)"
 echo ""
 read -rp "$(echo -e "${CYAN}Temp dir name [parallel_output]: ${NC}")" TEMP_DIR_INPUT
@@ -401,6 +429,7 @@ printf "  %-22s %s\n" "Config:"            "$CONFIG"
 printf "  %-22s %s\n" "Format:"            "$FORMAT_TYPE"
 printf "  %-22s %s\n" "Analyzer name:"     "$ANALYZER_NAME"
 printf "  %-22s %s\n" "Track collection:"  "$TRACK_COLLECTION"
+printf "  %-22s %s\n" "HYDDRA preset:"     "$HYDDRA_PRESET"
 printf "  %-22s %s\n" "Output dir:"        "$OUTPUT_DIR"
 printf "  %-22s %s\n" "Optional flag:"     "${OPTIONAL_FLAG:-<none>}"
 printf "  %-22s %s\n" "Temp work dir:"     "$TEMP_OUTPUT"

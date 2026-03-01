@@ -5,10 +5,14 @@
 //
 // Description: Extracts tracks from the AOD muon collection into a
 //              reco::TrackCollection for use with downstream vertex reconstruction.
-//              Supports three modes:
+//              Supports four modes:
 //                "globalTrack" - extract only globalTrack (original behavior)
 //                "bestTrack"   - use CMSSW's muonBestTrack()
 //                "priority"    - try track types in configurable priority order
+//                "llpNano"     - replicate LLPNanoAOD PatMuonVertex logic:
+//                                  isGlobalMuon()    → combinedMuon()
+//                                  isStandAloneMuon()→ standAloneMuon()
+//                                  else              → tunePMuonBestTrack()
 //
 // Original Author:  Andres Abreu
 //
@@ -71,7 +75,7 @@ private:
 };
 
 const std::set<std::string> MuonGlobalTrackProducer::validTrackTypes_ = {
-    "globalTrack", "innerTrack", "outerTrack", "bestTrack"};
+    "globalTrack", "innerTrack", "outerTrack", "bestTrack", "tunePBestTrack"};
 
 MuonGlobalTrackProducer::MuonGlobalTrackProducer(const edm::ParameterSet& iConfig)
     : muonsToken_(consumes<reco::MuonCollection>(
@@ -82,10 +86,11 @@ MuonGlobalTrackProducer::MuonGlobalTrackProducer(const edm::ParameterSet& iConfi
       trackPriority_(iConfig.getParameter<std::vector<std::string>>("trackPriority")) {
 
   // Validate mode
-  if (mode_ != "globalTrack" && mode_ != "bestTrack" && mode_ != "priority") {
+  if (mode_ != "globalTrack" && mode_ != "bestTrack" &&
+      mode_ != "priority"    && mode_ != "llpNano") {
     throw cms::Exception("InvalidConfiguration")
         << "Unknown mode: '" << mode_
-        << "'. Must be one of: globalTrack, bestTrack, priority";
+        << "'. Must be one of: globalTrack, bestTrack, priority, llpNano";
   }
 
   // Validate trackPriority entries
@@ -110,10 +115,11 @@ MuonGlobalTrackProducer::MuonGlobalTrackProducer(const edm::ParameterSet& iConfi
 
 reco::TrackRef MuonGlobalTrackProducer::getTrackRef(
     const reco::Muon& muon, const std::string& type) {
-  if (type == "globalTrack") return muon.globalTrack();
-  if (type == "innerTrack")  return muon.innerTrack();
-  if (type == "outerTrack")  return muon.outerTrack();
-  if (type == "bestTrack")   return muon.muonBestTrack();
+  if (type == "globalTrack")   return muon.globalTrack();
+  if (type == "innerTrack")    return muon.innerTrack();
+  if (type == "outerTrack")    return muon.outerTrack();
+  if (type == "bestTrack")     return muon.muonBestTrack();
+  if (type == "tunePBestTrack") return muon.tunePMuonBestTrack();
   return reco::TrackRef();
 }
 
@@ -124,6 +130,16 @@ reco::TrackRef MuonGlobalTrackProducer::selectTrack(const reco::Muon& muon) cons
 
   if (mode_ == "bestTrack") {
     return muon.muonBestTrack();
+  }
+
+  // Replicates LLPNanoAOD PatMuonVertex track selection exactly:
+  //   isGlobalMuon()     → combinedMuon()
+  //   isStandAloneMuon() → standAloneMuon()
+  //   else               → tunePMuonBestTrack()
+  if (mode_ == "llpNano") {
+    if (muon.isGlobalMuon())     return muon.combinedMuon();
+    if (muon.isStandAloneMuon()) return muon.standAloneMuon();
+    return muon.tunePMuonBestTrack();
   }
 
   // "priority" mode: try each type in order, take first non-null
@@ -190,7 +206,7 @@ void MuonGlobalTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& d
   desc.add<edm::InputTag>("muons", edm::InputTag("muons"));
   desc.add<edm::InputTag>("displacedMuons", edm::InputTag("displacedMuons"));
 
-  // Track selection mode: "globalTrack", "bestTrack", or "priority"
+  // Track selection mode: "globalTrack", "bestTrack", "priority", or "llpNano"
   desc.add<std::string>("mode", "priority");
 
   // Priority order for "priority" mode (ignored in other modes)

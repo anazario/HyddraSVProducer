@@ -14,6 +14,11 @@ options.register('processMode',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
                  "Processing mode: both (default), leptonic, or hadronic")
+options.register('hyddraPreset',
+                 'default',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "HYDDRA leptonic algorithm preset: default, NonIso, TightIso")
 options.register('trackCollection',
                  'sip2DMuonEnhanced',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -23,6 +28,7 @@ options.register('trackCollection',
                  "promptMuonExtracted, displacedMuonExtracted, "
                  "promptMuonBestTrack, displacedMuonBestTrack, "
                  "promptMuonPriority, displacedMuonPriority, "
+                 "promptMuonLLPNano, displacedMuonLLPNano, "
                  "sip2D, sip2DMuonEnhanced (default), muonEnhanced")
 options.register('inputFileList',
                  '',
@@ -122,6 +128,16 @@ process.load("KUCMSNtupleizer.KUCMSNtupleizer.ECALTracks_cfi")
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi")
 
+# Apply leptonic algorithm preset if requested
+if options.hyddraPreset != 'default':
+    from KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi import (
+        leptonicHYDDRA_NonIso, leptonicHYDDRA_TightIso)
+    _presets = {'NonIso': leptonicHYDDRA_NonIso, 'TightIso': leptonicHYDDRA_TightIso}
+    if options.hyddraPreset not in _presets:
+        raise ValueError(f"Unknown hyddraPreset '{options.hyddraPreset}'. "
+                         f"Valid options: default, NonIso, TightIso")
+    process.hyddraSVs.leptonic = _presets[options.hyddraPreset]
+
 # ============================================================================
 # HYDDRA SV Analyzer (uses sip2DMuonEnhancedTracks by default)
 # ============================================================================
@@ -159,6 +175,8 @@ MUON_TRACK_COLLECTIONS = {
                                ['globalTrack', 'innerTrack', 'outerTrack']),
     'displacedMuonPriority':  ('muonPriorityTrackProducer', 'priority',
                                ['globalTrack', 'innerTrack', 'outerTrack']),
+    'promptMuonLLPNano':      ('muonLLPNanoTrackProducer',  'llpNano', []),
+    'displacedMuonLLPNano':   ('muonLLPNanoTrackProducer',  'llpNano', []),
 }
 
 # ============================================================================

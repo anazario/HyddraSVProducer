@@ -44,6 +44,7 @@ print_usage() {
     echo "  -n, --output-name     Merged output filename (default: merged_ntuple.root)"
     echo "  --continue            Skip files that completed successfully in a previous run"
     echo "  --track-collection X  Track collection option to pass to config"
+    echo "  --hyddra-preset X     HYDDRA leptonic preset: default, NonIso, TightIso"
     echo "  --process-mode MODE   SV type: both (default), leptonic, or hadronic"
     echo "  --collection X        Vertex collection (e.g. PatMuonVertex, PatDSAMuonVertex)"
     echo "  --no-gen              Disable gen info (for data)"
@@ -110,6 +111,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --track-collection)
             EXTRA_ARGS="$EXTRA_ARGS trackCollection=$2"
+            shift 2
+            ;;
+        --hyddra-preset)
+            EXTRA_ARGS="$EXTRA_ARGS hyddraPreset=$2"
             shift 2
             ;;
         --collection)

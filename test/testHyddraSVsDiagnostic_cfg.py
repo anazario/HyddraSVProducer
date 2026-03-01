@@ -9,6 +9,11 @@ options.register('hasGenInfo',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.bool,
                  "Process gen-level information (set False for data)")
+options.register('hyddraPreset',
+                 'default',
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.string,
+                 "HYDDRA leptonic algorithm preset: default, NonIso, TightIso")
 options.register('trackCollection',
                  'promptMuonBestTrack',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -16,6 +21,7 @@ options.register('trackCollection',
                  "Track collection: promptMuonBestTrack (default), displacedMuonBestTrack, "
                  "promptMuonExtracted, displacedMuonExtracted, "
                  "promptMuonPriority, displacedMuonPriority, "
+                 "promptMuonLLPNano, displacedMuonLLPNano, "
                  "general, generalFiltered, selected, sip2D, sip2DMuonEnhanced, muonEnhanced")
 options.register('processMode',
                  'leptonic',
@@ -104,6 +110,16 @@ process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 # ============================================================================
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticProducer_cfi")
 
+# Apply leptonic algorithm preset if requested
+if options.hyddraPreset != 'default':
+    from KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi import (
+        leptonicHYDDRA_NonIso, leptonicHYDDRA_TightIso)
+    _presets = {'NonIso': leptonicHYDDRA_NonIso, 'TightIso': leptonicHYDDRA_TightIso}
+    if options.hyddraPreset not in _presets:
+        raise ValueError(f"Unknown hyddraPreset '{options.hyddraPreset}'. "
+                         f"Valid options: default, NonIso, TightIso")
+    process.hyddraSVsDiag.leptonic = _presets[options.hyddraPreset]
+
 # ============================================================================
 # Diagnostic analyzer — per-gen-vertex funnel TTrees
 # ============================================================================
@@ -130,6 +146,8 @@ MUON_TRACK_COLLECTIONS = {
                                ['globalTrack', 'innerTrack', 'outerTrack']),
     'displacedMuonPriority':  ('muonPriorityTrackProducer', 'priority',
                                ['globalTrack', 'innerTrack', 'outerTrack']),
+    'promptMuonLLPNano':      ('muonLLPNanoTrackProducer',  'llpNano', []),
+    'displacedMuonLLPNano':   ('muonLLPNanoTrackProducer',  'llpNano', []),
 }
 
 # ============================================================================

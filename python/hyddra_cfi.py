@@ -45,6 +45,24 @@ leptonicHYDDRA = cms.PSet(
     useVertexSmoothing = cms.bool(False),
 )
 
+# ── Leptonic presets ──────────────────────────────────────────────────────────
+# NonIso: merging OFF, cleaning OFF, smoothing ON, filter = charge neutrality only
+leptonicHYDDRA_NonIso = leptonicHYDDRA.clone(
+    minTrackCosTheta         = cms.double(-1.0),
+    maxTrackCosThetaCM_Limit = cms.double(1.0),
+    doMerging                = cms.bool(False),
+    doCleaning               = cms.bool(False),
+    useVertexSmoothing       = cms.bool(True),
+)
+
+# TightIso: merging ON, cleaning OFF, smoothing ON, filter = charge neutrality only
+leptonicHYDDRA_TightIso = leptonicHYDDRA.clone(
+    minTrackCosTheta         = cms.double(-1.0),
+    maxTrackCosThetaCM_Limit = cms.double(1.0),
+    doCleaning               = cms.bool(False),
+    useVertexSmoothing       = cms.bool(True),
+)
+
 hadronicHYDDRA = cms.PSet(
     # Seeding
     seedCosThetaCut = cms.double(0.0),
