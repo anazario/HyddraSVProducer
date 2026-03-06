@@ -670,6 +670,7 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
   const int nInputTracks = (int)muonEnhancedTracksHandle_->size();
   const int nLepSVs      = leptonicVerticesHandle_.isValid() ? (int)leptonicVerticesHandle_->size() : 0;
   const int nHadSVs      = hadronicVerticesHandle_.isValid() ? (int)hadronicVerticesHandle_->size() : 0;
+  if(nLepSVs + nHadSVs == 0) return;
 
   // Collect per-Z row data
   struct ZRow {
@@ -704,25 +705,30 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
     }
 
     // Count how many of this Z's matched tracks appear in any reco SV
+    // Use chargedMatches_ (same source as matchRatio) since gv.genMatches() is
+    // empty for gen-only vertices that haven't been track-matched.
     r.inSV = 0;
-    for(const auto& pair : gv.genMatches()) {
-      const reco::Track& trk = pair.GetObjectA();
-      bool found = false;
-      if(leptonicVerticesHandle_.isValid()) {
-        for(const auto& vtx : *leptonicVerticesHandle_) {
-          for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
-            if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
-          if(found) break;
+    auto cmIt = chargedMatches_.find(gv);
+    if(cmIt != chargedMatches_.end()) {
+      for(const auto& pair : cmIt->second) {
+        const reco::Track& trk = pair.GetObjectA();
+        bool found = false;
+        if(leptonicVerticesHandle_.isValid()) {
+          for(const auto& vtx : *leptonicVerticesHandle_) {
+            for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+              if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
+            if(found) break;
+          }
         }
-      }
-      if(!found && hadronicVerticesHandle_.isValid()) {
-        for(const auto& vtx : *hadronicVerticesHandle_) {
-          for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
-            if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
-          if(found) break;
+        if(!found && hadronicVerticesHandle_.isValid()) {
+          for(const auto& vtx : *hadronicVerticesHandle_) {
+            for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+              if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
+            if(found) break;
+          }
         }
+        if(found) r.inSV++;
       }
-      if(found) r.inSV++;
     }
 
     // Quality: leptonic -> GOLD/SILVER/BRONZE, hadronic -> best match ratio
