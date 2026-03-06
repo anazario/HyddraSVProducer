@@ -10,8 +10,10 @@
 // Original Author:  Andres Abreu
 //
 
+#include <iomanip>
 #include <memory>
 #include <limits>
+#include <sstream>
 
 // CMSSW framework
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -75,6 +77,9 @@ private:
   void clearBranches();
   void fillVertexBranches(const reco::Vertex& vertex, const reco::Vertex& pv, bool isLeptonic, int vtxIndex);
 
+  // Print a per-event summary table (only when leptonic/hadronic Zs are present)
+  void printEventSummaryTable() const;
+
   // Gen matching helpers
   bool IsBronze(const reco::Vertex& vertex) const;
   bool IsSilver(const reco::Vertex& vertex) const;
@@ -83,13 +88,11 @@ private:
   int FindNearestGenVertexIndex(const reco::Vertex& vertex, double& distance) const;
   double matchRatio(const reco::Vertex& vertex, const GenVertex& genVertex, bool requireHighPurity = false) const;
   bool getSCMatch(const reco::Track& track, reco::SuperCluster& sc, double& deltaR) const;
-  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
-      const GenVertex& genVertex,
-      const std::vector<pat::PackedGenParticle>& packedGenParticles) const;
 
   // Configuration
   bool hasGenInfo_;
   bool isFullAOD_;
+  bool verboseEventTable_;
   double genMatchDeltaRCut_;
 
   // Tokens
@@ -229,6 +232,7 @@ private:
 HyddraSVAnalyzer::HyddraSVAnalyzer(const edm::ParameterSet& iConfig) :
   hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo")),
   isFullAOD_(iConfig.getParameter<bool>("isFullAOD")),
+  verboseEventTable_(iConfig.getParameter<bool>("verboseEventTable")),
   genMatchDeltaRCut_(iConfig.getParameter<double>("genMatchDeltaRCut")),
   leptonicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("leptonicVertices"))),
   hadronicVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("hadronicVertices"))),
@@ -642,10 +646,175 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
     genVertex_nElectron_ = unsigned(nSigElectrons);
     genVertex_nMuon_ = unsigned(nSigMuons);
     genVertex_nHadronic_ = unsigned(nSigHadrons);
+
+    if(verboseEventTable_) printEventSummaryTable();
   }
 
   tree_->Fill();
 }
+
+void HyddraSVAnalyzer::printEventSummaryTable() const {
+
+  // Tally signal Z types (only print when there is at least one leptonic or hadronic Z)
+  int nElec(0), nMuon(0), nHad(0);
+  for(const auto& gv : genVertices_) {
+    if(gv.isGenElectron())  nElec++;
+    else if(gv.isGenMuon()) nMuon++;
+    else if(gv.isGenHadronic()) nHad++;
+  }
+  if(nElec + nMuon + nHad == 0) return;
+
+  const int nInputTracks = (int)muonEnhancedTracksHandle_->size();
+  const int nLepSVs      = leptonicVerticesHandle_.isValid() ? (int)leptonicVerticesHandle_->size() : 0;
+  const int nHadSVs      = hadronicVerticesHandle_.isValid() ? (int)hadronicVerticesHandle_->size() : 0;
+
+  // Collect per-Z row data
+  struct ZRow {
+    int         idx;
+    std::string type;
+    int         chargedDaus;
+    int         inSV;
+    std::string quality;
+  };
+
+  std::vector<ZRow> rows;
+  int gvIdx = 0;
+  for(const auto& gv : genVertices_) {
+    if(!gv.isGenElectron() && !gv.isGenMuon() && !gv.isGenHadronic()) { gvIdx++; continue; }
+
+    ZRow r;
+    r.idx = gvIdx++;
+
+    if(gv.isGenElectron())      r.type = "Electron";
+    else if(gv.isGenMuon())     r.type = "Muon";
+    else                         r.type = "Hadronic";
+
+    // Charged daughters (stable charged gen daughters)
+    reco::GenParticleCollection chargedDaus = isFullAOD_ ?
+        gv.getStableChargedDaughters(*genHandle_) :
+        getStableChargedDaughtersFromPacked(gv, *packedGenHandle_);
+    r.chargedDaus = (int)chargedDaus.size();
+
+    // Count how many of this Z's matched tracks appear in any reco SV
+    r.inSV = 0;
+    for(const auto& pair : gv.genMatches()) {
+      const reco::Track& trk = pair.GetObjectA();
+      bool found = false;
+      if(leptonicVerticesHandle_.isValid()) {
+        for(const auto& vtx : *leptonicVerticesHandle_) {
+          for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+            if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
+          if(found) break;
+        }
+      }
+      if(!found && hadronicVerticesHandle_.isValid()) {
+        for(const auto& vtx : *hadronicVerticesHandle_) {
+          for(auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+            if(TrackHelper::SameTrack(trk, **it)) { found = true; break; }
+          if(found) break;
+        }
+      }
+      if(found) r.inSV++;
+    }
+
+    // Quality: leptonic -> GOLD/SILVER/BRONZE, hadronic -> best match ratio
+    if(gv.isGenElectron() || gv.isGenMuon()) {
+      bool gold(false), silver(false), bronze(false);
+      if(leptonicVerticesHandle_.isValid()) {
+        for(const auto& vtx : *leptonicVerticesHandle_) {
+          if(gv.isGold(vtx))        { gold   = true; break; }
+          if(gv.isSilver(vtx))        silver = true;
+          if(gv.isBronze(vtx))        bronze = true;
+        }
+      }
+      if(gold)        r.quality = "GOLD";
+      else if(silver) r.quality = "SILVER";
+      else if(bronze) r.quality = "BRONZE";
+      else            r.quality = "---";
+    } else {
+      double bestRatio = -1.;
+      if(hadronicVerticesHandle_.isValid()) {
+        for(const auto& vtx : *hadronicVerticesHandle_) {
+          const double ratio = matchRatio(vtx, gv);
+          if(ratio > bestRatio) bestRatio = ratio;
+        }
+      }
+      if(bestRatio >= 0.) {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(3) << bestRatio;
+        r.quality = "ratio: " + oss.str();
+      } else {
+        r.quality = "---";
+      }
+    }
+    rows.emplace_back(r);
+  }
+
+  // ── Layout ───────────────────────────────────────────────────────────────
+  const int cw0 = 4;   // Z#
+  const int cw1 = 10;  // Type     ("Hadronic" = 8)
+  const int cw2 = 13;  // Charged  ("Charged Daus" = 12)
+  const int cw3 = 9;   // In SV    ("In SV" = 5, data "99/99" = 5)
+  const int cw4 = 18;  // Quality  ("ratio: 0.750" = 12)
+  const int tw  = 6 + (cw0+2) + (cw1+2) + (cw2+2) + (cw3+2) + (cw4+2); // = 70
+
+  auto centered = [](const std::string& s, int w) -> std::string {
+    int sp = w - (int)s.size();
+    if(sp <= 0) return s.substr(0, w);
+    return std::string(sp/2, ' ') + s + std::string(sp - sp/2, ' ');
+  };
+  auto lpad = [](const std::string& s, int w) -> std::string {
+    if((int)s.size() >= w) return s.substr(0, w);
+    return s + std::string(w - (int)s.size(), ' ');
+  };
+  auto hline = [&](const std::string& l, const std::string& m, const std::string& r) -> std::string {
+    return l + std::string(cw0+2,'-') + m + std::string(cw1+2,'-') + m
+             + std::string(cw2+2,'-') + m + std::string(cw3+2,'-') + m
+             + std::string(cw4+2,'-') + r;
+  };
+  auto dataRow = [&](const std::string& s0, const std::string& s1,
+                     const std::string& s2, const std::string& s3,
+                     const std::string& s4) -> std::string {
+    return "| " + centered(s0,cw0) + " | " + lpad(s1,cw1) + " | "
+               + centered(s2,cw2) + " | " + centered(s3,cw3) + " | "
+               + lpad(s4,cw4) + " |";
+  };
+  auto banner = [&](const std::string& s) -> std::string {
+    const int inner = tw - 2;
+    if((int)s.size() >= inner) return "|" + s.substr(0, inner) + "|";
+    return "|" + s + std::string(inner - (int)s.size(), ' ') + "|";
+  };
+  const std::string boxTop = "+" + std::string(tw-2, '-') + "+";
+
+  // ── Type summary string ───────────────────────────────────────────────────
+  std::string types;
+  if(nElec) types += std::to_string(nElec) + " electron";
+  if(nMuon) { if(!types.empty()) types += ", "; types += std::to_string(nMuon) + " muon"; }
+  if(nHad)  { if(!types.empty()) types += ", "; types += std::to_string(nHad)  + " hadronic"; }
+
+  // ── Print ─────────────────────────────────────────────────────────────────
+  std::cout << "\n";
+  std::cout << boxTop << "\n";
+  std::cout << banner("  DISPLACED VERTEX EVENT SUMMARY") << "\n";
+  std::cout << banner("") << "\n";
+  std::cout << banner("  Input tracks : " + std::to_string(nInputTracks)) << "\n";
+  std::cout << banner("  Z bosons found: " + std::to_string(nElec+nMuon+nHad)
+                      + "  (" + types + ")") << "\n";
+  std::cout << banner("  Reco SVs: " + std::to_string(nLepSVs+nHadSVs) + " total"
+                      + "   [ " + std::to_string(nLepSVs) + " leptonic"
+                      + "  |  " + std::to_string(nHadSVs) + " hadronic ]") << "\n";
+  std::cout << hline("+", "+", "+") << "\n";
+  std::cout << dataRow("Z #", "Type", "Charged Daus", "In SV", "Quality") << "\n";
+  std::cout << hline("+", "+", "+") << "\n";
+  for(const auto& r : rows) {
+    const std::string inSvStr = std::to_string(r.inSV) + "/" + std::to_string(r.chargedDaus);
+    std::cout << dataRow(std::to_string(r.idx), r.type,
+                         std::to_string(r.chargedDaus), inSvStr, r.quality) << "\n";
+  }
+  std::cout << hline("+", "+", "+") << "\n\n";
+
+}//<<>>void HyddraSVAnalyzer::printEventSummaryTable()
+
 
 void HyddraSVAnalyzer::fillVertexBranches(const reco::Vertex& vertex, const reco::Vertex& pv, bool isLeptonic, int vtxIndex) {
 
@@ -838,46 +1007,13 @@ bool HyddraSVAnalyzer::getSCMatch(const reco::Track& track, reco::SuperCluster& 
   return isMatched;
 }
 
-reco::GenParticleCollection HyddraSVAnalyzer::getStableChargedDaughtersFromPacked(
-    const GenVertex& genVertex,
-    const std::vector<pat::PackedGenParticle>& packedGenParticles) const {
-
-  const reco::Candidate* genZ = genVertex.genPair().first.mother();
-  reco::GenParticleCollection result;
-
-  if(!genZ) return result;
-
-  for(const auto& packed : packedGenParticles) {
-    if(packed.status() != 1 || packed.charge() == 0) continue;
-
-    const reco::Candidate* mom = packed.mother(0);
-    if(!mom) continue;
-
-    bool isFromSameZ = false;
-    const reco::Candidate* prev = nullptr;
-    while(mom && mom != prev) {
-      if(mom->pdgId() == 23) {
-        if(mom == genZ) isFromSameZ = true;
-        break;
-      }
-      prev = mom;
-      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
-    }
-
-    if(isFromSameZ) {
-      result.emplace_back(reco::GenParticle(
-          packed.charge(), packed.p4(), packed.vertex(),
-          packed.pdgId(), packed.status(), true));
-    }
-  }
-  return result;
-}
 
 void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
   desc.add<bool>("hasGenInfo", true);
   desc.add<bool>("isFullAOD", true);
+  desc.add<bool>("verboseEventTable", false);
   desc.add<double>("genMatchDeltaRCut", 0.02);
   desc.add<edm::InputTag>("leptonicVertices", edm::InputTag("hyddraSVs", "leptonicVertices"));
   desc.add<edm::InputTag>("hadronicVertices", edm::InputTag("hyddraSVs", "hadronicVertices"));
