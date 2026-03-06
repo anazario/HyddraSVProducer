@@ -678,6 +678,7 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
     int         chargedDaus;
     int         inSV;
     std::string quality;
+    double      lxy;
   };
 
   std::vector<ZRow> rows;
@@ -692,11 +693,15 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
     else if(gv.isGenMuon())     r.type = "Muon";
     else                         r.type = "Hadronic";
 
-    // Charged daughters (stable charged gen daughters)
-    reco::GenParticleCollection chargedDaus = isFullAOD_ ?
-        gv.getStableChargedDaughters(*genHandle_) :
-        getStableChargedDaughtersFromPacked(gv, *packedGenHandle_);
-    r.chargedDaus = (int)chargedDaus.size();
+    // Charged daughters: leptonic Z always has exactly 2; hadronic needs counting
+    if(gv.isGenElectron() || gv.isGenMuon()) {
+      r.chargedDaus = 2;
+    } else {
+      reco::GenParticleCollection chargedDaus = isFullAOD_ ?
+          gv.getStableChargedDaughters(*genHandle_) :
+          getStableChargedDaughtersFromPacked(gv, *packedGenHandle_);
+      r.chargedDaus = (int)chargedDaus.size();
+    }
 
     // Count how many of this Z's matched tracks appear in any reco SV
     r.inSV = 0;
@@ -750,6 +755,7 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
         r.quality = "---";
       }
     }
+    r.lxy = gv.dxy();
     rows.emplace_back(r);
   }
 
@@ -759,7 +765,8 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
   const int cw2 = 13;  // Charged  ("Charged Daus" = 12)
   const int cw3 = 9;   // In SV    ("In SV" = 5, data "99/99" = 5)
   const int cw4 = 18;  // Quality  ("ratio: 0.750" = 12)
-  const int tw  = 6 + (cw0+2) + (cw1+2) + (cw2+2) + (cw3+2) + (cw4+2); // = 70
+  const int cw5 = 9;   // Lxy      ("Lxy [cm]" = 8)
+  const int tw  = 7 + (cw0+2) + (cw1+2) + (cw2+2) + (cw3+2) + (cw4+2) + (cw5+2); // = 83
 
   auto centered = [](const std::string& s, int w) -> std::string {
     int sp = w - (int)s.size();
@@ -773,14 +780,14 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
   auto hline = [&](const std::string& l, const std::string& m, const std::string& r) -> std::string {
     return l + std::string(cw0+2,'-') + m + std::string(cw1+2,'-') + m
              + std::string(cw2+2,'-') + m + std::string(cw3+2,'-') + m
-             + std::string(cw4+2,'-') + r;
+             + std::string(cw4+2,'-') + m + std::string(cw5+2,'-') + r;
   };
   auto dataRow = [&](const std::string& s0, const std::string& s1,
                      const std::string& s2, const std::string& s3,
-                     const std::string& s4) -> std::string {
+                     const std::string& s4, const std::string& s5) -> std::string {
     return "| " + centered(s0,cw0) + " | " + lpad(s1,cw1) + " | "
                + centered(s2,cw2) + " | " + centered(s3,cw3) + " | "
-               + lpad(s4,cw4) + " |";
+               + lpad(s4,cw4) + " | " + centered(s5,cw5) + " |";
   };
   auto banner = [&](const std::string& s) -> std::string {
     const int inner = tw - 2;
@@ -807,12 +814,14 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
                       + "   [ " + std::to_string(nLepSVs) + " leptonic"
                       + "  |  " + std::to_string(nHadSVs) + " hadronic ]") << "\n";
   std::cout << hline("+", "+", "+") << "\n";
-  std::cout << dataRow("Z #", "Type", "Charged Daus", "In SV", "Quality") << "\n";
+  std::cout << dataRow("Z #", "Type", "Charged Daus", "In SV", "Quality", "Lxy [cm]") << "\n";
   std::cout << hline("+", "+", "+") << "\n";
   for(const auto& r : rows) {
     const std::string inSvStr = std::to_string(r.inSV) + "/" + std::to_string(r.chargedDaus);
+    std::ostringstream lxyOss;
+    lxyOss << std::fixed << std::setprecision(2) << r.lxy;
     std::cout << dataRow(std::to_string(r.idx), r.type,
-                         std::to_string(r.chargedDaus), inSvStr, r.quality) << "\n";
+                         std::to_string(r.chargedDaus), inSvStr, r.quality, lxyOss.str()) << "\n";
   }
   std::cout << hline("+", "+", "+") << "\n\n";
 
