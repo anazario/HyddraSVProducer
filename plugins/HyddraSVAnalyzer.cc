@@ -82,6 +82,9 @@ private:
 
   // Gen matching helpers
   bool IsBronze(const reco::Vertex& vertex) const;
+  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
+      const GenVertex& genVertex,
+      const std::vector<pat::PackedGenParticle>& packed) const;
   bool IsSilver(const reco::Vertex& vertex) const;
   bool IsGold(const reco::Vertex& vertex) const;
   int FindGenVertexIndex(const reco::Vertex& vertex) const;
@@ -1005,6 +1008,37 @@ bool HyddraSVAnalyzer::getSCMatch(const reco::Track& track, reco::SuperCluster& 
   }
 
   return isMatched;
+}
+
+reco::GenParticleCollection HyddraSVAnalyzer::getStableChargedDaughtersFromPacked(
+    const GenVertex& genVertex,
+    const std::vector<pat::PackedGenParticle>& packed) const {
+
+  const reco::Candidate* genZ = genVertex.genPair().first.mother();
+  reco::GenParticleCollection result;
+  if(!genZ) return result;
+
+  for(const auto& p : packed) {
+    if(p.status() != 1 || p.charge() == 0) continue;
+    const reco::Candidate* mom = p.mother(0);
+    if(!mom) continue;
+
+    bool isFromSameZ = false;
+    const reco::Candidate* prev = nullptr;
+    while(mom && mom != prev) {
+      if(mom->pdgId() == 23) {
+        if(mom == genZ) isFromSameZ = true;
+        break;
+      }
+      prev = mom;
+      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
+    }
+    if(isFromSameZ) {
+      result.emplace_back(reco::GenParticle(
+          p.charge(), p.p4(), p.vertex(), p.pdgId(), p.status(), true));
+    }
+  }
+  return result;
 }
 
 
