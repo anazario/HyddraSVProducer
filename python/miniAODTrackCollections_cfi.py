@@ -70,3 +70,28 @@ def configureMiniAODDiagnosticTrackCollection(process, trackCollection):
         process.hyddraSVsDiagAnalyzer.tracks = inputTag
 
     print(f"Configured MiniAOD diagnostic track collection: {trackCollection} -> {inputTag}")
+
+
+def configureMiniAODHadronicDiagnosticTrackCollection(process, trackCollection):
+    """
+    Configure the MiniAOD hadronic diagnostic producer and analyzer to use the same
+    track collection.  Mirrors configureMiniAODDiagnosticTrackCollection() but targets
+    hyddraSVsHadronicDiag and hyddraSVsHadronicDiagAnalyzer.
+
+    Usage:
+        from KUCMSNtupleizer.HyddraSVProducer.miniAODTrackCollections_cfi import configureMiniAODHadronicDiagnosticTrackCollection
+        configureMiniAODHadronicDiagnosticTrackCollection(process, 'sip2DMuonEnhanced')
+    """
+    if trackCollection not in MINIAOD_TRACK_COLLECTION_CONFIG:
+        raise ValueError(f"Unknown MiniAOD track collection: {trackCollection}. "
+                        f"Available: {list(MINIAOD_TRACK_COLLECTION_CONFIG.keys())}")
+
+    inputTag = MINIAOD_TRACK_COLLECTION_CONFIG[trackCollection]
+
+    if hasattr(process, 'hyddraSVsHadronicDiag'):
+        process.hyddraSVsHadronicDiag.tracks = inputTag
+
+    if hasattr(process, 'hyddraSVsHadronicDiagAnalyzer'):
+        process.hyddraSVsHadronicDiagAnalyzer.tracks = inputTag
+
+    print(f"Configured MiniAOD hadronic diagnostic track collection: {trackCollection} -> {inputTag}")

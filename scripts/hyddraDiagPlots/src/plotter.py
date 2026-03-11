@@ -99,6 +99,7 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
         "pOverE":     f"GenFunnel_pOverE_{stage_key}",
         "dxySignif":  f"GenFunnel_dxySignif_{stage_key}",
         "mass":       f"GenFunnel_mass_{stage_key}",
+        "nTracks":    f"GenFunnel_nTracks_{stage_key}",
     }
     sv_branch_map = {
         "cosTheta":   "StageVtx_cosTheta",
@@ -106,6 +107,7 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
         "pOverE":     "StageVtx_pOverE",
         "dxySignif":  "StageVtx_dxySignif",
         "mass":       "StageVtx_mass",
+        "nTracks":    "StageVtx_nTracks",
     }
 
     cname  = f"reco_{stage_key}_{obs_key}"

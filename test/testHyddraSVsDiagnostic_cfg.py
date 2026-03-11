@@ -27,8 +27,7 @@ options.register('processMode',
                  'leptonic',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Processing mode: leptonic or hadronic (diagnostic is leptonic-only; "
-                 "this argument is accepted for script compatibility)")
+                 "Processing mode: leptonic (default), hadronic, or both")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -106,12 +105,22 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.filteredTrackProducer_cfi")
 process.load("KUCMSNtupleizer.KUCMSNtupleizer.MuonEnhancedTracks_cfi")
 
 # ============================================================================
+# Determine which modes to run
+# ============================================================================
+_run_leptonic = options.processMode in ('leptonic', 'both')
+_run_hadronic = options.processMode in ('hadronic', 'both')
+if not _run_leptonic and not _run_hadronic:
+    raise ValueError(f"Unknown processMode '{options.processMode}'. "
+                     "Valid options: leptonic, hadronic, both")
+
+# ============================================================================
 # Diagnostic producer — snapshots each leptonic stage
 # ============================================================================
-process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticProducer_cfi")
+if _run_leptonic:
+    process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticProducer_cfi")
 
 # Apply leptonic algorithm preset if requested
-if options.hyddraPreset != 'default':
+if _run_leptonic and options.hyddraPreset != 'default':
     from KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi import (
         leptonicHYDDRA_NonIso, leptonicHYDDRA_TightIso)
     _presets = {'NonIso': leptonicHYDDRA_NonIso, 'TightIso': leptonicHYDDRA_TightIso}
@@ -121,18 +130,27 @@ if options.hyddraPreset != 'default':
     process.hyddraSVsDiag.leptonic = _presets[options.hyddraPreset]
 
 # ============================================================================
-# Diagnostic analyzer — per-gen-vertex funnel TTrees
+# Leptonic diagnostic analyzer — per-gen-vertex funnel TTrees
 # ============================================================================
-process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi")
-process.hyddraSVsDiagAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
+if _run_leptonic:
+    process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi")
+    process.hyddraSVsDiagAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
+    from KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi import (
+        configureDiagnosticTrackCollection
+    )
+    configureDiagnosticTrackCollection(process, options.trackCollection)
 
 # ============================================================================
-# Configure track collection for BOTH diagnostic producer and analyzer
+# Hadronic diagnostic producer and analyzer
 # ============================================================================
-from KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi import (
-    configureDiagnosticTrackCollection
-)
-configureDiagnosticTrackCollection(process, options.trackCollection)
+if _run_hadronic:
+    process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsHadronicDiagnosticProducer_cfi")
+    process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsHadronicDiagnosticAnalyzer_cfi")
+    process.hyddraSVsHadronicDiagAnalyzer.hasGenInfo = cms.bool(options.hasGenInfo)
+    from KUCMSNtupleizer.HyddraSVProducer.hyddraSVsHadronicDiagnosticAnalyzer_cfi import (
+        configureHadronicDiagnosticTrackCollection
+    )
+    configureHadronicDiagnosticTrackCollection(process, options.trackCollection)
 
 # ============================================================================
 # Maps track collection names to (module name, mode, trackPriority list)
@@ -155,6 +173,24 @@ MUON_TRACK_COLLECTIONS = {
 # ============================================================================
 # Build the processing path based on track collection
 # ============================================================================
+
+# Build optional leptonic / hadronic sequences
+_lep_seq = cms.Sequence(
+    process.hyddraSVsDiag + process.hyddraSVsDiagAnalyzer
+) if _run_leptonic else None
+
+_had_seq = cms.Sequence(
+    process.hyddraSVsHadronicDiag + process.hyddraSVsHadronicDiagAnalyzer
+) if _run_hadronic else None
+
+def _diag_seq():
+    """Return the combined leptonic+hadronic diagnostic sequence."""
+    seqs = [s for s in [_lep_seq, _had_seq] if s is not None]
+    result = seqs[0]
+    for s in seqs[1:]:
+        result = result + s
+    return result
+
 if options.trackCollection in MUON_TRACK_COLLECTIONS:
     entry = MUON_TRACK_COLLECTIONS[options.trackCollection]
     moduleName, mode, priority = entry[0], entry[1], entry[2]
@@ -174,26 +210,20 @@ if options.trackCollection in MUON_TRACK_COLLECTIONS:
             setattr(getattr(process, moduleName), k, v)
     process.p = cms.Path(
         getattr(process, moduleName) +   # Extracts/builds the muon track collection
-        process.hyddraSVsDiag +          # Snapshots each leptonic stage
-        process.hyddraSVsDiagAnalyzer    # Writes genFunnel / stageCounts / cleaningTracks
+        _diag_seq()
     )
 elif options.trackCollection == 'generalFiltered':
     process.p = cms.Path(
         process.filteredTrackProducer +  # Applies quality cuts to general tracks
-        process.hyddraSVsDiag +
-        process.hyddraSVsDiagAnalyzer
+        _diag_seq()
     )
 elif options.trackCollection in ['general', 'displacedGlobalMuon', 'displacedStandAloneMuon']:
-    process.p = cms.Path(
-        process.hyddraSVsDiag +
-        process.hyddraSVsDiagAnalyzer
-    )
+    process.p = cms.Path(_diag_seq())
 else:
     # sip2D, sip2DMuonEnhanced, muonEnhanced, selected, etc.
     process.p = cms.Path(
         process.muonEnhancedTracks +     # Produces sip2DMuonEnhancedTracks (and variants)
-        process.hyddraSVsDiag +
-        process.hyddraSVsDiagAnalyzer
+        _diag_seq()
     )
 
 process.schedule = cms.Schedule(process.p)
@@ -201,8 +231,14 @@ process.schedule = cms.Schedule(process.p)
 # ============================================================================
 # Usage examples:
 # ============================================================================
-# Default (promptMuonBestTrack, gen-matched signal):
+# Default (leptonic, promptMuonBestTrack, gen-matched signal):
 #   cmsRun testHyddraSVsDiagnostic_cfg.py inputFiles=file:signal.root
+#
+# Hadronic mode only:
+#   cmsRun testHyddraSVsDiagnostic_cfg.py inputFiles=file:signal.root processMode=hadronic
+#
+# Both leptonic and hadronic:
+#   cmsRun testHyddraSVsDiagnostic_cfg.py inputFiles=file:signal.root processMode=both
 #
 # From a file list:
 #   cmsRun testHyddraSVsDiagnostic_cfg.py inputFileList=myfiles.txt
@@ -219,6 +255,6 @@ process.schedule = cms.Schedule(process.p)
 # Limit events for a quick check:
 #   cmsRun testHyddraSVsDiagnostic_cfg.py inputFiles=file:signal.root maxEvents=1000
 #
-# Then make funnel plots:
-#   python3 scripts/hyddraSVFunnelPlots.py --signal hyddra_diagnostic.root
-#   python3 scripts/hyddraSVFunnelPlots.py --signal signal_diag.root --background bkg_diag.root
+# Then make diagnostic plots:
+#   python3 scripts/hyddraDiagPlots/run.py --signal hyddra_diagnostic.root
+#   python3 scripts/hyddraDiagPlots/run.py --signal signal_diag.root --background bkg_diag.root
