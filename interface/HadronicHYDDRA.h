@@ -111,8 +111,7 @@ class HadronicHYDDRA : public HYDDRABase<HadronicHYDDRA> {
   void filteringImpl() {
     if (this->empty() || !primaryVertex_ || !primaryVertex_->isValid()) return;
 
-    const size_t nInput = this->size();
-    HYDDRA_DBG("[Hadronic] Final Filtering on " << nInput << " vertices...\n");
+    HYDDRA_DBG("[Hadronic] Final Filtering on " << this->size() << " vertices...\n");
 
     // Cut counters
     size_t nFailDxyError = 0;
