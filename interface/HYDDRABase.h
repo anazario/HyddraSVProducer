@@ -60,8 +60,17 @@ class HYDDRABase : public TrackVertexSetCollection {
     size_t nTotalMerges = 0;
     size_t nMergeFailed = 0;
     size_t nMergeAlreadyExists = 0;
+    // Forked pipeline counters
+    size_t nTier0 = 0;
+    size_t nTier1 = 0;
+    size_t nDroppedMultiTrack = 0;
   };
   DiagnosticCounters diagnostics_;
+
+  // Forked pipeline intermediate collections
+  TrackVertexSetCollection seeds_;
+  TrackVertexSetCollection tier0_;
+  TrackVertexSetCollection tier1_;
 
  public:
 
@@ -132,6 +141,57 @@ class HYDDRABase : public TrackVertexSetCollection {
                << " -> filter=" << diagnostics_.nAfterFilter << "\n");
 
     return snaps;
+  }
+
+  // Accessor for Tier 1 (isolated) vertices from the forked pipeline.
+  reco::VertexCollection isolatedVertices() const { return tier1_.vertices(); }
+
+  // Forked pipeline entry point for EXONanoAOD.
+  // Runs seeding once, then branches into two disambiguation paths:
+  //   Tier 0 (inclusive): seeds -> disambiguation
+  //   Tier 1 (isolated):  seeds -> merging -> drop 3+ track -> disambiguation
+  // After the call, *this contains Tier 0 (inclusive) vertices.
+  // Tier 1 vertices are accessible via isolatedVertices().
+  void run_forked(const std::vector<reco::TrackRef>& tracks,
+                  const TransientTrackBuilder* builder,
+                  const reco::Vertex& pv) {
+    ttBuilder_ = builder;
+    primaryVertex_ = &pv;
+    this->clear();
+    masterList_.clear();
+    diagnostics_ = DiagnosticCounters();
+
+    Derived& self = static_cast<Derived&>(*this);
+
+    // Stage 1: Seeding — computed once, shared by both tiers
+    self.seedingImpl(tracks);
+    diagnostics_.nSeeds = this->size();
+    seeds_ = static_cast<const TrackVertexSetCollection&>(*this);
+
+    // Tier 0: seeds -> disambiguation (most inclusive)
+    if (doDisambiguation_) self.disambiguationImpl();
+    diagnostics_.nTier0 = this->size();
+    tier0_ = static_cast<const TrackVertexSetCollection&>(*this);
+
+    // Tier 1: seeds -> merging -> drop 3+ track -> disambiguation (isolated)
+    static_cast<std::set<TrackVertexSet>&>(*this) = seeds_;
+    masterList_ = seeds_;
+    if (doMerging_) self.mergingImpl();
+    diagnostics_.nAfterMerge = this->size();
+    dropMultiTrack();
+    diagnostics_.nDroppedMultiTrack = diagnostics_.nAfterMerge - this->size();
+    if (doDisambiguation_) self.disambiguationImpl();
+    diagnostics_.nTier1 = this->size();
+    tier1_ = static_cast<const TrackVertexSetCollection&>(*this);
+
+    // Restore *this to Tier 0 as the primary output collection
+    static_cast<std::set<TrackVertexSet>&>(*this) = tier0_;
+
+    HYDDRA_DBG("[HYDDRA] Forked pipeline: seeds=" << diagnostics_.nSeeds
+               << " | tier0=" << diagnostics_.nTier0
+               << " | merged=" << diagnostics_.nAfterMerge
+               << " dropped=" << diagnostics_.nDroppedMultiTrack
+               << " tier1=" << diagnostics_.nTier1 << "\n");
   }
 
   // Main entry point. Runs the full 5-stage pipeline on the given tracks.
@@ -302,5 +362,14 @@ class HYDDRABase : public TrackVertexSetCollection {
   // A vertex is valid if the fit converged and normChi2 < 5.
   bool isValidVertex(const TrackVertexSet& set) const {
     return set.isValid() && set.normChi2() < 5;
+  }
+
+  // Remove any vertex with more than 2 tracks from the working collection.
+  // Used in the Tier 1 path after merging to enforce the dilepton-only constraint.
+  void dropMultiTrack() {
+    TrackVertexSetCollection filtered;
+    for (const auto& v : *this)
+      if (v.size() == 2) filtered.add(v);
+    static_cast<std::set<TrackVertexSet>&>(*this) = filtered;
   }
 };
