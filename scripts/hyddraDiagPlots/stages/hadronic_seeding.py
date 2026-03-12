@@ -14,5 +14,5 @@ def make_plots(tdir, gf, sv_sig, sv_bkg):
     for obs_key, obs_cfg in HADRONIC_RECO_OBSERVABLES.items():
         if obs_key == "nTracks":
             continue  # all seeds are 2-track; plot is uninformative
-        plot_reco_observable(tdir, gf, sv_sig, "seed", obs_key, obs_cfg, sv_bkg)
+        plot_reco_observable(tdir, gf, sv_sig, "seed", obs_key, obs_cfg, sv_bkg, hadronic=True)
         print(f"    [reco_seed_{obs_key}] done")

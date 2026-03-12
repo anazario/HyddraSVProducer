@@ -50,7 +50,7 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     decay_angle= ak.to_numpy(sv_sig["StageVtx_decayAngle" ][mask]).astype(float)
     mass       = ak.to_numpy(sv_sig["StageVtx_mass"       ][mask]).astype(float)
     p_over_e   = ak.to_numpy(sv_sig["StageVtx_pOverE"     ][mask]).astype(float)
-    is_gold    = ak.to_numpy(sv_sig["StageVtx_isGold"     ][mask]).astype(bool)
+    is_signal  = ak.to_numpy(sv_sig["StageVtx_matchRatio"  ][mask]) > 0
 
     min_size      = int  (cfg["minSize"])       if cfg else 5
     max_norm_chi2 = float(cfg["maxNormChi2"])   if cfg else 5.0
@@ -68,13 +68,13 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
         (f"p/E < {min_poe:.2f}",               p_over_e    <  min_poe),
     ]
 
-    n_gold_total   = int(np.sum( is_gold))
-    n_nonsig_total = int(np.sum(~is_gold))
+    n_gold_total   = int(np.sum( is_signal))
+    n_nonsig_total = int(np.sum(~is_signal))
 
     cut_labels, sig_fracs, nonsig_fracs = [], [], []
 
     col_w = 28
-    header = (f"  {'Cut':<26} | {'Gold lost':{col_w}} | "
+    header = (f"  {'Cut':<26} | {'Signal lost':{col_w}} | "
               f"{'Non-sig reduction':{col_w}} | {'Non-sig removed':>10}")
     sep = "  " + "-" * (len(header) - 2)
     print("  [had_cleaning_cutflow] Per-cut removal (denominator = all merged SVs):")
@@ -85,8 +85,8 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     print(sep)
 
     for label, fail_mask in cuts:
-        n_sig_fail    = int(np.sum(fail_mask &  is_gold))
-        n_nonsig_fail = int(np.sum(fail_mask & ~is_gold))
+        n_sig_fail    = int(np.sum(fail_mask &  is_signal))
+        n_nonsig_fail = int(np.sum(fail_mask & ~is_signal))
         sig_frac    = n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0
         nonsig_frac = n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0
         print(f"  {label:<26} | "
@@ -138,7 +138,7 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
 
     leg = ROOT.TLegend(0.60, 0.76, 0.88, 0.88)
     leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.035)
-    leg.AddEntry(h_sig,    "Signal (gold)", "f")
+    leg.AddEntry(h_sig,    "Signal (matchRatio > 0)", "f")
     leg.AddEntry(h_nonsig, "Non-signal",    "f")
     leg.Draw()
     draw_cms_label()
@@ -155,7 +155,7 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
 def make_plots(tdir, gf, sv_sig, sv_bkg, cfg=None):
     print("  [had/cleaning] Reco observables...")
     for obs_key, obs_cfg in HADRONIC_RECO_OBSERVABLES.items():
-        plot_reco_observable(tdir, gf, sv_sig, "cleaned", obs_key, obs_cfg, sv_bkg)
+        plot_reco_observable(tdir, gf, sv_sig, "cleaned", obs_key, obs_cfg, sv_bkg, hadronic=True)
         print(f"    [reco_cleaned_{obs_key}] done")
     print("  [had/cleaning] Cleaning cutflow...")
     make_cleaning_cutflow(tdir, sv_sig, cfg)

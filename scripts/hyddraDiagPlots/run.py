@@ -57,7 +57,7 @@ from hyddraDiagPlots.src    import config, loader
 from hyddraDiagPlots.stages import (
     summary, seeding, merging, cleaning, disambiguation, filtering,
     hadronic_seeding, hadronic_merging, hadronic_cleaning,
-    hadronic_disambiguation, hadronic_filtering,
+    hadronic_disambiguation, hadronic_filtering, hadronic_summary,
 )
 
 _STAGE_KEYS   = ['seed',    'merged',  'cleaned',  'disambig',       'filtered']
@@ -252,14 +252,61 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
     return _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
 
 
+def _compute_summary_hadronic(stem, gf_sig, sc_sig):
+    """Compute per-file hadronic signal efficiency summary using matchRatio."""
+    has_tracks = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_hasTracks"])).astype(bool)
+    n_gen      = int(np.sum(has_tracks))
+    rows = []
+    for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
+        mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[has_tracks]
+        n_loose  = int(np.sum(mr > 0))
+        n_tight  = int(np.sum(mr >= 0.5))
+        n_reco   = sc_sig.get(f"Stage_n_{key}", 0)
+        rows.append({
+            'label':   label,
+            'n_reco':  n_reco,
+            'n_loose': n_loose,
+            'n_tight': n_tight,
+        })
+    return {'stem': stem, 'mode': 'hadronic', 'n_gen': n_gen, 'rows': rows}
+
+
+def _print_summaries_hadronic(hadronic_summaries):
+    """Print hadronic efficiency table."""
+    if not hadronic_summaries:
+        return
+    col_w = [16, 10, 11, 11, 12, 12]
+    divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
+    hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
+           f"{'Loose gen':>{col_w[2]}} {'Tight gen':>{col_w[3]}} "
+           f"{'Eff (loose)':>{col_w[4]}} {'Eff (tight)':>{col_w[5]}}")
+    for s in hadronic_summaries:
+        n_gen = s['n_gen']
+        print(f"\n  File : {s['stem']} [hadronic]")
+        print(f"  Gen signal vertices (with tracks) : {n_gen}")
+        print(divider)
+        print(hdr)
+        print(divider)
+        for row in s['rows']:
+            loose_eff = f"{row['n_loose'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
+            tight_eff = f"{row['n_tight'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
+            print(f"  {row['label']:<{col_w[0]}} "
+                  f"{row['n_reco']:>{col_w[1]}} "
+                  f"{row['n_loose']:>{col_w[2]}} "
+                  f"{row['n_tight']:>{col_w[3]}} "
+                  f"{loose_eff:>{col_w[4]}} "
+                  f"{tight_eff:>{col_w[5]}}")
+        print(divider)
+
+
 def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
     """Run the full hadronic diagnostic plot suite into mode_dir."""
     stem = os.path.splitext(os.path.basename(sig_path))[0]
 
     with uproot.open(sig_path) as sig_f:
-        gf_sig = loader.load_gen_funnel(sig_f,      base=loader._HADRONIC_BASE)
-        sc_sig = loader.load_stage_counts(sig_f,    base=loader._HADRONIC_BASE)
-        sv_sig = loader.load_all_stage_vtx(sig_f,   base=loader._HADRONIC_BASE)
+        gf_sig = loader.load_gen_funnel(sig_f,               base=loader._HADRONIC_BASE)
+        sc_sig = loader.load_stage_counts_hadronic(sig_f)
+        sv_sig = loader.load_all_stage_vtx(sig_f,            base=loader._HADRONIC_BASE)
         cfg    = loader.load_hadronic_config(sig_f)
 
     if cfg is None:
@@ -269,7 +316,7 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
     sc_bkg, sv_bkg = None, None
     if bkg_path:
         with uproot.open(bkg_path) as bkg_f:
-            sc_bkg = loader.load_stage_counts(bkg_f,  base=loader._HADRONIC_BASE)
+            sc_bkg = loader.load_stage_counts_hadronic(bkg_f)
             sv_bkg = loader.load_all_stage_vtx(bkg_f, base=loader._HADRONIC_BASE)
 
     stage_dirs = {d: mode_dir.mkdir(d) for d in config.STAGE_DIRS}
@@ -280,13 +327,13 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
         ("cleaning",       lambda: hadronic_cleaning.make_plots(       stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, cfg)),
         ("disambiguation", lambda: hadronic_disambiguation.make_plots( stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
         ("filtering",      lambda: hadronic_filtering.make_plots(      stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
-        ("summary",        lambda: summary.make_plots(                 stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
+        ("summary",        lambda: hadronic_summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
     for stage_name, fn in tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=False):
         fn()
 
-    return _compute_summary(stem, gf_sig, sc_sig, mode_prefix="hadronic")
+    return _compute_summary_hadronic(stem, gf_sig, sc_sig)
 
 
 # ── Core plot runner ───────────────────────────────────────────────────────────
@@ -423,7 +470,12 @@ def main():
         except OSError:
             pass
 
-    _print_summaries(summaries)
+    lep_summs = [s for s in summaries if s['mode'] == 'leptonic']
+    had_summs = [s for s in summaries if s['mode'] == 'hadronic']
+    if lep_summs:
+        _print_summaries(lep_summs)
+    if had_summs:
+        _print_summaries_hadronic(had_summs)
     print(f"[hyddraDiagPlots] Plots saved to {args.output}")
 
 

@@ -75,14 +75,21 @@ def _style_hist(h, color, line_style=1):
     h.SetStats(0)
 
 
-def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=None):
+def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=None,
+                         hadronic=False):
     """
-    Four normalised shape distributions on one canvas:
+    Normalised shape distributions on one canvas.
+
+    Leptonic (hadronic=False):
       - Gold         : genFunnel vertices gold-matched at this stage
       - Silver excl. : silver but not gold
       - Bronze excl. : bronze but not silver
       - Non-signal   : sv_sig allStageVtx where stageIdx==stage and isGold=False
-      - Background   : sv_bkg allStageVtx at this stage (dashed, if provided)
+
+    Hadronic (hadronic=True):
+      - Signal tight (matchRatio >= 0.5)
+      - Signal loose excl. (0 < matchRatio < 0.5)
+      - Non-signal   : sv_sig allStageVtx where matchRatio <= 0
 
     All normalised to unit area.  -1 sentinels are skipped.
     """
@@ -92,7 +99,6 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
     label  = obs_cfg["label"]
     sidx   = STAGE_IDX[stage_key]
 
-    # genFunnel branch name
     gf_branch_map = {
         "cosTheta":   f"GenFunnel_cosTheta_{stage_key}",
         "decayAngle": f"GenFunnel_decayAngle_{stage_key}",
@@ -116,58 +122,98 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
     def make_h(tag):
         return ROOT.TH1F(f"h_{cname}_{tag}", "", n_bins, bins)
 
-    h_gold   = make_h("gold")
-    h_silver = make_h("silver")
-    h_bronze = make_h("bronze")
-    h_nonsig = make_h("nonsig")
-    h_bkg    = make_h("bkg") if sv_bkg is not None else None
+    h_bkg = make_h("bkg") if sv_bkg is not None else None
 
-    # Fill from genFunnel (signal categories)
-    if gf is not None and len(gf) > 0:
-        has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
-        vals_gf    = ak.to_numpy(ak.flatten(gf[gf_branch_map[obs_key]]))[has_tracks]
-        gold       = ak.to_numpy(ak.flatten(gf[f"GenFunnel_gold_{stage_key}"]))[has_tracks].astype(bool)
-        silver     = ak.to_numpy(ak.flatten(gf[f"GenFunnel_silver_{stage_key}"]))[has_tracks].astype(bool)
-        bronze     = ak.to_numpy(ak.flatten(gf[f"GenFunnel_bronze_{stage_key}"]))[has_tracks].astype(bool)
-        _fill_hist(h_gold,   vals_gf, gold)
-        _fill_hist(h_silver, vals_gf, silver & ~gold)
-        _fill_hist(h_bronze, vals_gf, bronze & ~silver & ~gold)
+    if hadronic:
+        h_tight  = make_h("tight")
+        h_loose  = make_h("loose")
+        h_nonsig = make_h("nonsig")
 
-    # Fill non-signal from signal file's allStageVtx
-    if sv_sig is not None and len(sv_sig) > 0:
-        sv_stage  = ak.to_numpy(sv_sig["StageVtx_stageIdx"]) == sidx
-        sv_gold   = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
-        sv_vals   = ak.to_numpy(sv_sig[sv_branch_map[obs_key]])
-        _fill_hist(h_nonsig, sv_vals, sv_stage & ~sv_gold)
+        if gf is not None and len(gf) > 0:
+            has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+            vals_gf    = ak.to_numpy(ak.flatten(gf[gf_branch_map[obs_key]]))[has_tracks]
+            mr         = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{stage_key}"]))[has_tracks]
+            valid      = mr >= 0  # -1 is sentinel for no match
+            _fill_hist(h_tight, vals_gf, valid & (mr >= 0.5))
+            _fill_hist(h_loose, vals_gf, valid & (mr > 0) & (mr < 0.5))
 
-    # Fill background from dedicated file's allStageVtx
-    if sv_bkg is not None and len(sv_bkg) > 0:
-        sv_stage_b = ak.to_numpy(sv_bkg["StageVtx_stageIdx"]) == sidx
-        sv_vals_b  = ak.to_numpy(sv_bkg[sv_branch_map[obs_key]])
-        _fill_hist(h_bkg, sv_vals_b, sv_stage_b)
+        if sv_sig is not None and len(sv_sig) > 0:
+            sv_stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"]) == sidx
+            sv_mr    = ak.to_numpy(sv_sig["StageVtx_matchRatio"])
+            sv_vals  = ak.to_numpy(sv_sig[sv_branch_map[obs_key]])
+            _fill_hist(h_nonsig, sv_vals, sv_stage & (sv_mr <= 0))
 
-    # Normalise to unit area
-    for h, col, lstyle in [
-        (h_gold,   COLOR_GOLD,      1),
-        (h_silver, COLOR_SILVER,    1),
-        (h_bronze, COLOR_BRONZE,    1),
-        (h_nonsig, COLOR_NONSIGNAL, 1),
-    ]:
-        _style_hist(h, col, lstyle)
-        integral = h.Integral()
-        if integral > 0:
-            h.Scale(1.0 / integral)
+        if sv_bkg is not None and len(sv_bkg) > 0:
+            sv_stage_b = ak.to_numpy(sv_bkg["StageVtx_stageIdx"]) == sidx
+            sv_vals_b  = ak.to_numpy(sv_bkg[sv_branch_map[obs_key]])
+            _fill_hist(h_bkg, sv_vals_b, sv_stage_b)
+
+        for h, col, lstyle in [
+            (h_tight,  COLOR_GOLD,      1),
+            (h_loose,  COLOR_SILVER,    1),
+            (h_nonsig, COLOR_NONSIGNAL, 1),
+        ]:
+            _style_hist(h, col, lstyle)
+            integral = h.Integral()
+            if integral > 0:
+                h.Scale(1.0 / integral)
+
+        active_hists = [
+            (h_tight,  "Signal (matchRatio #geq 0.5)"),
+            (h_loose,  "Signal (0 < matchRatio < 0.5)"),
+            (h_nonsig, "Non-signal"),
+        ]
+
+    else:
+        h_gold   = make_h("gold")
+        h_silver = make_h("silver")
+        h_bronze = make_h("bronze")
+        h_nonsig = make_h("nonsig")
+
+        if gf is not None and len(gf) > 0:
+            has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+            vals_gf    = ak.to_numpy(ak.flatten(gf[gf_branch_map[obs_key]]))[has_tracks]
+            gold       = ak.to_numpy(ak.flatten(gf[f"GenFunnel_gold_{stage_key}"]))[has_tracks].astype(bool)
+            silver     = ak.to_numpy(ak.flatten(gf[f"GenFunnel_silver_{stage_key}"]))[has_tracks].astype(bool)
+            bronze     = ak.to_numpy(ak.flatten(gf[f"GenFunnel_bronze_{stage_key}"]))[has_tracks].astype(bool)
+            _fill_hist(h_gold,   vals_gf, gold)
+            _fill_hist(h_silver, vals_gf, silver & ~gold)
+            _fill_hist(h_bronze, vals_gf, bronze & ~silver & ~gold)
+
+        if sv_sig is not None and len(sv_sig) > 0:
+            sv_stage  = ak.to_numpy(sv_sig["StageVtx_stageIdx"]) == sidx
+            sv_gold   = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
+            sv_vals   = ak.to_numpy(sv_sig[sv_branch_map[obs_key]])
+            _fill_hist(h_nonsig, sv_vals, sv_stage & ~sv_gold)
+
+        if sv_bkg is not None and len(sv_bkg) > 0:
+            sv_stage_b = ak.to_numpy(sv_bkg["StageVtx_stageIdx"]) == sidx
+            sv_vals_b  = ak.to_numpy(sv_bkg[sv_branch_map[obs_key]])
+            _fill_hist(h_bkg, sv_vals_b, sv_stage_b)
+
+        for h, col, lstyle in [
+            (h_gold,   COLOR_GOLD,      1),
+            (h_silver, COLOR_SILVER,    1),
+            (h_bronze, COLOR_BRONZE,    1),
+            (h_nonsig, COLOR_NONSIGNAL, 1),
+        ]:
+            _style_hist(h, col, lstyle)
+            integral = h.Integral()
+            if integral > 0:
+                h.Scale(1.0 / integral)
+
+        active_hists = [
+            (h_gold,   "Gold"),
+            (h_silver, "Silver (excl.)"),
+            (h_bronze, "Bronze (excl.)"),
+            (h_nonsig, "Non-signal"),
+        ]
+
     if h_bkg is not None:
         _style_hist(h_bkg, COLOR_BKG, 2)
         integral = h_bkg.Integral()
         if integral > 0:
             h_bkg.Scale(1.0 / integral)
-
-    active_hists = [(h_gold,   "Gold"),
-                    (h_silver, "Silver (excl.)"),
-                    (h_bronze, "Bronze (excl.)"),
-                    (h_nonsig, "Non-signal")]
-    if h_bkg is not None:
         active_hists.append((h_bkg, "Background"))
 
     max_y = max((h.GetMaximum() for h, _ in active_hists if h.Integral() > 0), default=1.0)

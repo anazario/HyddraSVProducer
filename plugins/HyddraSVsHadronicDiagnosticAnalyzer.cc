@@ -4,21 +4,21 @@
 // Class:      HyddraSVsHadronicDiagnosticAnalyzer
 //
 // Description: Reads the 5 intermediate hadronic vertex collections produced by
-//              HyddraSVsHadronicDiagnosticProducer and gen-matches each one to
-//              trace where signal vertices are lost at each pipeline stage.
+//              HyddraSVsHadronicDiagnosticProducer and traces where signal
+//              vertices are lost at each pipeline stage.
 //              Writes three TTrees:
-//                genFunnel    — one row per gen vertex per event
-//                stageCounts  — one row per event (total + matched counts)
-//                allStageVtx  — one row per vertex per stage (extended for
-//                               hadronic: nTracks, nSignalTracks, hasSharedTrack)
+//                genFunnel    — one row per gen vertex per event; reco props at
+//                               each stage filled for the best-matching reco vertex
+//                               (highest nSignalTracks).  matchRatio = -1 sentinel
+//                               means no reco vertex was found at that stage.
+//                stageCounts  — one row per event (total vertex counts per stage)
+//                allStageVtx  — one row per vertex per stage (nTracks, nSignalTracks,
+//                               normChi2, hasSharedTrack, and full kinematics)
 //                hadronicConfig — single-row metadata tree
 //
-//              Compared to HyddraSVsDiagnosticAnalyzer (leptonic):
-//                - No cleaningTracks tree (hadronic cleaning is vertex-level only)
-//                - No seedTracks tree
-//                - allStageVtx has nTracks/nSignalTracks/hasSharedTrack instead
-//                  of per-track cosTheta/cosThetaCM vectors
-//                - hadronicConfig tree stores the hadronic cut thresholds
+//              Signal categorisation (loose / tight) is intentionally left to
+//              the plotting layer, which can threshold on matchRatio / nSignalTracks
+//              directly.  No boolean "gold/silver/bronze" branches are stored.
 //
 // Original Author:  Andres Abreu
 //
@@ -71,14 +71,6 @@ static constexpr size_t kHadDisambig= 3;
 static constexpr size_t kHadFiltered= 4;
 static constexpr size_t kHadNStages = 5;
 
-// ─── Helper: result of gen-matching against one stage collection ──────────────
-struct HadStageMatch {
-  bool isGold   = false;
-  bool isSilver = false;
-  bool isBronze = false;
-  const reco::Vertex* bestVertex = nullptr;
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 class HyddraSVsHadronicDiagnosticAnalyzer
     : public edm::one::EDAnalyzer<edm::one::SharedResources> {
@@ -96,17 +88,16 @@ private:
 
   void clearBranches();
 
-  // Gen matching helpers
-  HadStageMatch findStageMatch(const GenVertex& genVtx,
-                               const reco::VertexCollection& coll) const;
-  float computeMatchRatio(const reco::Vertex& vtx) const;
+  // Returns the reco vertex in coll with the most signal tracks (highest
+  // nSignalTracks), or nullptr if coll is empty.
+  const reco::Vertex* findBestMatch(const reco::VertexCollection& coll) const;
+
   int   computeNSignalTracks(const reco::Vertex& vtx) const;
+  float computeMatchRatio(const reco::Vertex& vtx) const;
   float computeDxySignif(const reco::Vertex& vtx, const reco::Vertex& pv) const;
   void  fillRecoPropsAt(size_t stageIdx, const reco::Vertex& vtx,
                         const reco::Vertex& pv);
 
-  // Per-stage helper: returns a bool vector indicating which vertices share
-  // at least one track with another vertex in the same collection.
   std::vector<bool> computeSharedTrackFlags(const reco::VertexCollection& coll) const;
 
   // ── Configuration ──────────────────────────────────────────────────────────
@@ -139,7 +130,11 @@ private:
   TTree* allStageVtxTree_;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // genFunnel branches (vectors — one element per gen vertex)
+  // genFunnel branches
+  // Reco properties at each stage are filled for the best-matching reco vertex
+  // (highest nSignalTracks).  All reco branches use -1 as a sentinel when no
+  // reco vertex exists at that stage.  matchRatio > 0 means ≥1 signal track;
+  // matchRatio ≥ 0.5 means the tight working point — evaluated at plot time.
   // ═══════════════════════════════════════════════════════════════════════════
   unsigned int genFunnel_n_;
 
@@ -150,60 +145,42 @@ private:
   std::vector<float> genFunnel_phi_;
   std::vector<bool>  genFunnel_hasTracks_;
 
-  std::vector<bool> genFunnel_gold_seed_,    genFunnel_gold_merged_,
-                    genFunnel_gold_cleaned_,  genFunnel_gold_disambig_,
-                    genFunnel_gold_filtered_;
-  std::vector<bool> genFunnel_silver_seed_,  genFunnel_silver_merged_,
-                    genFunnel_silver_cleaned_,genFunnel_silver_disambig_,
-                    genFunnel_silver_filtered_;
-  std::vector<bool> genFunnel_bronze_seed_,  genFunnel_bronze_merged_,
-                    genFunnel_bronze_cleaned_,genFunnel_bronze_disambig_,
-                    genFunnel_bronze_filtered_;
-
-  std::vector<int>  genFunnel_lostGoldAtStage_;
-  std::vector<int>  genFunnel_lostSilverAtStage_;
-
-  std::vector<float> genFunnel_mass_seed_,      genFunnel_mass_merged_,
-                     genFunnel_mass_cleaned_,    genFunnel_mass_disambig_,
+  std::vector<float> genFunnel_mass_seed_,       genFunnel_mass_merged_,
+                     genFunnel_mass_cleaned_,     genFunnel_mass_disambig_,
                      genFunnel_mass_filtered_;
-  std::vector<float> genFunnel_dxySignif_seed_,  genFunnel_dxySignif_merged_,
-                     genFunnel_dxySignif_cleaned_,genFunnel_dxySignif_disambig_,
+  std::vector<float> genFunnel_dxySignif_seed_,   genFunnel_dxySignif_merged_,
+                     genFunnel_dxySignif_cleaned_, genFunnel_dxySignif_disambig_,
                      genFunnel_dxySignif_filtered_;
-  std::vector<float> genFunnel_normChi2_seed_,   genFunnel_normChi2_merged_,
-                     genFunnel_normChi2_cleaned_, genFunnel_normChi2_disambig_,
+  std::vector<float> genFunnel_normChi2_seed_,    genFunnel_normChi2_merged_,
+                     genFunnel_normChi2_cleaned_,  genFunnel_normChi2_disambig_,
                      genFunnel_normChi2_filtered_;
-  std::vector<int>   genFunnel_nTracks_seed_,    genFunnel_nTracks_merged_,
-                     genFunnel_nTracks_cleaned_,  genFunnel_nTracks_disambig_,
+  std::vector<int>   genFunnel_nTracks_seed_,     genFunnel_nTracks_merged_,
+                     genFunnel_nTracks_cleaned_,   genFunnel_nTracks_disambig_,
                      genFunnel_nTracks_filtered_;
-  std::vector<float> genFunnel_cosTheta_seed_,   genFunnel_cosTheta_merged_,
-                     genFunnel_cosTheta_cleaned_, genFunnel_cosTheta_disambig_,
+  std::vector<float> genFunnel_cosTheta_seed_,    genFunnel_cosTheta_merged_,
+                     genFunnel_cosTheta_cleaned_,  genFunnel_cosTheta_disambig_,
                      genFunnel_cosTheta_filtered_;
   std::vector<float> genFunnel_matchRatio_seed_,  genFunnel_matchRatio_merged_,
                      genFunnel_matchRatio_cleaned_,genFunnel_matchRatio_disambig_,
                      genFunnel_matchRatio_filtered_;
-  std::vector<float> genFunnel_decayAngle_seed_,   genFunnel_decayAngle_merged_,
-                     genFunnel_decayAngle_cleaned_,  genFunnel_decayAngle_disambig_,
+  std::vector<float> genFunnel_decayAngle_seed_,  genFunnel_decayAngle_merged_,
+                     genFunnel_decayAngle_cleaned_,genFunnel_decayAngle_disambig_,
                      genFunnel_decayAngle_filtered_;
-  std::vector<float> genFunnel_pOverE_seed_,       genFunnel_pOverE_merged_,
-                     genFunnel_pOverE_cleaned_,      genFunnel_pOverE_disambig_,
+  std::vector<float> genFunnel_pOverE_seed_,      genFunnel_pOverE_merged_,
+                     genFunnel_pOverE_cleaned_,    genFunnel_pOverE_disambig_,
                      genFunnel_pOverE_filtered_;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // stageCounts branches (scalars — one per event)
+  // stageCounts branches — total vertex count per stage, one row per event.
+  // Signal categorisation (loose / tight) is derived from allStageVtx at
+  // plot time via nSignalTracks thresholds.
   // ═══════════════════════════════════════════════════════════════════════════
   unsigned int stage_n_seed_,     stage_n_merged_,  stage_n_cleaned_,
                stage_n_disambig_, stage_n_filtered_;
-  unsigned int stage_nGold_seed_,     stage_nGold_merged_,   stage_nGold_cleaned_,
-               stage_nGold_disambig_, stage_nGold_filtered_;
-  unsigned int stage_nSilver_seed_,   stage_nSilver_merged_,  stage_nSilver_cleaned_,
-               stage_nSilver_disambig_,stage_nSilver_filtered_;
-  unsigned int stage_nBronze_seed_,   stage_nBronze_merged_,  stage_nBronze_cleaned_,
-               stage_nBronze_disambig_,stage_nBronze_filtered_;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // allStageVtx branches — one TTree::Fill per vertex
-  // Hadronic version: replaces per-track vectors with nTracks/nSignalTracks,
-  // adds normChi2 (hadronic cleaning cut) and hasSharedTrack.
+  // allStageVtx branches — one TTree::Fill per vertex per stage.
+  // matchRatio = nSignalTracks / nTracks; plotting code thresholds as needed.
   // ═══════════════════════════════════════════════════════════════════════════
   int   stageVtx_stageIdx_;
   float stageVtx_mass_;
@@ -214,10 +191,8 @@ private:
   float stageVtx_normChi2_;
   int   stageVtx_nTracks_;
   int   stageVtx_nSignalTracks_;
+  float stageVtx_matchRatio_;
   bool  stageVtx_hasSharedTrack_;
-  bool  stageVtx_isGold_;
-  bool  stageVtx_isSilver_;
-  bool  stageVtx_isBronze_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // hadronicConfig branches (scalars — single Fill in beginJob)
@@ -263,7 +238,6 @@ HyddraSVsHadronicDiagnosticAnalyzer::HyddraSVsHadronicDiagnosticAnalyzer(
     }
   }
 
-  // Hadronic algorithm parameters — persisted as metadata in the output file.
   cfg_minSize_           = 5;
   cfg_minCosTheta_       = 0.0;
   cfg_maxDecayAngle_     = 0.9;
@@ -290,7 +264,8 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   edm::Service<TFileService> fs;
 
   // ── genFunnel ──────────────────────────────────────────────────────────────
-  genFunnelTree_ = fs->make<TTree>("genFunnel", "Per-gen-vertex pipeline funnel (hadronic)");
+  genFunnelTree_ = fs->make<TTree>("genFunnel",
+      "Per-gen-vertex pipeline funnel (Hadronic HYDDRA)");
 
   genFunnelTree_->Branch("GenFunnel_n",        &genFunnel_n_);
   genFunnelTree_->Branch("GenFunnel_dxy",       &genFunnel_dxy_);
@@ -299,27 +274,6 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_mass",      &genFunnel_mass_);
   genFunnelTree_->Branch("GenFunnel_phi",       &genFunnel_phi_);
   genFunnelTree_->Branch("GenFunnel_hasTracks", &genFunnel_hasTracks_);
-
-  genFunnelTree_->Branch("GenFunnel_gold_seed",       &genFunnel_gold_seed_);
-  genFunnelTree_->Branch("GenFunnel_gold_merged",     &genFunnel_gold_merged_);
-  genFunnelTree_->Branch("GenFunnel_gold_cleaned",    &genFunnel_gold_cleaned_);
-  genFunnelTree_->Branch("GenFunnel_gold_disambig",   &genFunnel_gold_disambig_);
-  genFunnelTree_->Branch("GenFunnel_gold_filtered",   &genFunnel_gold_filtered_);
-
-  genFunnelTree_->Branch("GenFunnel_silver_seed",     &genFunnel_silver_seed_);
-  genFunnelTree_->Branch("GenFunnel_silver_merged",   &genFunnel_silver_merged_);
-  genFunnelTree_->Branch("GenFunnel_silver_cleaned",  &genFunnel_silver_cleaned_);
-  genFunnelTree_->Branch("GenFunnel_silver_disambig", &genFunnel_silver_disambig_);
-  genFunnelTree_->Branch("GenFunnel_silver_filtered", &genFunnel_silver_filtered_);
-
-  genFunnelTree_->Branch("GenFunnel_bronze_seed",     &genFunnel_bronze_seed_);
-  genFunnelTree_->Branch("GenFunnel_bronze_merged",   &genFunnel_bronze_merged_);
-  genFunnelTree_->Branch("GenFunnel_bronze_cleaned",  &genFunnel_bronze_cleaned_);
-  genFunnelTree_->Branch("GenFunnel_bronze_disambig", &genFunnel_bronze_disambig_);
-  genFunnelTree_->Branch("GenFunnel_bronze_filtered", &genFunnel_bronze_filtered_);
-
-  genFunnelTree_->Branch("GenFunnel_lostGoldAtStage",   &genFunnel_lostGoldAtStage_);
-  genFunnelTree_->Branch("GenFunnel_lostSilverAtStage", &genFunnel_lostSilverAtStage_);
 
   genFunnelTree_->Branch("GenFunnel_mass_seed",         &genFunnel_mass_seed_);
   genFunnelTree_->Branch("GenFunnel_mass_merged",       &genFunnel_mass_merged_);
@@ -370,48 +324,28 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_pOverE_filtered",     &genFunnel_pOverE_filtered_);
 
   // ── stageCounts ────────────────────────────────────────────────────────────
-  stageCountsTree_ = fs->make<TTree>("stageCounts", "Per-event vertex counts per stage (hadronic)");
+  stageCountsTree_ = fs->make<TTree>("stageCounts",
+      "Per-event vertex counts per stage (Hadronic HYDDRA)");
+  stageCountsTree_->Branch("Stage_n_seed",     &stage_n_seed_);
+  stageCountsTree_->Branch("Stage_n_merged",   &stage_n_merged_);
+  stageCountsTree_->Branch("Stage_n_cleaned",  &stage_n_cleaned_);
+  stageCountsTree_->Branch("Stage_n_disambig", &stage_n_disambig_);
+  stageCountsTree_->Branch("Stage_n_filtered", &stage_n_filtered_);
 
-  stageCountsTree_->Branch("Stage_n_seed",         &stage_n_seed_);
-  stageCountsTree_->Branch("Stage_n_merged",        &stage_n_merged_);
-  stageCountsTree_->Branch("Stage_n_cleaned",       &stage_n_cleaned_);
-  stageCountsTree_->Branch("Stage_n_disambig",      &stage_n_disambig_);
-  stageCountsTree_->Branch("Stage_n_filtered",      &stage_n_filtered_);
-
-  stageCountsTree_->Branch("Stage_nGold_seed",      &stage_nGold_seed_);
-  stageCountsTree_->Branch("Stage_nGold_merged",    &stage_nGold_merged_);
-  stageCountsTree_->Branch("Stage_nGold_cleaned",   &stage_nGold_cleaned_);
-  stageCountsTree_->Branch("Stage_nGold_disambig",  &stage_nGold_disambig_);
-  stageCountsTree_->Branch("Stage_nGold_filtered",  &stage_nGold_filtered_);
-
-  stageCountsTree_->Branch("Stage_nSilver_seed",    &stage_nSilver_seed_);
-  stageCountsTree_->Branch("Stage_nSilver_merged",  &stage_nSilver_merged_);
-  stageCountsTree_->Branch("Stage_nSilver_cleaned", &stage_nSilver_cleaned_);
-  stageCountsTree_->Branch("Stage_nSilver_disambig",&stage_nSilver_disambig_);
-  stageCountsTree_->Branch("Stage_nSilver_filtered",&stage_nSilver_filtered_);
-
-  stageCountsTree_->Branch("Stage_nBronze_seed",    &stage_nBronze_seed_);
-  stageCountsTree_->Branch("Stage_nBronze_merged",  &stage_nBronze_merged_);
-  stageCountsTree_->Branch("Stage_nBronze_cleaned", &stage_nBronze_cleaned_);
-  stageCountsTree_->Branch("Stage_nBronze_disambig",&stage_nBronze_disambig_);
-  stageCountsTree_->Branch("Stage_nBronze_filtered",&stage_nBronze_filtered_);
-
-  // ── allStageVtx (hadronic) ─────────────────────────────────────────────────
+  // ── allStageVtx ────────────────────────────────────────────────────────────
   allStageVtxTree_ = fs->make<TTree>("allStageVtx",
-      "All hadronic vertices at each stage with match quality and track purity");
-  allStageVtxTree_->Branch("StageVtx_stageIdx",        &stageVtx_stageIdx_);
-  allStageVtxTree_->Branch("StageVtx_mass",             &stageVtx_mass_);
-  allStageVtxTree_->Branch("StageVtx_cosTheta",         &stageVtx_cosTheta_);
-  allStageVtxTree_->Branch("StageVtx_decayAngle",       &stageVtx_decayAngle_);
-  allStageVtxTree_->Branch("StageVtx_pOverE",           &stageVtx_pOverE_);
-  allStageVtxTree_->Branch("StageVtx_dxySignif",        &stageVtx_dxySignif_);
-  allStageVtxTree_->Branch("StageVtx_normChi2",         &stageVtx_normChi2_);
-  allStageVtxTree_->Branch("StageVtx_nTracks",          &stageVtx_nTracks_);
-  allStageVtxTree_->Branch("StageVtx_nSignalTracks",    &stageVtx_nSignalTracks_);
-  allStageVtxTree_->Branch("StageVtx_hasSharedTrack",   &stageVtx_hasSharedTrack_);
-  allStageVtxTree_->Branch("StageVtx_isGold",           &stageVtx_isGold_);
-  allStageVtxTree_->Branch("StageVtx_isSilver",         &stageVtx_isSilver_);
-  allStageVtxTree_->Branch("StageVtx_isBronze",         &stageVtx_isBronze_);
+      "All hadronic vertices at each stage (Hadronic HYDDRA)");
+  allStageVtxTree_->Branch("StageVtx_stageIdx",       &stageVtx_stageIdx_);
+  allStageVtxTree_->Branch("StageVtx_mass",            &stageVtx_mass_);
+  allStageVtxTree_->Branch("StageVtx_cosTheta",        &stageVtx_cosTheta_);
+  allStageVtxTree_->Branch("StageVtx_decayAngle",      &stageVtx_decayAngle_);
+  allStageVtxTree_->Branch("StageVtx_pOverE",          &stageVtx_pOverE_);
+  allStageVtxTree_->Branch("StageVtx_dxySignif",       &stageVtx_dxySignif_);
+  allStageVtxTree_->Branch("StageVtx_normChi2",        &stageVtx_normChi2_);
+  allStageVtxTree_->Branch("StageVtx_nTracks",         &stageVtx_nTracks_);
+  allStageVtxTree_->Branch("StageVtx_nSignalTracks",   &stageVtx_nSignalTracks_);
+  allStageVtxTree_->Branch("StageVtx_matchRatio",      &stageVtx_matchRatio_);
+  allStageVtxTree_->Branch("StageVtx_hasSharedTrack",  &stageVtx_hasSharedTrack_);
 
   // ── hadronicConfig ─────────────────────────────────────────────────────────
   hadronicConfigTree_ = fs->make<TTree>("hadronicConfig",
@@ -432,19 +366,6 @@ void HyddraSVsHadronicDiagnosticAnalyzer::clearBranches() {
   genFunnel_n_ = 0;
   genFunnel_dxy_.clear();  genFunnel_pt_.clear();   genFunnel_eta_.clear();
   genFunnel_mass_.clear(); genFunnel_phi_.clear();  genFunnel_hasTracks_.clear();
-
-  genFunnel_gold_seed_.clear();    genFunnel_gold_merged_.clear();
-  genFunnel_gold_cleaned_.clear(); genFunnel_gold_disambig_.clear();
-  genFunnel_gold_filtered_.clear();
-  genFunnel_silver_seed_.clear();  genFunnel_silver_merged_.clear();
-  genFunnel_silver_cleaned_.clear();genFunnel_silver_disambig_.clear();
-  genFunnel_silver_filtered_.clear();
-  genFunnel_bronze_seed_.clear();  genFunnel_bronze_merged_.clear();
-  genFunnel_bronze_cleaned_.clear();genFunnel_bronze_disambig_.clear();
-  genFunnel_bronze_filtered_.clear();
-
-  genFunnel_lostGoldAtStage_.clear();
-  genFunnel_lostSilverAtStage_.clear();
 
   genFunnel_mass_seed_.clear();     genFunnel_mass_merged_.clear();
   genFunnel_mass_cleaned_.clear();  genFunnel_mass_disambig_.clear();
@@ -467,67 +388,43 @@ void HyddraSVsHadronicDiagnosticAnalyzer::clearBranches() {
   genFunnel_decayAngle_seed_.clear();  genFunnel_decayAngle_merged_.clear();
   genFunnel_decayAngle_cleaned_.clear();genFunnel_decayAngle_disambig_.clear();
   genFunnel_decayAngle_filtered_.clear();
-  genFunnel_pOverE_seed_.clear();      genFunnel_pOverE_merged_.clear();
-  genFunnel_pOverE_cleaned_.clear();   genFunnel_pOverE_disambig_.clear();
+  genFunnel_pOverE_seed_.clear();    genFunnel_pOverE_merged_.clear();
+  genFunnel_pOverE_cleaned_.clear(); genFunnel_pOverE_disambig_.clear();
   genFunnel_pOverE_filtered_.clear();
 
   stage_n_seed_ = stage_n_merged_ = stage_n_cleaned_ =
   stage_n_disambig_ = stage_n_filtered_ = 0;
-  stage_nGold_seed_ = stage_nGold_merged_ = stage_nGold_cleaned_ =
-  stage_nGold_disambig_ = stage_nGold_filtered_ = 0;
-  stage_nSilver_seed_ = stage_nSilver_merged_ = stage_nSilver_cleaned_ =
-  stage_nSilver_disambig_ = stage_nSilver_filtered_ = 0;
-  stage_nBronze_seed_ = stage_nBronze_merged_ = stage_nBronze_cleaned_ =
-  stage_nBronze_disambig_ = stage_nBronze_filtered_ = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-HadStageMatch HyddraSVsHadronicDiagnosticAnalyzer::findStageMatch(
-    const GenVertex& genVtx,
+const reco::Vertex* HyddraSVsHadronicDiagnosticAnalyzer::findBestMatch(
     const reco::VertexCollection& coll) const {
 
-  HadStageMatch result;
-  int bestQuality = 0;
-
+  const reco::Vertex* best = nullptr;
+  int bestN = -1;
   for (const auto& vtx : coll) {
-    int quality = 0;
-    if      (genVtx.isGold(vtx))   quality = 3;
-    else if (genVtx.isSilver(vtx)) quality = 2;
-    else if (genVtx.isBronze(vtx)) quality = 1;
-
-    if (quality == 3) result.isGold   = true;
-    if (quality == 2) result.isSilver = true;
-    if (quality == 1) result.isBronze = true;
-
-    if (quality > bestQuality) {
-      bestQuality = quality;
-      result.bestVertex = &vtx;
-    }
+    int n = computeNSignalTracks(vtx);
+    if (n > bestN) { bestN = n; best = &vtx; }
   }
-  return result;
+  return best;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+int HyddraSVsHadronicDiagnosticAnalyzer::computeNSignalTracks(
+    const reco::Vertex& vtx) const {
+  int n = 0;
+  for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
+    reco::Track t(**it);
+    if (TrackHelper::FindTrackIndex(t, signalTracks_) >= 0) n++;
+  }
+  return n;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 float HyddraSVsHadronicDiagnosticAnalyzer::computeMatchRatio(
     const reco::Vertex& vtx) const {
   if (vtx.tracksSize() == 0) return 0.f;
-  int nSignal = 0;
-  for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
-    reco::Track t(**it);
-    if (TrackHelper::FindTrackIndex(t, signalTracks_) >= 0) nSignal++;
-  }
-  return float(nSignal) / float(vtx.tracksSize());
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-int HyddraSVsHadronicDiagnosticAnalyzer::computeNSignalTracks(
-    const reco::Vertex& vtx) const {
-  int nSignal = 0;
-  for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it) {
-    reco::Track t(**it);
-    if (TrackHelper::FindTrackIndex(t, signalTracks_) >= 0) nSignal++;
-  }
-  return nSignal;
+  return float(computeNSignalTracks(vtx)) / float(vtx.tracksSize());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -588,23 +485,14 @@ std::vector<bool> HyddraSVsHadronicDiagnosticAnalyzer::computeSharedTrackFlags(
     const reco::VertexCollection& coll) const {
 
   std::vector<bool> flags(coll.size(), false);
-
-  // Build track → vertex index map
   std::map<reco::TrackRef, std::vector<size_t>> trackToVtx;
-  for (size_t i = 0; i < coll.size(); ++i) {
-    for (auto it = coll[i].tracks_begin(); it != coll[i].tracks_end(); ++it) {
+  for (size_t i = 0; i < coll.size(); ++i)
+    for (auto it = coll[i].tracks_begin(); it != coll[i].tracks_end(); ++it)
       trackToVtx[it->castTo<reco::TrackRef>()].push_back(i);
-    }
-  }
 
-  // Any track appearing in more than one vertex → both vertices are shared
-  for (const auto& [tref, indices] : trackToVtx) {
-    if (indices.size() > 1) {
-      for (size_t idx : indices) {
-        flags[idx] = true;
-      }
-    }
-  }
+  for (const auto& [tref, indices] : trackToVtx)
+    if (indices.size() > 1)
+      for (size_t idx : indices) flags[idx] = true;
 
   return flags;
 }
@@ -623,7 +511,6 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
   const reco::Vertex& pv = pvHandle_->at(0);
   const TransientTrackBuilder* ttBuilder = &iSetup.getData(ttBuilderToken_);
 
-  // ── stageCounts totals ─────────────────────────────────────────────────────
   auto safeSize = [&](size_t i) {
     return stageHandles_[i].isValid() ? unsigned(stageHandles_[i]->size()) : 0u;
   };
@@ -633,7 +520,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
   stage_n_disambig_ = safeSize(kHadDisambig);
   stage_n_filtered_ = safeSize(kHadFiltered);
 
-  // ── Build gen vertices and signal tracks ───────────────────────────────────
+  // ── Build signal tracks ────────────────────────────────────────────────────
   genVertices_.clear();
   signalTracks_.clear();
 
@@ -661,119 +548,61 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
     }
   }
 
-  // ── stageCounts gold/silver/bronze per vertex ──────────────────────────────
-  if (hasGenInfo_) {
-    auto countMatches = [&](size_t si,
-                            unsigned& nG, unsigned& nS, unsigned& nB) {
-      if (!stageHandles_[si].isValid()) return;
-      for (const auto& vtx : *stageHandles_[si]) {
-        bool anyGold = false, anySilver = false, anyBronze = false;
-        for (const auto& gv : genVertices_) {
-          if (gv.isGold(vtx))        { anyGold = true; break; }
-          if (gv.isSilver(vtx))      anySilver = true;
-          else if (gv.isBronze(vtx)) anyBronze = true;
-        }
-        if (anyGold)        nG++;
-        else if (anySilver) nS++;
-        else if (anyBronze) nB++;
-      }
-    };
-
-    countMatches(kHadSeed,    stage_nGold_seed_,    stage_nSilver_seed_,    stage_nBronze_seed_);
-    countMatches(kHadMerged,  stage_nGold_merged_,  stage_nSilver_merged_,  stage_nBronze_merged_);
-    countMatches(kHadCleaned, stage_nGold_cleaned_,  stage_nSilver_cleaned_, stage_nBronze_cleaned_);
-    countMatches(kHadDisambig,stage_nGold_disambig_, stage_nSilver_disambig_,stage_nBronze_disambig_);
-    countMatches(kHadFiltered,stage_nGold_filtered_, stage_nSilver_filtered_,stage_nBronze_filtered_);
-  }
-
   // ── genFunnel: one entry per gen vertex ────────────────────────────────────
   if (hasGenInfo_) {
-    for (const auto& gv : genVertices_) {
-      genFunnel_dxy_       .push_back(float(gv.dxy()));
-      genFunnel_pt_        .push_back(float(gv.pt()));
-      genFunnel_eta_       .push_back(float(gv.eta()));
-      genFunnel_mass_      .push_back(float(gv.mass()));
-      genFunnel_phi_       .push_back(float(gv.phi()));
-      genFunnel_hasTracks_ .push_back(bool(gv.hasTracks()));
-
-      std::array<HadStageMatch, kHadNStages> m;
-      for (size_t si = 0; si < kHadNStages; ++si) {
-        if (stageHandles_[si].isValid())
-          m[si] = findStageMatch(gv, *stageHandles_[si]);
-      }
-
-      genFunnel_gold_seed_    .push_back(m[kHadSeed].isGold);
-      genFunnel_gold_merged_  .push_back(m[kHadMerged].isGold);
-      genFunnel_gold_cleaned_ .push_back(m[kHadCleaned].isGold);
-      genFunnel_gold_disambig_.push_back(m[kHadDisambig].isGold);
-      genFunnel_gold_filtered_.push_back(m[kHadFiltered].isGold);
-
-      genFunnel_silver_seed_    .push_back(m[kHadSeed].isSilver);
-      genFunnel_silver_merged_  .push_back(m[kHadMerged].isSilver);
-      genFunnel_silver_cleaned_ .push_back(m[kHadCleaned].isSilver);
-      genFunnel_silver_disambig_.push_back(m[kHadDisambig].isSilver);
-      genFunnel_silver_filtered_.push_back(m[kHadFiltered].isSilver);
-
-      genFunnel_bronze_seed_    .push_back(m[kHadSeed].isBronze);
-      genFunnel_bronze_merged_  .push_back(m[kHadMerged].isBronze);
-      genFunnel_bronze_cleaned_ .push_back(m[kHadCleaned].isBronze);
-      genFunnel_bronze_disambig_.push_back(m[kHadDisambig].isBronze);
-      genFunnel_bronze_filtered_.push_back(m[kHadFiltered].isBronze);
-
-      auto computeLostStage = [&](bool useGold) -> int {
-        auto hasMatch = [&](size_t si) {
-          return useGold ? m[si].isGold : (m[si].isGold || m[si].isSilver);
-        };
-        if (hasMatch(kHadFiltered)) return -1;
-        for (int si = int(kHadNStages) - 2; si >= 0; --si) {
-          if (hasMatch(size_t(si))) return si + 1;
-        }
-        return 0;
-      };
-      genFunnel_lostGoldAtStage_  .push_back(computeLostStage(true));
-      genFunnel_lostSilverAtStage_.push_back(computeLostStage(false));
-
-      // Reco props per stage (same sentinel pattern as leptonic analyzer)
-      std::array<std::vector<float>*, kHadNStages> massVecs = {{
-          &genFunnel_mass_seed_,  &genFunnel_mass_merged_,
+    // Sentinel-filling arrays: for the vectors of vecs we address by stage index
+    auto pushSentinel = [&](size_t si) {
+      std::array<std::vector<float>*, kHadNStages> massV = {{
+          &genFunnel_mass_seed_,&genFunnel_mass_merged_,
           &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> dxsVecs = {{
-          &genFunnel_dxySignif_seed_,  &genFunnel_dxySignif_merged_,
+      std::array<std::vector<float>*, kHadNStages> dxsV = {{
+          &genFunnel_dxySignif_seed_,&genFunnel_dxySignif_merged_,
           &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> chi2Vecs = {{
-          &genFunnel_normChi2_seed_,  &genFunnel_normChi2_merged_,
+      std::array<std::vector<float>*, kHadNStages> chi2V = {{
+          &genFunnel_normChi2_seed_,&genFunnel_normChi2_merged_,
           &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_}};
-      std::array<std::vector<int>*, kHadNStages> ntrkVecs = {{
-          &genFunnel_nTracks_seed_,  &genFunnel_nTracks_merged_,
+      std::array<std::vector<int>*, kHadNStages> ntrkV = {{
+          &genFunnel_nTracks_seed_,&genFunnel_nTracks_merged_,
           &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> ctVecs = {{
-          &genFunnel_cosTheta_seed_,  &genFunnel_cosTheta_merged_,
+      std::array<std::vector<float>*, kHadNStages> ctV = {{
+          &genFunnel_cosTheta_seed_,&genFunnel_cosTheta_merged_,
           &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> mrVecs = {{
-          &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
+      std::array<std::vector<float>*, kHadNStages> mrV = {{
+          &genFunnel_matchRatio_seed_,&genFunnel_matchRatio_merged_,
           &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> daVecs = {{
-          &genFunnel_decayAngle_seed_,  &genFunnel_decayAngle_merged_,
+      std::array<std::vector<float>*, kHadNStages> daV = {{
+          &genFunnel_decayAngle_seed_,&genFunnel_decayAngle_merged_,
           &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_}};
-      std::array<std::vector<float>*, kHadNStages> poeVecs = {{
-          &genFunnel_pOverE_seed_,  &genFunnel_pOverE_merged_,
+      std::array<std::vector<float>*, kHadNStages> poeV = {{
+          &genFunnel_pOverE_seed_,&genFunnel_pOverE_merged_,
           &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_}};
+      massV[si]->push_back(-1.f);  dxsV[si]->push_back(-1.f);
+      chi2V[si]->push_back(-1.f);  ntrkV[si]->push_back(-1);
+      ctV  [si]->push_back(-1.f);  mrV  [si]->push_back(-1.f);
+      daV  [si]->push_back(-1.f);  poeV [si]->push_back(-1.f);
+    };
+
+    for (const auto& gv : genVertices_) {
+      genFunnel_dxy_      .push_back(float(gv.dxy()));
+      genFunnel_pt_       .push_back(float(gv.pt()));
+      genFunnel_eta_      .push_back(float(gv.eta()));
+      genFunnel_mass_     .push_back(float(gv.mass()));
+      genFunnel_phi_      .push_back(float(gv.phi()));
+      genFunnel_hasTracks_.push_back(bool(gv.hasTracks()));
 
       for (size_t si = 0; si < kHadNStages; ++si) {
-        if (m[si].bestVertex) {
-          fillRecoPropsAt(si, *m[si].bestVertex, pv);
-        } else {
-          massVecs[si]->push_back(-1.f);
-          dxsVecs [si]->push_back(-1.f);
-          chi2Vecs[si]->push_back(-1.f);
-          ntrkVecs[si]->push_back(-1);
-          ctVecs  [si]->push_back(-1.f);
-          mrVecs  [si]->push_back(-1.f);
-          daVecs  [si]->push_back(-1.f);
-          poeVecs [si]->push_back(-1.f);
+        if (!stageHandles_[si].isValid() || stageHandles_[si]->empty()) {
+          pushSentinel(si);
+          continue;
         }
+        // Best match = reco vertex with highest nSignalTracks
+        const reco::Vertex* best = findBestMatch(*stageHandles_[si]);
+        if (best)
+          fillRecoPropsAt(si, *best, pv);
+        else
+          pushSentinel(si);
       }
-    } // end gen vertex loop
+    }
 
     genFunnel_n_ = unsigned(genVertices_.size());
   }
@@ -793,32 +622,21 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
       double p = p4.P(), mv = p4.M();
       double E = std::sqrt(p*p + mv*mv);
 
-      stageVtx_mass_          = float(mv);
-      stageVtx_cosTheta_      = float(VertexHelper::CalculateCosTheta(pv, vtx));
-      stageVtx_decayAngle_    = float(VertexHelper::CalculateDecayAngle(vtx));
-      stageVtx_pOverE_        = (E > 1e-6) ? float(p / E) : -1.f;
-      stageVtx_dxySignif_     = computeDxySignif(vtx, pv);
-      stageVtx_normChi2_      = float(vtx.normalizedChi2());
-      stageVtx_nTracks_       = int(vtx.tracksSize());
-      stageVtx_nSignalTracks_ = hasGenInfo_ ? computeNSignalTracks(vtx) : -1;
+      stageVtx_mass_         = float(mv);
+      stageVtx_cosTheta_     = float(VertexHelper::CalculateCosTheta(pv, vtx));
+      stageVtx_decayAngle_   = float(VertexHelper::CalculateDecayAngle(vtx));
+      stageVtx_pOverE_       = (E > 1e-6) ? float(p / E) : -1.f;
+      stageVtx_dxySignif_    = computeDxySignif(vtx, pv);
+      stageVtx_normChi2_     = float(vtx.normalizedChi2());
+      stageVtx_nTracks_      = int(vtx.tracksSize());
+      stageVtx_nSignalTracks_= hasGenInfo_ ? computeNSignalTracks(vtx) : -1;
+      stageVtx_matchRatio_   = hasGenInfo_ ? computeMatchRatio(vtx)    : -1.f;
       stageVtx_hasSharedTrack_= sharedFlags[vi];
-
-      stageVtx_isGold_   = false;
-      stageVtx_isSilver_ = false;
-      stageVtx_isBronze_ = false;
-      if (hasGenInfo_) {
-        for (const auto& gv : genVertices_) {
-          if      (gv.isGold(vtx))   { stageVtx_isGold_   = true; break; }
-          else if (gv.isSilver(vtx))   stageVtx_isSilver_ = true;
-          else if (gv.isBronze(vtx))   stageVtx_isBronze_ = true;
-        }
-      }
 
       allStageVtxTree_->Fill();
     }
   }
 
-  // ── Fill event-level trees ─────────────────────────────────────────────────
   genFunnelTree_->Fill();
   stageCountsTree_->Fill();
 }
@@ -841,25 +659,25 @@ void HyddraSVsHadronicDiagnosticAnalyzer::fillDescriptions(
       edm::InputTag("hyddraSVsHadronicDiag", "hadronicDisambiguated"));
   desc.add<edm::InputTag>("filteredVertices",
       edm::InputTag("hyddraSVsHadronicDiag", "hadronicFiltered"));
-  desc.add<edm::InputTag>("pvCollection",   edm::InputTag("offlinePrimaryVertices"));
-  desc.add<edm::InputTag>("tracks",         edm::InputTag("generalTracks"));
-  desc.add<edm::InputTag>("genParticles",   edm::InputTag("genParticles"));
-  desc.add<edm::InputTag>("packedGenParticles", edm::InputTag(""));
+  desc.add<edm::InputTag>("pvCollection",        edm::InputTag("offlinePrimaryVertices"));
+  desc.add<edm::InputTag>("tracks",              edm::InputTag("generalTracks"));
+  desc.add<edm::InputTag>("genParticles",        edm::InputTag("genParticles"));
+  desc.add<edm::InputTag>("packedGenParticles",  edm::InputTag(""));
 
   edm::ParameterSetDescription hadDesc;
-  hadDesc.add<double>("seedCosThetaCut",   0.0);
-  hadDesc.add<double>("minMass",           2.0);
-  hadDesc.add<double>("minPOverE",         0.6);
-  hadDesc.add<double>("maxNormChi2",       5.0);
-  hadDesc.add<double>("minDxySignificance",40.0);
-  hadDesc.add<int>   ("minSize",           5);
-  hadDesc.add<double>("minCosTheta",       0.0);
-  hadDesc.add<double>("maxDecayAngle",     0.9);
-  hadDesc.add<bool>  ("doMerging",         true);
-  hadDesc.add<bool>  ("doCleaning",        true);
-  hadDesc.add<bool>  ("doDisambiguation",  true);
-  hadDesc.add<bool>  ("doFiltering",       true);
-  hadDesc.add<bool>  ("useVertexSmoothing",false);
+  hadDesc.add<double>("seedCosThetaCut",    0.0);
+  hadDesc.add<double>("minMass",            2.0);
+  hadDesc.add<double>("minPOverE",          0.6);
+  hadDesc.add<double>("maxNormChi2",        5.0);
+  hadDesc.add<double>("minDxySignificance", 40.0);
+  hadDesc.add<int>   ("minSize",            5);
+  hadDesc.add<double>("minCosTheta",        0.0);
+  hadDesc.add<double>("maxDecayAngle",      0.9);
+  hadDesc.add<bool>  ("doMerging",          true);
+  hadDesc.add<bool>  ("doCleaning",         true);
+  hadDesc.add<bool>  ("doDisambiguation",   true);
+  hadDesc.add<bool>  ("doFiltering",        true);
+  hadDesc.add<bool>  ("useVertexSmoothing", false);
   desc.addOptional<edm::ParameterSetDescription>("hadronic", hadDesc);
 
   descriptions.addDefault(desc);

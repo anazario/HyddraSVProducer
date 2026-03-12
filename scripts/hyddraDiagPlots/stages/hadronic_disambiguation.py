@@ -64,9 +64,8 @@ def _plot_purity_2d(tdir, sv_sig, stage_key, title_suffix, shared_only=False):
         print(f"    [{tag}] No vertices in selection — skipping")
         return
 
-    n_trk   = ak.to_numpy(sv_sig["StageVtx_nTracks"      ][base_mask]).astype(int)
-    n_sig   = ak.to_numpy(sv_sig["StageVtx_nSignalTracks" ][base_mask]).astype(int)
-    is_gold = ak.to_numpy(sv_sig["StageVtx_isGold"        ][base_mask]).astype(bool)
+    n_trk = ak.to_numpy(sv_sig["StageVtx_nTracks"     ][base_mask]).astype(int)
+    n_sig = ak.to_numpy(sv_sig["StageVtx_nSignalTracks"][base_mask]).astype(int)
 
     # Clip nSignalTracks to [0, nTracks] to guard against any sentinel values
     n_sig = np.clip(n_sig, 0, n_trk)
@@ -156,7 +155,7 @@ def _plot_purity_2d(tdir, sv_sig, stage_key, title_suffix, shared_only=False):
 def make_plots(tdir, gf, sv_sig, sv_bkg):
     print("  [had/disambiguation] Reco observables...")
     for obs_key, obs_cfg in HADRONIC_RECO_OBSERVABLES.items():
-        plot_reco_observable(tdir, gf, sv_sig, "disambig", obs_key, obs_cfg, sv_bkg)
+        plot_reco_observable(tdir, gf, sv_sig, "disambig", obs_key, obs_cfg, sv_bkg, hadronic=True)
         print(f"    [reco_disambig_{obs_key}] done")
 
     print("  [had/disambiguation] Purity 2D: pre-disambiguation (all)...")

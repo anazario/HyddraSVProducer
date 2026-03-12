@@ -24,6 +24,16 @@ def load_stage_counts(root_file, base=_BASE):
     return totals
 
 
+def load_stage_counts_hadronic(root_file, base=_HADRONIC_BASE):
+    """Return hadronic stageCounts summed over all events (total counts only)."""
+    arr = root_file[f"{base}/stageCounts"].arrays(library="ak")
+    totals = {}
+    for stage in STAGE_KEYS:
+        branch = f"Stage_n_{stage}"
+        totals[branch] = int(ak.sum(arr[branch]))
+    return totals
+
+
 def load_cleaning_tracks(root_file, base=_BASE):
     """Return cleaningTracks tree arrays (vectors per event)."""
     return root_file[f"{base}/cleaningTracks"].arrays(library="ak")

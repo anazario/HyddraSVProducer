@@ -34,9 +34,9 @@ def plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg):
     sidx_post = STAGE_IDX["filtered"]
     bins = np.linspace(0, 150, 76)
 
-    stage   = ak.to_numpy(sv_sig["StageVtx_stageIdx"]).astype(int)
-    is_gold = ak.to_numpy(sv_sig["StageVtx_isGold"]).astype(bool)
-    vals    = ak.to_numpy(sv_sig["StageVtx_dxySignif"]).astype(float)
+    stage     = ak.to_numpy(sv_sig["StageVtx_stageIdx"]).astype(int)
+    is_signal = ak.to_numpy(sv_sig["StageVtx_matchRatio"]) > 0
+    vals      = ak.to_numpy(sv_sig["StageVtx_dxySignif"]).astype(float)
 
     # Mask out sentinel values (-1)
     valid = vals >= 0
@@ -57,10 +57,10 @@ def plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg):
         h.GetXaxis().SetTitleOffset(1.2); h.GetYaxis().SetTitleOffset(1.3)
         return h
 
-    h_sig_pre    = make_th1(f"h_{tag}_sig_pre",    (stage == sidx_pre)  &  is_gold, COLOR_GOLD,      1)
-    h_sig_post   = make_th1(f"h_{tag}_sig_post",   (stage == sidx_post) &  is_gold, COLOR_GOLD,      2)
-    h_nonsig_pre = make_th1(f"h_{tag}_nonsig_pre", (stage == sidx_pre)  & ~is_gold, COLOR_NONSIGNAL, 1)
-    h_nonsig_post= make_th1(f"h_{tag}_nonsig_post",(stage == sidx_post) & ~is_gold, COLOR_NONSIGNAL, 2)
+    h_sig_pre    = make_th1(f"h_{tag}_sig_pre",    (stage == sidx_pre)  &  is_signal, COLOR_GOLD,      1)
+    h_sig_post   = make_th1(f"h_{tag}_sig_post",   (stage == sidx_post) &  is_signal, COLOR_GOLD,      2)
+    h_nonsig_pre = make_th1(f"h_{tag}_nonsig_pre", (stage == sidx_pre)  & ~is_signal, COLOR_NONSIGNAL, 1)
+    h_nonsig_post= make_th1(f"h_{tag}_nonsig_post",(stage == sidx_post) & ~is_signal, COLOR_NONSIGNAL, 2)
 
     hists  = [h_sig_pre, h_sig_post, h_nonsig_pre, h_nonsig_post]
     labels = ["Signal (pre-filter)", "Signal (post-filter)",
@@ -134,8 +134,8 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
         print(f"    [{tag}] No disambiguated vertices — skipping")
         return
 
-    dxy_signif = ak.to_numpy(sv_sig["StageVtx_dxySignif"][mask]).astype(float)
-    is_gold    = ak.to_numpy(sv_sig["StageVtx_isGold"   ][mask]).astype(bool)
+    dxy_signif = ak.to_numpy(sv_sig["StageVtx_dxySignif" ][mask]).astype(float)
+    is_signal  = ak.to_numpy(sv_sig["StageVtx_matchRatio"][mask]) > 0
 
     min_dxy_sig = float(cfg["minDxySignificance"]) if cfg else 40.0
 
@@ -145,13 +145,13 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
         (f"dxySignif #leq {min_dxy_sig:.0f}", (dxy_signif >= 0) & (dxy_signif <= min_dxy_sig)),
     ]
 
-    n_gold_total   = int(np.sum( is_gold))
-    n_nonsig_total = int(np.sum(~is_gold))
+    n_gold_total   = int(np.sum( is_signal))
+    n_nonsig_total = int(np.sum(~is_signal))
 
     cut_labels, sig_fracs, nonsig_fracs = [], [], []
     for label, fail_mask in cuts:
-        n_sig_fail    = int(np.sum(fail_mask &  is_gold))
-        n_nonsig_fail = int(np.sum(fail_mask & ~is_gold))
+        n_sig_fail    = int(np.sum(fail_mask &  is_signal))
+        n_nonsig_fail = int(np.sum(fail_mask & ~is_signal))
         sig_fracs.append(n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0)
         nonsig_fracs.append(n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0)
         cut_labels.append(label)
@@ -195,7 +195,7 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
 
     leg = ROOT.TLegend(0.55, 0.76, 0.88, 0.88)
     leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.035)
-    leg.AddEntry(h_sig,    "Signal (gold)", "f")
+    leg.AddEntry(h_sig,    "Signal (matchRatio > 0)", "f")
     leg.AddEntry(h_nonsig, "Non-signal",    "f")
     leg.Draw()
     draw_cms_label()
@@ -212,7 +212,7 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
 def make_plots(tdir, gf, sv_sig, sv_bkg, cfg=None):
     print("  [had/filtering] Reco observables...")
     for obs_key, obs_cfg in HADRONIC_RECO_OBSERVABLES.items():
-        plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg)
+        plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg, hadronic=True)
         print(f"    [reco_filtered_{obs_key}] done")
     print("  [had/filtering] dxySignif pre/post filter...")
     plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg)
