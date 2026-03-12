@@ -329,11 +329,13 @@ else
     HAS_VERTEX_COLLECTION=false
     HAS_PROCESS_MODE=false
     HAS_APPLY_CUTS=false
+    HAS_HYDDRA_PRESET=false
 
     grep -q "options.register('trackCollection'" "$CONFIG_PATH" 2>/dev/null && HAS_TRACK_COLLECTION=true
     grep -q "options.register('collection'"      "$CONFIG_PATH" 2>/dev/null && HAS_VERTEX_COLLECTION=true
     grep -q "options.register('processMode'"     "$CONFIG_PATH" 2>/dev/null && HAS_PROCESS_MODE=true
     grep -q "options.register('applyCuts'"       "$CONFIG_PATH" 2>/dev/null && HAS_APPLY_CUTS=true
+    grep -q "options.register('hyddraPreset'"    "$CONFIG_PATH" 2>/dev/null && HAS_HYDDRA_PRESET=true
 
     echo ""
     echo -e "  Detected format: ${YELLOW}${FORMAT_TYPE}${NC}"
@@ -487,30 +489,33 @@ else
     [[ -n "$CUSTOM_EXTRA" ]] && EXTRA_ARGS="$EXTRA_ARGS $CUSTOM_EXTRA"
 
     # ── Step 9: HYDDRA leptonic preset ───────────────────────────────────────
-    echo ""
-    echo -e "${BOLD}Step 9: HYDDRA leptonic algorithm preset${NC}"
-    echo ""
-    echo "  1) default   (use config as-is)"
-    echo "  2) NonIso    (merging OFF, cleaning OFF, smoothing ON, filter: charge neutrality only)"
-    echo "  3) TightIso  (merging ON,  cleaning OFF, smoothing ON, filter: charge neutrality only)"
-    echo ""
+    HYDDRA_PRESET="default"
+    if $HAS_HYDDRA_PRESET; then
+        echo ""
+        echo -e "${BOLD}Step 9: HYDDRA leptonic algorithm preset${NC}"
+        echo ""
+        echo "  1) default   (use config as-is)"
+        echo "  2) NonIso    (merging OFF, cleaning OFF, smoothing ON, filter: charge neutrality only)"
+        echo "  3) TightIso  (merging ON,  cleaning OFF, smoothing ON, filter: charge neutrality only)"
+        echo ""
 
-    HYDDRA_PRESET_CHOICE=""
-    while [[ -z "$HYDDRA_PRESET_CHOICE" ]]; do
-        read -rp "$(echo -e "${CYAN}Preset [1/2/3, default 1]: ${NC}")" HYDDRA_PRESET_CHOICE
-        HYDDRA_PRESET_CHOICE="${HYDDRA_PRESET_CHOICE:-1}"
-        case "$HYDDRA_PRESET_CHOICE" in
-            1) HYDDRA_PRESET="default" ;;
-            2) HYDDRA_PRESET="NonIso"
-               EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset NonIso" ;;
-            3) HYDDRA_PRESET="TightIso"
-               EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset TightIso" ;;
-            *)
-                echo -e "${RED}  Please enter 1, 2, or 3.${NC}"
-                HYDDRA_PRESET_CHOICE=""
-                ;;
-        esac
-    done
+        HYDDRA_PRESET_CHOICE=""
+        while [[ -z "$HYDDRA_PRESET_CHOICE" ]]; do
+            read -rp "$(echo -e "${CYAN}Preset [1/2/3, default 1]: ${NC}")" HYDDRA_PRESET_CHOICE
+            HYDDRA_PRESET_CHOICE="${HYDDRA_PRESET_CHOICE:-1}"
+            case "$HYDDRA_PRESET_CHOICE" in
+                1) HYDDRA_PRESET="default" ;;
+                2) HYDDRA_PRESET="NonIso"
+                   EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset NonIso" ;;
+                3) HYDDRA_PRESET="TightIso"
+                   EXTRA_ARGS="$EXTRA_ARGS --hyddra-preset TightIso" ;;
+                *)
+                    echo -e "${RED}  Please enter 1, 2, or 3.${NC}"
+                    HYDDRA_PRESET_CHOICE=""
+                    ;;
+            esac
+        done
+    fi
 
     # ── Step 10: Temporary working directory ─────────────────────────────────
     echo ""
