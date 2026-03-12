@@ -2,7 +2,7 @@ import FWCore.ParameterSet.Config as cms
 
 hyddraEXOAnalyzer = cms.EDAnalyzer("HyddraSVsEXOAnalyzer",
     inclusiveVertices = cms.InputTag("hyddraEXO", "inclusiveVertices"),
-    isolatedVertices  = cms.InputTag("hyddraEXO", "isolatedVertices"),
+    isolationFlags    = cms.InputTag("hyddraEXO", "isolationFlags"),
     pvCollection      = cms.InputTag("offlinePrimaryVertices"),
     tracks            = cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     genParticles      = cms.InputTag("genParticles"),

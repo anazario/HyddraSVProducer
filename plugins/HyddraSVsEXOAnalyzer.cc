@@ -24,7 +24,6 @@
 #include <limits>
 #include <memory>
 #include <vector>
-#include <set>
 
 // CMSSW framework
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -190,7 +189,7 @@ private:
 
   // Tokens
   edm::EDGetTokenT<reco::VertexCollection>   inclusiveToken_;
-  edm::EDGetTokenT<reco::VertexCollection>   isolatedToken_;
+  edm::EDGetTokenT<std::vector<int>>         isoFlagsToken_;
   edm::EDGetTokenT<reco::VertexCollection>   pvToken_;
   edm::EDGetTokenT<reco::TrackCollection>    tracksToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
@@ -266,8 +265,8 @@ private:
 HyddraSVsEXOAnalyzer::HyddraSVsEXOAnalyzer(const edm::ParameterSet& iConfig)
     : inclusiveToken_(consumes<reco::VertexCollection>(
           iConfig.getParameter<edm::InputTag>("inclusiveVertices")))
-    , isolatedToken_(consumes<reco::VertexCollection>(
-          iConfig.getParameter<edm::InputTag>("isolatedVertices")))
+    , isoFlagsToken_(consumes<std::vector<int>>(
+          iConfig.getParameter<edm::InputTag>("isolationFlags")))
     , pvToken_(consumes<reco::VertexCollection>(
           iConfig.getParameter<edm::InputTag>("pvCollection")))
     , tracksToken_(consumes<reco::TrackCollection>(
@@ -548,7 +547,7 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
 
   // ── Inputs ──────────────────────────────────────────────────────────────
   auto inclusiveHandle = iEvent.getHandle(inclusiveToken_);
-  auto isolatedHandle  = iEvent.getHandle(isolatedToken_);
+  auto isoFlagsHandle  = iEvent.getHandle(isoFlagsToken_);
   auto pvHandle        = iEvent.getHandle(pvToken_);
   auto tracksHandle    = iEvent.getHandle(tracksToken_);
 
@@ -557,22 +556,6 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     return;
   }
   const reco::Vertex& pv = pvHandle->at(0);
-
-  // ── Build isolated track-key pairs for O(log n) lookup ──────────────────
-  // Each isolated SV is uniquely identified by the (min_key, max_key) pair
-  // of its two TrackBaseRef indices.
-  std::set<std::pair<unsigned, unsigned>> isolatedPairs;
-  if (isolatedHandle.isValid()) {
-    for (const auto& sv : *isolatedHandle) {
-      std::vector<unsigned> keys;
-      for (auto it = sv.tracks_begin(); it != sv.tracks_end(); ++it)
-        keys.push_back(it->key());
-      if (keys.size() == 2) {
-        auto [a, b] = std::minmax(keys[0], keys[1]);
-        isolatedPairs.insert({a, b});
-      }
-    }
-  }
 
   // ── Gen vertices (MC only) ───────────────────────────────────────────────
   std::vector<HyddraGenVertex> genVtxs;
@@ -596,21 +579,22 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
   }
 
   // ── Fill HyddraSV branches ───────────────────────────────────────────────
+  int svIdx = 0;
   for (const auto& sv : *inclusiveHandle) {
     // Collect tracks from vertex, sort by pT descending
     std::vector<reco::TrackRef> trkRefs;
     for (auto it = sv.tracks_begin(); it != sv.tracks_end(); ++it)
       trkRefs.push_back(it->castTo<reco::TrackRef>());
-    if (trkRefs.size() != 2) continue;
+    if (trkRefs.size() != 2) { ++svIdx; continue; }
     std::sort(trkRefs.begin(), trkRefs.end(), [](const reco::TrackRef& a, const reco::TrackRef& b) {
       return a->pt() > b->pt();
     });
     const reco::Track& t1 = *trkRefs[0];
     const reco::Track& t2 = *trkRefs[1];
 
-    // ── Isolation flag ─────────────────────────────────────────────────────
-    auto [ka, kb] = std::minmax(trkRefs[0].key(), trkRefs[1].key());
-    bool passIso = isolatedPairs.count({ka, kb}) > 0;
+    // ── Isolation flag (from producer-computed flags, parallel to inclusiveVertices) ──
+    bool passIso = (isoFlagsHandle.isValid() && svIdx < (int)isoFlagsHandle->size())
+                   ? (*isoFlagsHandle)[svIdx] != 0 : false;
 
     // ── 4-momentum (massless track sum) ───────────────────────────────────
     float px = t1.px() + t2.px();
@@ -675,6 +659,8 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     sv_trk2Dz_.push_back(t2dz); sv_trk2DzErr_.push_back(t2dzErr);
     sv_trk2NormChi2_.push_back(t2.normalizedChi2());
     sv_trk2CosTheta_.push_back(t2ct); sv_trk2CosThetaCM_.push_back(t2ctCM);
+
+    ++svIdx;
 
     // ── Gen matching ────────────────────────────────────────────────────
     if (hasGenInfo_ && genParts) {
@@ -741,8 +727,8 @@ void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& desc
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("inclusiveVertices",
       edm::InputTag("hyddraEXO", "inclusiveVertices"));
-  desc.add<edm::InputTag>("isolatedVertices",
-      edm::InputTag("hyddraEXO", "isolatedVertices"));
+  desc.add<edm::InputTag>("isolationFlags",
+      edm::InputTag("hyddraEXO", "isolationFlags"));
   desc.add<edm::InputTag>("pvCollection",
       edm::InputTag("offlinePrimaryVertices"));
   desc.add<edm::InputTag>("tracks",

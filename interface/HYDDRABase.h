@@ -146,6 +146,17 @@ class HYDDRABase : public TrackVertexSetCollection {
   // Accessor for Tier 1 (isolated) vertices from the forked pipeline.
   reco::VertexCollection isolatedVertices() const { return tier1_.vertices(); }
 
+  // Returns a flag vector parallel to vertices() (tier0_): 1 if the
+  // corresponding inclusive vertex also appears in tier1_, 0 otherwise.
+  // Skips invalid sets to stay in sync with vertices().
+  std::vector<int> computeIsolationFlags() const {
+    std::vector<int> flags;
+    for (const auto& v : tier0_)
+      if (v.isValid())
+        flags.push_back(tier1_.contains(v) ? 1 : 0);
+    return flags;
+  }
+
   // Forked pipeline entry point for EXONanoAOD.
   // Runs seeding once, then branches into two disambiguation paths:
   //   Tier 0 (inclusive): seeds -> disambiguation

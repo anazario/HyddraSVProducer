@@ -70,6 +70,7 @@ HyddraSVsEXOProducer::HyddraSVsEXOProducer(const edm::ParameterSet& iConfig) :
 {
   produces<reco::VertexCollection>("inclusiveVertices");
   produces<reco::VertexCollection>("isolatedVertices");
+  produces<std::vector<int>>("isolationFlags");
 }
 
 void HyddraSVsEXOProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
@@ -96,6 +97,7 @@ void HyddraSVsEXOProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
 
   iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.vertices()),         "inclusiveVertices");
   iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.isolatedVertices()), "isolatedVertices");
+  iEvent.put(std::make_unique<std::vector<int>>(leptonic_.computeIsolationFlags()),  "isolationFlags");
 }
 
 void HyddraSVsEXOProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
