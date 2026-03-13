@@ -85,32 +85,75 @@ def configureTrackCollection(trackCol):
     tags = {
         'general':                 cms.InputTag("generalTracks"),
         'generalFiltered':         cms.InputTag("filteredTrackProducer"),
+        'selected':                cms.InputTag("muonEnhancedTracks", "selectedTracks"),
         'sip2D':                   cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
         'sip2DMuonEnhanced':       cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
         'muonEnhanced':            cms.InputTag("muonEnhancedTracks", "muonEnhancedTracks"),
         'displacedGlobalMuon':     cms.InputTag("displacedGlobalMuons"),
         'displacedStandAloneMuon': cms.InputTag("displacedStandAloneMuons"),
+        'promptMuonExtracted':     cms.InputTag("muonGlobalTrackProducer", "globalTracks"),
+        'displacedMuonExtracted':  cms.InputTag("muonGlobalTrackProducer", "displacedGlobalTracks"),
+        'promptMuonBestTrack':     cms.InputTag("muonBestTrackProducer",   "globalTracks"),
+        'displacedMuonBestTrack':  cms.InputTag("muonBestTrackProducer",   "displacedGlobalTracks"),
+        'promptMuonPriority':      cms.InputTag("muonPriorityTrackProducer", "globalTracks"),
+        'displacedMuonPriority':   cms.InputTag("muonPriorityTrackProducer", "displacedGlobalTracks"),
+        'promptMuonLLPNano':       cms.InputTag("muonLLPNanoTrackProducer",  "globalTracks"),
+        'displacedMuonLLPNano':    cms.InputTag("muonLLPNanoTrackProducer",  "displacedGlobalTracks"),
     }
     if trackCol not in tags:
         raise ValueError(f"Unknown trackCollection '{trackCol}'")
     tag = tags[trackCol]
-    process.hyddraEXO.tracks            = tag
-    process.hyddraEXOAnalyzer.tracks    = tag
+    process.hyddraEXO.tracks         = tag
+    process.hyddraEXOAnalyzer.tracks = tag
 
 configureTrackCollection(options.trackCollection)
 
 # ── Build path ────────────────────────────────────────────────────────────────
-MUON_COLLECTIONS = {
-    'displacedGlobalMuon', 'displacedStandAloneMuon', 'general'
+# Collections that need a MuonGlobalTrackProducer clone on the path.
+# Each entry: (module name, mode, trackPriority list, extra kwargs dict)
+MUON_TRACK_COLLECTIONS = {
+    'promptMuonExtracted':   ('muonGlobalTrackProducer',   'globalTrack', [], {}),
+    'displacedMuonExtracted':('muonGlobalTrackProducer',   'globalTrack', [], {}),
+    'promptMuonBestTrack':   ('muonBestTrackProducer',     'bestTrack',   [], {}),
+    'displacedMuonBestTrack':('muonBestTrackProducer',     'bestTrack',   [], {}),
+    'promptMuonPriority':    ('muonPriorityTrackProducer', 'priority',
+                              ['globalTrack', 'innerTrack', 'outerTrack'], {}),
+    'displacedMuonPriority': ('muonPriorityTrackProducer', 'priority',
+                              ['globalTrack', 'innerTrack', 'outerTrack'], {}),
+    'promptMuonLLPNano':     ('muonLLPNanoTrackProducer',  'llpNano', [],
+                              {'minMuonPt': cms.double(3.0)}),
+    'displacedMuonLLPNano':  ('muonLLPNanoTrackProducer',  'llpNano', [],
+                              {'minMuonPt': cms.double(3.0)}),
 }
 
-if options.trackCollection == 'generalFiltered':
+NO_PRODUCER_COLLECTIONS = {'general', 'displacedGlobalMuon', 'displacedStandAloneMuon'}
+
+if options.trackCollection in MUON_TRACK_COLLECTIONS:
+    moduleName, mode, priority, extraKwargs = MUON_TRACK_COLLECTIONS[options.trackCollection]
+    if not hasattr(process, moduleName):
+        cloneArgs = dict(mode=cms.string(mode))
+        if priority:
+            cloneArgs['trackPriority'] = cms.vstring(*priority)
+        cloneArgs.update(extraKwargs)
+        setattr(process, moduleName, process.muonGlobalTrackProducer.clone(**cloneArgs))
+    else:
+        getattr(process, moduleName).mode = cms.string(mode)
+        if priority:
+            getattr(process, moduleName).trackPriority = cms.vstring(*priority)
+        for k, v in extraKwargs.items():
+            setattr(getattr(process, moduleName), k, v)
+    process.p = cms.Path(
+        getattr(process, moduleName) +
+        process.hyddraEXO +
+        process.hyddraEXOAnalyzer
+    )
+elif options.trackCollection == 'generalFiltered':
     process.p = cms.Path(
         process.filteredTrackProducer +
         process.hyddraEXO +
         process.hyddraEXOAnalyzer
     )
-elif options.trackCollection in MUON_COLLECTIONS:
+elif options.trackCollection in NO_PRODUCER_COLLECTIONS:
     process.p = cms.Path(
         process.hyddraEXO +
         process.hyddraEXOAnalyzer
