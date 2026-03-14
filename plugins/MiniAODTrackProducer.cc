@@ -59,6 +59,13 @@ private:
   void extractMuonTracks(const std::vector<pat::Muon>& muons,
                          reco::TrackCollection& outputTracks) const;
 
+  // Helper to extract muon tracks using the LLPNanoAOD PatMuonVertex track selection:
+  //   isGlobalMuon()     -> combinedMuon()
+  //   isStandAloneMuon() -> standAloneMuon()
+  //   else               -> tunePMuonBestTrack()
+  void extractMuonTracksLLPNano(const std::vector<pat::Muon>& muons,
+                                reco::TrackCollection& outputTracks) const;
+
   // Helper to add tracks to a merged collection, dropping any that fall within
   // deltaR < 0.01 of a PF electron track in the reference collection.
   void addTracksDeduped(const reco::TrackCollection& inputTracks,
@@ -113,6 +120,10 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
   // Muon global tracks
   produces<reco::TrackCollection>("muonGlobalTracks");
   produces<reco::TrackCollection>("displacedMuonGlobalTracks");
+
+  // Muon tracks using LLPNanoAOD PatMuonVertex selection
+  produces<reco::TrackCollection>("muonLLPNanoTracks");
+  produces<reco::TrackCollection>("displacedMuonLLPNanoTracks");
 }
 
 void MiniAODTrackProducer::extractTracks(
@@ -170,6 +181,29 @@ void MiniAODTrackProducer::extractMuonTracks(
   for (const auto& muon : muons) {
     if (muon.muonBestTrack().isNonnull()) {
       outputTracks.push_back(*muon.muonBestTrack());
+    }
+  }
+}
+
+void MiniAODTrackProducer::extractMuonTracksLLPNano(
+    const std::vector<pat::Muon>& muons,
+    reco::TrackCollection& outputTracks) const {
+
+  // Replicates the LLPNanoAOD PatMuonVertex track selection:
+  //   isGlobalMuon()     -> combinedMuon()
+  //   isStandAloneMuon() -> standAloneMuon()
+  //   else               -> tunePMuonBestTrack()
+  for (const auto& muon : muons) {
+    reco::TrackRef trackRef;
+    if (muon.isGlobalMuon())
+      trackRef = muon.combinedMuon();
+    else if (muon.isStandAloneMuon())
+      trackRef = muon.standAloneMuon();
+    else
+      trackRef = muon.tunePMuonBestTrack();
+
+    if (trackRef.isNonnull()) {
+      outputTracks.push_back(*trackRef);
     }
   }
 }
@@ -234,6 +268,8 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   auto mergedTracksAll = std::make_unique<reco::TrackCollection>();
   auto muonGlobalTracks = std::make_unique<reco::TrackCollection>();
   auto displacedMuonGlobalTracks = std::make_unique<reco::TrackCollection>();
+  auto muonLLPNanoTracks = std::make_unique<reco::TrackCollection>();
+  auto displacedMuonLLPNanoTracks = std::make_unique<reco::TrackCollection>();
 
   // Extract tracks from packed candidates
   if (pfCandidatesHandle.isValid()) {
@@ -251,10 +287,12 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   // Extract global tracks from muons
   if (muonsHandle.isValid()) {
     extractMuonTracks(*muonsHandle, *muonGlobalTracks);
+    extractMuonTracksLLPNano(*muonsHandle, *muonLLPNanoTracks);
   }
 
   if (displacedMuonsHandle.isValid()) {
     extractMuonTracks(*displacedMuonsHandle, *displacedMuonGlobalTracks);
+    extractMuonTracksLLPNano(*displacedMuonsHandle, *displacedMuonLLPNanoTracks);
   }
 
   // Build PF electron reference tracks for deduplication (same quality cuts as extractTracks)
@@ -302,7 +340,9 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
       << ", MergedWithEle: " << mergedTracksWithEle->size()
       << ", MergedAll: " << mergedTracksAll->size()
       << ", MuonGlobal: " << muonGlobalTracks->size()
-      << ", DisplacedMuonGlobal: " << displacedMuonGlobalTracks->size();
+      << ", DisplacedMuonGlobal: " << displacedMuonGlobalTracks->size()
+      << ", MuonLLPNano: " << muonLLPNanoTracks->size()
+      << ", DisplacedMuonLLPNano: " << displacedMuonLLPNanoTracks->size();
 
   // Put collections into the event
   iEvent.put(std::move(pfCandidateTracks), "pfCandidateTracks");
@@ -313,6 +353,8 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   iEvent.put(std::move(mergedTracksAll), "mergedAll");
   iEvent.put(std::move(muonGlobalTracks), "muonGlobalTracks");
   iEvent.put(std::move(displacedMuonGlobalTracks), "displacedMuonGlobalTracks");
+  iEvent.put(std::move(muonLLPNanoTracks), "muonLLPNanoTracks");
+  iEvent.put(std::move(displacedMuonLLPNanoTracks), "displacedMuonLLPNanoTracks");
 }
 
 void MiniAODTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
