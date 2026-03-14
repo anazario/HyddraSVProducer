@@ -217,12 +217,13 @@ private:
   // Fit quality
   std::vector<float> sv_chi2_, sv_ndof_, sv_normChi2_;
   // 4-momentum (massless track sum)
-  std::vector<float> sv_pt_, sv_eta_, sv_phi_, sv_mass_;
+  std::vector<float> sv_pt_, sv_eta_, sv_phi_, sv_mass_, sv_p_;
   // Topology
   std::vector<int>   sv_charge_;
   std::vector<float> sv_cosTheta_;    // pointing angle wrt PV
   std::vector<float> sv_decayAngle_;  // CM-frame decay angle (neg. track convention)
   std::vector<float> sv_dR_;          // ΔR between the two tracks
+  std::vector<float> sv_beta_;        // p / sqrt(p² + m²) = p/E
   // Working point flag
   std::vector<bool>  sv_passesIsolation_;
   // Track 1 (leading pT)
@@ -318,12 +319,14 @@ void HyddraSVsEXOAnalyzer::beginJob() {
   tree_->Branch("HyddraSV_eta",  &sv_eta_);
   tree_->Branch("HyddraSV_phi",  &sv_phi_);
   tree_->Branch("HyddraSV_mass", &sv_mass_);
+  tree_->Branch("HyddraSV_p",    &sv_p_);
 
   // Topology
   tree_->Branch("HyddraSV_charge",     &sv_charge_);
   tree_->Branch("HyddraSV_cosTheta",   &sv_cosTheta_);
   tree_->Branch("HyddraSV_decayAngle", &sv_decayAngle_);
-  tree_->Branch("HyddraSV_dR",         &sv_dR_);
+  tree_->Branch("HyddraSV_dR",   &sv_dR_);
+  tree_->Branch("HyddraSV_beta", &sv_beta_);
 
   // Isolation flag
   tree_->Branch("HyddraSV_passesIsolation", &sv_passesIsolation_);
@@ -398,9 +401,9 @@ void HyddraSVsEXOAnalyzer::clearBranches() {
   sv_xErr_.clear(); sv_yErr_.clear(); sv_zErr_.clear();
   sv_dxy_.clear(); sv_dxyErr_.clear(); sv_dxySig_.clear();
   sv_chi2_.clear(); sv_ndof_.clear(); sv_normChi2_.clear();
-  sv_pt_.clear(); sv_eta_.clear(); sv_phi_.clear(); sv_mass_.clear();
+  sv_pt_.clear(); sv_eta_.clear(); sv_phi_.clear(); sv_mass_.clear(); sv_p_.clear();
   sv_charge_.clear();
-  sv_cosTheta_.clear(); sv_decayAngle_.clear(); sv_dR_.clear();
+  sv_cosTheta_.clear(); sv_decayAngle_.clear(); sv_dR_.clear(); sv_beta_.clear();
   sv_passesIsolation_.clear();
   sv_trk1Pt_.clear(); sv_trk1Eta_.clear(); sv_trk1Phi_.clear(); sv_trk1Charge_.clear();
   sv_trk1Dxy_.clear(); sv_trk1DxyErr_.clear(); sv_trk1DxySig_.clear();
@@ -606,6 +609,8 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     float eta = (p > 1e-9f) ? std::atanh(pz / p) : 0.f;
     float phi = std::atan2(py, px);
     float mass = std::sqrt(std::max(0.f, e*e - p*p));
+    float beta_e = std::sqrt(p*p + mass*mass);
+    float beta = (beta_e > 1e-9f) ? p / beta_e : INV;
 
     // ── Displacement ────────────────────────────────────────────────────
     float dxy    = computeDxy(sv, pv);
@@ -641,9 +646,11 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     sv_dxy_.push_back(dxy); sv_dxyErr_.push_back(dxyErr); sv_dxySig_.push_back(dxySig);
     sv_chi2_.push_back(sv.chi2()); sv_ndof_.push_back(sv.ndof());
     sv_normChi2_.push_back(sv.normalizedChi2());
-    sv_pt_.push_back(pt); sv_eta_.push_back(eta); sv_phi_.push_back(phi); sv_mass_.push_back(mass);
+    sv_pt_.push_back(pt); sv_eta_.push_back(eta); sv_phi_.push_back(phi);
+    sv_mass_.push_back(mass); sv_p_.push_back(p);
     sv_charge_.push_back(charge);
-    sv_cosTheta_.push_back(cosTheta); sv_decayAngle_.push_back(decayAngle); sv_dR_.push_back(dR);
+    sv_cosTheta_.push_back(cosTheta); sv_decayAngle_.push_back(decayAngle);
+    sv_dR_.push_back(dR); sv_beta_.push_back(beta);
     sv_passesIsolation_.push_back(passIso);
     sv_trk1Pt_.push_back(t1.pt()); sv_trk1Eta_.push_back(t1.eta()); sv_trk1Phi_.push_back(t1.phi());
     sv_trk1Charge_.push_back(t1.charge());
