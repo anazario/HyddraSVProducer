@@ -7,9 +7,13 @@ Plots:
   - reco_filtered_minTrackCosTheta  (1D, filtering stage only)
   - filter_cutflow  (sequential removal efficiency per cut, signal vs non-signal)
 """
+import sys
 import numpy as np
 import awkward as ak
 import ROOT
+
+def _eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 from ..src.config  import RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL
 from ..src.style   import draw_cms_label, draw_colz_grid, draw_axis_grid
@@ -300,12 +304,12 @@ def make_cutflow_table(tdir, sv_sig, cfg):
     header = (f"  {'Cut':<22} | {'Gold lost':{col_w}} | "
               f"{'Non-sig reduction':{col_w}} | {'Non-sig removed':>10}")
     sep    = "  " + "-" * (len(header) - 2)
-    print("  [filter_cutflow] Per-cut removal (denominator = all disambig SVs):")
-    print(f"  {'Denominator':<22} | "
-          f"{'':>5}{n_gold_total:<5}{'':>14}| "
-          f"{'':>5}{n_nonsig_total:<5}{'':>14}|")
-    print(header)
-    print(sep)
+    _eprint("  [filter_cutflow] Per-cut removal (denominator = all disambig SVs):")
+    _eprint(f"  {'Denominator':<22} | "
+            f"{'':>5}{n_gold_total:<5}{'':>14}| "
+            f"{'':>5}{n_nonsig_total:<5}{'':>14}|")
+    _eprint(header)
+    _eprint(sep)
 
     for label, fail_mask in cuts:
         n_sig_fail    = int(np.sum(fail_mask &  is_gold))
@@ -314,10 +318,10 @@ def make_cutflow_table(tdir, sv_sig, cfg):
         sig_frac    = n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0
         nonsig_frac = n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0
 
-        print(f"  {label:<22} | "
-              f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
-              f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
-              f"{n_nonsig_fail:>10}")
+        _eprint(f"  {label:<22} | "
+                f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
+                f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
+                f"{n_nonsig_fail:>10}")
 
         cut_labels.append(label)
         sig_fracs.append(sig_frac)
