@@ -122,26 +122,54 @@ def _resolve_modes(requested_mode, sig_path):
 # ── Efficiency summary helpers ─────────────────────────────────────────────────
 
 def _compute_summary(stem, gf_sig, sc_sig, mode_prefix=""):
-    """Compute per-file signal efficiency summary from loaded data."""
-    n_gen = int(ak.sum(gf_sig['GenFunnel_n']))
+    """Compute per-file signal efficiency summary from loaded data.
+
+    Only leptonic gen vertices (electrons + muons) are counted; hadronic gen
+    vertices are never reconstructed by the leptonic pipeline and would
+    artificially inflate the denominator if included.
+    """
+    import numpy as np
+    is_elec = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isElectron'])).astype(bool)
+    is_muon = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isMuon'])).astype(bool)
+    is_lep  = is_elec | is_muon
+
+    n_gen_elec = int(np.sum(is_elec))
+    n_gen_muon = int(np.sum(is_muon))
+    n_gen      = n_gen_elec + n_gen_muon
+
     rows = []
     for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
-        n_gold_gen   = int(ak.sum(ak.flatten(gf_sig[f'GenFunnel_gold_{key}'])))
-        n_silver_gen = int(ak.sum(ak.flatten(gf_sig[f'GenFunnel_silver_{key}'])))
-        n_reco       = sc_sig.get(f'Stage_n_{key}',       0)
-        n_gold_reco  = sc_sig.get(f'Stage_nGold_{key}',   0)
-        n_silver_reco= sc_sig.get(f'Stage_nSilver_{key}', 0)
-        n_bronze_reco= sc_sig.get(f'Stage_nBronze_{key}', 0)
+        gold_flat   = ak.to_numpy(ak.flatten(gf_sig[f'GenFunnel_gold_{key}'])).astype(bool)
+        silver_flat = ak.to_numpy(ak.flatten(gf_sig[f'GenFunnel_silver_{key}'])).astype(bool)
+
+        n_gold_gen_elec = int(np.sum(gold_flat & is_elec))
+        n_gold_gen_muon = int(np.sum(gold_flat & is_muon))
+        n_gold_gen      = n_gold_gen_elec + n_gold_gen_muon
+        n_silver_gen    = int(np.sum(silver_flat & is_lep))
+
+        n_reco        = sc_sig.get(f'Stage_n_{key}',       0)
+        n_gold_reco   = sc_sig.get(f'Stage_nGold_{key}',   0)
+        n_silver_reco = sc_sig.get(f'Stage_nSilver_{key}', 0)
+        n_bronze_reco = sc_sig.get(f'Stage_nBronze_{key}', 0)
         rows.append({
-            'label':         label,
-            'n_reco':        n_reco,
-            'n_gold_reco':   n_gold_reco,
-            'n_nonsig_reco': max(0, n_reco - n_gold_reco - n_silver_reco - n_bronze_reco),
-            'n_gold_gen':    n_gold_gen,
-            'n_gs_gen':      n_gold_gen + n_silver_gen,
-            'n_dup_gold':    max(0, n_gold_reco - n_gold_gen),
+            'label':            label,
+            'n_reco':           n_reco,
+            'n_gold_reco':      n_gold_reco,
+            'n_nonsig_reco':    max(0, n_reco - n_gold_reco - n_silver_reco - n_bronze_reco),
+            'n_gold_gen':       n_gold_gen,
+            'n_gold_gen_elec':  n_gold_gen_elec,
+            'n_gold_gen_muon':  n_gold_gen_muon,
+            'n_gs_gen':         n_gold_gen + n_silver_gen,
+            'n_dup_gold':       max(0, n_gold_reco - n_gold_gen),
         })
-    return {'stem': stem, 'mode': mode_prefix, 'n_gen': n_gen, 'rows': rows}
+    return {
+        'stem':       stem,
+        'mode':       mode_prefix,
+        'n_gen':      n_gen,
+        'n_gen_elec': n_gen_elec,
+        'n_gen_muon': n_gen_muon,
+        'rows':       rows,
+    }
 
 
 def _print_summaries(summaries):
@@ -170,10 +198,16 @@ def _print_summaries(summaries):
     print(f"{'=' * 79}")
 
     for s in summaries:
-        n_gen = s['n_gen']
+        n_gen      = s['n_gen']
+        n_gen_elec = s.get('n_gen_elec', None)
+        n_gen_muon = s.get('n_gen_muon', None)
         mode_tag = f" [{s['mode']}]" if s['mode'] else ""
         print(f"\n  File : {s['stem']}{mode_tag}")
-        print(f"  Gen signal vertices : {n_gen}")
+        if n_gen_elec is not None and n_gen_muon is not None:
+            print(f"  Gen signal vertices : {n_gen}  "
+                  f"(electrons: {n_gen_elec}, muons: {n_gen_muon})")
+        else:
+            print(f"  Gen signal vertices : {n_gen}")
         print(divider)
         print(hdr)
         print(divider)
@@ -255,11 +289,12 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
 
 def _compute_summary_hadronic(stem, gf_sig, sc_sig):
     """Compute per-file hadronic signal efficiency summary using matchRatio."""
-    has_tracks = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_hasTracks"])).astype(bool)
-    n_gen      = int(np.sum(has_tracks))
+    import numpy as np
+    is_hadronic = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_isHadronic"])).astype(bool)
+    n_gen       = int(np.sum(is_hadronic))
     rows = []
     for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
-        mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[has_tracks]
+        mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[is_hadronic]
         n_loose  = int(np.sum(mr > 0))
         n_tight  = int(np.sum(mr >= 0.5))
         n_reco   = sc_sig.get(f"Stage_n_{key}", 0)
@@ -284,7 +319,7 @@ def _print_summaries_hadronic(hadronic_summaries):
     for s in hadronic_summaries:
         n_gen = s['n_gen']
         print(f"\n  File : {s['stem']} [hadronic]")
-        print(f"  Gen signal vertices (with tracks) : {n_gen}")
+        print(f"  Gen signal vertices : {n_gen}")
         print(divider)
         print(hdr)
         print(divider)

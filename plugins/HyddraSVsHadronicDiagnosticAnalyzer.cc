@@ -56,6 +56,7 @@
 
 // Gen matching and helpers from KUCMSNtupleizer
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/GenVertexUtils.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
@@ -143,7 +144,7 @@ private:
   std::vector<float> genFunnel_eta_;
   std::vector<float> genFunnel_mass_;
   std::vector<float> genFunnel_phi_;
-  std::vector<bool>  genFunnel_hasTracks_;
+  std::vector<bool>  genFunnel_isHadronic_;
 
   std::vector<float> genFunnel_mass_seed_,       genFunnel_mass_merged_,
                      genFunnel_mass_cleaned_,     genFunnel_mass_disambig_,
@@ -273,7 +274,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_eta",       &genFunnel_eta_);
   genFunnelTree_->Branch("GenFunnel_mass",      &genFunnel_mass_);
   genFunnelTree_->Branch("GenFunnel_phi",       &genFunnel_phi_);
-  genFunnelTree_->Branch("GenFunnel_hasTracks", &genFunnel_hasTracks_);
+  genFunnelTree_->Branch("GenFunnel_isHadronic",  &genFunnel_isHadronic_);
 
   genFunnelTree_->Branch("GenFunnel_mass_seed",         &genFunnel_mass_seed_);
   genFunnelTree_->Branch("GenFunnel_mass_merged",       &genFunnel_mass_merged_);
@@ -365,7 +366,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
 void HyddraSVsHadronicDiagnosticAnalyzer::clearBranches() {
   genFunnel_n_ = 0;
   genFunnel_dxy_.clear();  genFunnel_pt_.clear();   genFunnel_eta_.clear();
-  genFunnel_mass_.clear(); genFunnel_phi_.clear();  genFunnel_hasTracks_.clear();
+  genFunnel_mass_.clear(); genFunnel_phi_.clear();  genFunnel_isHadronic_.clear();
 
   genFunnel_mass_seed_.clear();     genFunnel_mass_merged_.clear();
   genFunnel_mass_cleaned_.clear();  genFunnel_mass_disambig_.clear();
@@ -524,27 +525,31 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
   genVertices_.clear();
   signalTracks_.clear();
 
+  // Per-vertex track collections for precise genFunnel matchRatio.
+  // Each entry i contains only the reco tracks matched to genVertices_[i]'s
+  // stable charged daughters.  signalTracks_ is the union, used for allStageVtx.
+  std::vector<reco::TrackCollection> perVertexSignalTracks;
+
   if (hasGenInfo_) {
     iEvent.getByToken(genToken_, genHandle_);
     if (!isFullAOD_)
       iEvent.getByToken(packedGenToken_, packedGenHandle_);
 
-    std::vector<reco::TransientTrack> ttracks;
-    for (const auto& track : *tracksHandle_)
-      ttracks.emplace_back(ttBuilder->build(track));
+    // Build gen vertices from prunedGenParticles (identifies hadronic Z decays)
+    genVertices_ = GenVertices(*genHandle_);
+    perVertexSignalTracks.resize(genVertices_.size());
 
-    GenVertices allSignalSVs(*genHandle_);
-    DeltaRGenMatchHungarian<reco::TransientTrack> assigner(
-        ttracks, allSignalSVs.getAllGenParticles());
-
-    genVertices_ = GenVertices(assigner.GetPairedObjects().ConvertFromTTracks(), genMatchDeltaRCut_);
-    allSignalSVs += genVertices_;
-    genVertices_ = allSignalSVs;
-
-    for (const auto& gv : genVertices_) {
-      if (!gv.hasTracks()) continue;
-      for (const auto& pair : gv.genMatches())
-        signalTracks_.emplace_back(pair.GetObjectA());
+    // Build signal tracks per gen vertex from stable charged daughters
+    // (pions, kaons, etc.) rather than quarks, which don't match reco tracks.
+    for (size_t gi = 0; gi < genVertices_.size(); ++gi) {
+      reco::GenParticleCollection daughters = isFullAOD_ ?
+          genVertices_[gi].getStableChargedDaughters(*genHandle_) :
+          HyddraUtils::getStableChargedDaughtersFromPacked(genVertices_[gi], *packedGenHandle_);
+      DeltaRGenMatchHungarian<reco::Track> assigner(*tracksHandle_, daughters);
+      for (const auto& pair : assigner.GetPairedObjects()) {
+        perVertexSignalTracks[gi].emplace_back(pair.GetObjectA());
+        signalTracks_            .emplace_back(pair.GetObjectA());
+      }
     }
   }
 
@@ -582,26 +587,34 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
       daV  [si]->push_back(-1.f);  poeV [si]->push_back(-1.f);
     };
 
-    for (const auto& gv : genVertices_) {
+    for (size_t gi = 0; gi < genVertices_.size(); ++gi) {
+      const auto& gv = genVertices_[gi];
       genFunnel_dxy_      .push_back(float(gv.dxy()));
       genFunnel_pt_       .push_back(float(gv.pt()));
       genFunnel_eta_      .push_back(float(gv.eta()));
       genFunnel_mass_     .push_back(float(gv.mass()));
       genFunnel_phi_      .push_back(float(gv.phi()));
-      genFunnel_hasTracks_.push_back(bool(gv.hasTracks()));
+      genFunnel_isHadronic_.push_back(true);
+
+      // Temporarily use only this vertex's matched tracks so that findBestMatch
+      // and matchRatio are computed relative to this specific gen vertex's
+      // daughters, not the global signal pool from all hadronic gen vertices.
+      std::swap(signalTracks_, perVertexSignalTracks[gi]);
 
       for (size_t si = 0; si < kHadNStages; ++si) {
         if (!stageHandles_[si].isValid() || stageHandles_[si]->empty()) {
           pushSentinel(si);
           continue;
         }
-        // Best match = reco vertex with highest nSignalTracks
+        // Best match = reco vertex with highest nSignalTracks for this gen vertex
         const reco::Vertex* best = findBestMatch(*stageHandles_[si]);
         if (best)
           fillRecoPropsAt(si, *best, pv);
         else
           pushSentinel(si);
       }
+
+      std::swap(signalTracks_, perVertexSignalTracks[gi]);
     }
 
     genFunnel_n_ = unsigned(genVertices_.size());

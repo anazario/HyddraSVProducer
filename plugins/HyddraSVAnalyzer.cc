@@ -53,6 +53,7 @@
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchedTrackSCPair.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/GenVertex.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/GenVertexUtils.h"
 
 // Local helper classes
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackHelper.h"
@@ -82,9 +83,6 @@ private:
 
   // Gen matching helpers
   bool IsBronze(const reco::Vertex& vertex) const;
-  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
-      const GenVertex& genVertex,
-      const std::vector<pat::PackedGenParticle>& packed) const;
   bool IsSilver(const reco::Vertex& vertex) const;
   bool IsGold(const reco::Vertex& vertex) const;
   int FindGenVertexIndex(const reco::Vertex& vertex) const;
@@ -546,7 +544,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
     for(const auto &genVertex : genVertices_) {
       reco::GenParticleCollection stableChargedDaughters = isFullAOD_ ?
           genVertex.getStableChargedDaughters(*genHandle_) :
-          getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+          HyddraUtils::getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
       DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*muonEnhancedTracksHandle_, stableChargedDaughters);
       chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
 
@@ -620,7 +618,7 @@ void HyddraSVAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
       {
         reco::GenParticleCollection chargedDaughters = isFullAOD_ ?
             genVertex.getStableChargedDaughters(*genHandle_) :
-            getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+            HyddraUtils::getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
         genVertex_nChargedDaughters_.push_back(unsigned(chargedDaughters.size()));
       }
       genVertex_mass_.push_back(float(genVertex.mass()));
@@ -700,7 +698,7 @@ void HyddraSVAnalyzer::printEventSummaryTable() const {
     } else {
       reco::GenParticleCollection chargedDaus = isFullAOD_ ?
           gv.getStableChargedDaughters(*genHandle_) :
-          getStableChargedDaughtersFromPacked(gv, *packedGenHandle_);
+          HyddraUtils::getStableChargedDaughtersFromPacked(gv, *packedGenHandle_);
       r.chargedDaus = (int)chargedDaus.size();
     }
 
@@ -1025,36 +1023,6 @@ bool HyddraSVAnalyzer::getSCMatch(const reco::Track& track, reco::SuperCluster& 
   return isMatched;
 }
 
-reco::GenParticleCollection HyddraSVAnalyzer::getStableChargedDaughtersFromPacked(
-    const GenVertex& genVertex,
-    const std::vector<pat::PackedGenParticle>& packed) const {
-
-  const reco::Candidate* genZ = genVertex.genPair().first.mother();
-  reco::GenParticleCollection result;
-  if(!genZ) return result;
-
-  for(const auto& p : packed) {
-    if(p.status() != 1 || p.charge() == 0) continue;
-    const reco::Candidate* mom = p.mother(0);
-    if(!mom) continue;
-
-    bool isFromSameZ = false;
-    const reco::Candidate* prev = nullptr;
-    while(mom && mom != prev) {
-      if(mom->pdgId() == 23) {
-        if(mom == genZ) isFromSameZ = true;
-        break;
-      }
-      prev = mom;
-      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
-    }
-    if(isFromSameZ) {
-      result.emplace_back(reco::GenParticle(
-          p.charge(), p.p4(), p.vertex(), p.pdgId(), p.status(), true));
-    }
-  }
-  return result;
-}
 
 
 void HyddraSVAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
