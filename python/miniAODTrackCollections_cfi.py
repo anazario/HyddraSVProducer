@@ -17,6 +17,9 @@ MINIAOD_TRACK_COLLECTION_CONFIG = {
     # From muons (global tracks)
     'promptMuonExtracted': cms.InputTag("miniAODTrackProducer", "muonGlobalTracks"),
     'displacedMuonExtracted': cms.InputTag("miniAODTrackProducer", "displacedMuonGlobalTracks"),
+    # PF+Lost (muon-ID'd tracks removed, duplicates of slimmedMuons removed) + all slimmedMuon
+    # bestTracks, with sip2D cuts applied uniformly to the full merged collection
+    'mergedMuonSip2D': cms.InputTag("miniAODTrackProducer", "mergedMuonSip2D"),
     # From muons using LLPNanoAOD PatMuonVertex selection
     # (isGlobalMuon -> combinedMuon, isStandAloneMuon -> standAloneMuon, else -> tunePBestTrack)
     'promptMuonLLPNano': cms.InputTag("miniAODTrackProducer", "muonLLPNanoTracks"),
