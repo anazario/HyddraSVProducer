@@ -90,6 +90,7 @@ TRACK_COLLECTIONS_MINIAOD=(
     "merged"
     "mergedWithEle"
     "mergedAll"
+    "mergedMuonSip2D"
 )
 
 TRACK_COLLECTIONS_FASTSIM=(
