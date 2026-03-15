@@ -32,6 +32,7 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 #include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/GenVertexUtils.h"
 
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
@@ -62,10 +63,6 @@ private:
   void endJob() override {}
 
   void clearBranches();
-  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
-      const GenVertex& genVertex,
-      const std::vector<pat::PackedGenParticle>& packedGenParticles) const;
-
   // Configuration
   bool hasGenInfo_;
   bool doChargedHadronMatching_;
@@ -489,7 +486,7 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       for(const auto& genVertex : genVertices_) {
         reco::GenParticleCollection stableChargedDaughters = isFullAOD_ ?
             genVertex.getStableChargedDaughters(*genHandle_) :
-            getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
+            HyddraUtils::getStableChargedDaughtersFromPacked(genVertex, *packedGenHandle_);
         DeltaRGenMatchHungarian<reco::Track> chargedParticleAssigner(*tracksHandle_, stableChargedDaughters);
         chargedMatches_[genVertex] = chargedParticleAssigner.GetPairedObjects();
 
@@ -732,41 +729,6 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
   }
 
   tree_->Fill();
-}
-
-reco::GenParticleCollection TrackAnalyzer::getStableChargedDaughtersFromPacked(
-    const GenVertex& genVertex,
-    const std::vector<pat::PackedGenParticle>& packedGenParticles) const {
-
-  const reco::Candidate* genZ = genVertex.genPair().first.mother();
-  reco::GenParticleCollection result;
-
-  if(!genZ) return result;
-
-  for(const auto& packed : packedGenParticles) {
-    if(packed.status() != 1 || packed.charge() == 0) continue;
-
-    const reco::Candidate* mom = packed.mother(0);
-    if(!mom) continue;
-
-    bool isFromSameZ = false;
-    const reco::Candidate* prev = nullptr;
-    while(mom && mom != prev) {
-      if(mom->pdgId() == 23) {
-        if(mom == genZ) isFromSameZ = true;
-        break;
-      }
-      prev = mom;
-      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
-    }
-
-    if(isFromSameZ) {
-      result.emplace_back(reco::GenParticle(
-          packed.charge(), packed.p4(), packed.vertex(),
-          packed.pdgId(), packed.status(), true));
-    }
-  }
-  return result;
 }
 
 void TrackAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {

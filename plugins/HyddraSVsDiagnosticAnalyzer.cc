@@ -38,6 +38,7 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 #include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/GenVertexUtils.h"
 
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
@@ -96,10 +97,6 @@ private:
   float computeDxySignif(const reco::Vertex& vtx, const reco::Vertex& pv) const;
   void fillRecoPropsAt(size_t stageIdx, const reco::Vertex& vtx,
                        const reco::Vertex& pv);
-
-  reco::GenParticleCollection getStableChargedDaughtersFromPacked(
-      const GenVertex& genVertex,
-      const std::vector<pat::PackedGenParticle>& packed) const;
 
   // ── Configuration ──────────────────────────────────────────────────────────
   bool hasGenInfo_;
@@ -1005,38 +1002,6 @@ void HyddraSVsDiagnosticAnalyzer::analyze(const edm::Event& iEvent,
   stageCountsTree_->Fill();
   cleaningTracksTree_->Fill();
   seedTracksTree_->Fill();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-reco::GenParticleCollection HyddraSVsDiagnosticAnalyzer::getStableChargedDaughtersFromPacked(
-    const GenVertex& genVertex,
-    const std::vector<pat::PackedGenParticle>& packed) const {
-
-  const reco::Candidate* genZ = genVertex.genPair().first.mother();
-  reco::GenParticleCollection result;
-  if (!genZ) return result;
-
-  for (const auto& p : packed) {
-    if (p.status() != 1 || p.charge() == 0) continue;
-    const reco::Candidate* mom = p.mother(0);
-    if (!mom) continue;
-
-    bool isFromSameZ = false;
-    const reco::Candidate* prev = nullptr;
-    while (mom && mom != prev) {
-      if (mom->pdgId() == 23) {
-        if (mom == genZ) isFromSameZ = true;
-        break;
-      }
-      prev = mom;
-      mom = (mom->numberOfMothers() > 0) ? mom->mother(0) : nullptr;
-    }
-    if (isFromSameZ) {
-      result.emplace_back(reco::GenParticle(
-          p.charge(), p.p4(), p.vertex(), p.pdgId(), p.status(), true));
-    }
-  }
-  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
