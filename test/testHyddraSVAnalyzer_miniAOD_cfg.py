@@ -151,7 +151,8 @@ process.hyddraSVAnalyzer.genParticles = cms.InputTag("prunedGenParticles")
 # Use packed gen particles for complete charged hadron matching in MiniAOD
 process.hyddraSVAnalyzer.packedGenParticles = cms.InputTag("packedGenParticles")
 # Use combined muon tracks from MiniAODMuonEnhancedTracksProducer for muon ID
-process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODMuonEnhancedTracks", "combinedMuonTracks")
+#process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODMuonEnhancedTracks", "combinedMuonTracks")
+process.hyddraSVAnalyzer.muonTracks = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
 # Use reduced superclusters available in MiniAOD
 process.hyddraSVAnalyzer.mergedSCs = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 
