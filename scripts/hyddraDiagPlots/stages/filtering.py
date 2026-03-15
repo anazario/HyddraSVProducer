@@ -321,12 +321,11 @@ def make_cutflow_table(tdir, sv_sig, cfg):
             f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
             f"{n_nonsig_fail:>10}"
         )
-
-    table_str = "\n".join(lines)
-
         cut_labels.append(label)
         sig_fracs.append(sig_frac)
         nonsig_fracs.append(nonsig_frac)
+
+    table_str = "\n".join(lines)
 
     # ── ROOT bar chart ────────────────────────────────────────────────────────
     n_bins = len(cut_labels)
