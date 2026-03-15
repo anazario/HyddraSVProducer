@@ -180,18 +180,21 @@ def _print_summaries(summaries):
                    for s in summaries for row in s['rows'])
 
     if any_dups:
-        col_w = [16, 10, 11, 12, 9, 12, 13]
+        col_w = [16, 10, 11, 12, 9, 11, 9, 9, 13]
         divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
         hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
                f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
                f"{'Dup gold':>{col_w[4]}} {'Eff (gold)':>{col_w[5]}} "
-               f"{'% NS removed':>{col_w[6]}}")
+               f"{'Eff (ele)':>{col_w[6]}} {'Eff (mu)':>{col_w[7]}} "
+               f"{'% NS removed':>{col_w[8]}}")
     else:
-        col_w = [16, 10, 11, 12, 12, 13]
+        col_w = [16, 10, 11, 12, 11, 9, 9, 13]
         divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
         hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
                f"{'Gold reco':>{col_w[2]}} {'Non-signal':>{col_w[3]}} "
-               f"{'Eff (gold)':>{col_w[4]}} {'% NS removed':>{col_w[5]}}")
+               f"{'Eff (gold)':>{col_w[4]}} "
+               f"{'Eff (ele)':>{col_w[5]}} {'Eff (mu)':>{col_w[6]}} "
+               f"{'% NS removed':>{col_w[7]}}")
 
     print(f"\n{'=' * 79}")
     print(f"  HYDDRA diagnostic summary")
@@ -214,6 +217,10 @@ def _print_summaries(summaries):
         prev_nonsig = None
         for row in s['rows']:
             gold_eff = f"{row['n_gold_gen'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
+            ele_eff  = (f"{row['n_gold_gen_elec'] / n_gen_elec * 100:.1f}%"
+                        if (n_gen_elec is not None and n_gen_elec > 0) else 'N/A')
+            mu_eff   = (f"{row['n_gold_gen_muon'] / n_gen_muon * 100:.1f}%"
+                        if (n_gen_muon is not None and n_gen_muon > 0) else 'N/A')
             if prev_nonsig is None:
                 ns_removed = '---'
             elif prev_nonsig > 0:
@@ -229,14 +236,18 @@ def _print_summaries(summaries):
                       f"{row['n_nonsig_reco']:>{col_w[3]}} "
                       f"{dup_str:>{col_w[4]}} "
                       f"{gold_eff:>{col_w[5]}} "
-                      f"{ns_removed:>{col_w[6]}}")
+                      f"{ele_eff:>{col_w[6]}} "
+                      f"{mu_eff:>{col_w[7]}} "
+                      f"{ns_removed:>{col_w[8]}}")
             else:
                 print(f"  {row['label']:<{col_w[0]}} "
                       f"{row['n_reco']:>{col_w[1]}} "
                       f"{row['n_gold_reco']:>{col_w[2]}} "
                       f"{row['n_nonsig_reco']:>{col_w[3]}} "
                       f"{gold_eff:>{col_w[4]}} "
-                      f"{ns_removed:>{col_w[5]}}")
+                      f"{ele_eff:>{col_w[5]}} "
+                      f"{mu_eff:>{col_w[6]}} "
+                      f"{ns_removed:>{col_w[7]}}")
         print(divider)
 
     if any_dups:
