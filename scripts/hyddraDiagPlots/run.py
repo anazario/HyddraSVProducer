@@ -292,8 +292,12 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
         ("summary",        lambda: summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
-    for stage_name, fn in tqdm(stages, desc=f"  {stem} [leptonic]", unit="stage", leave=False):
-        fn()
+    with tqdm(stages, desc=f"  {stem} [leptonic]", unit="stage", leave=True) as pbar:
+        for stage_name, fn in pbar:
+            pbar.set_postfix_str(stage_name)
+            with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
+                fn()
+        pbar.set_postfix_str("done")
 
     return _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
 
@@ -398,8 +402,12 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
         ("summary",        lambda: hadronic_summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
-    for stage_name, fn in tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=False):
-        fn()
+    with tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=True) as pbar:
+        for stage_name, fn in pbar:
+            pbar.set_postfix_str(stage_name)
+            with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
+                fn()
+        pbar.set_postfix_str("done")
 
     return _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig)
 
