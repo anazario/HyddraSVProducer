@@ -34,7 +34,7 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
     Total vertex yield per stage (Stage_n_*), plus gen-level loose/tight signal
     counts derived from GenFunnel_matchRatio_*.
     """
-    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool) if gf is not None and len(gf) > 0 else None
+    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool) if gf is not None and len(gf) > 0 else None
 
     for normalized in [False, True]:
         suffix = "norm" if normalized else "unnorm"
@@ -116,7 +116,7 @@ def plot_efficiency_funnel(tdir, gf):
       tight : matchRatio >= 0.5
       loose : matchRatio > 0 (excl. tight)
     """
-    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
     n_denom    = int(np.sum(has_tracks))
     if n_denom == 0:
         print("    [efficiency_funnel] No gen vertices with tracks — skipping")
@@ -183,7 +183,7 @@ def plot_efficiency_vs_var(tdir, gf, var_key, var_label, bins, canvas_name):
     """
     Tight and loose signal efficiency vs a gen variable (dxy, pT).
     """
-    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
     var_vals   = ak.to_numpy(ak.flatten(gf[f"GenFunnel_{var_key}"]))[has_tracks]
     n_bins_ax  = len(bins) - 1
 
@@ -247,7 +247,7 @@ def plot_loss_stage_distribution(tdir, gf):
     counted as 'Never found'.  Vertices with a loose match at the final stage
     are counted as 'Survived'.
     """
-    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
 
     # Build a [n_gen_vtx, n_stages] array of booleans: True = loose match
     matched_at = np.zeros((int(np.sum(has_tracks)), len(STAGE_KEYS)), dtype=bool)

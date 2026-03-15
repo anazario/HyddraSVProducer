@@ -130,7 +130,7 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
         h_nonsig = make_h("nonsig")
 
         if gf is not None and len(gf) > 0:
-            has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+            has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
             vals_gf    = ak.to_numpy(ak.flatten(gf[gf_branch_map[obs_key]]))[has_tracks]
             mr         = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{stage_key}"]))[has_tracks]
             valid      = mr >= 0  # -1 is sentinel for no match
