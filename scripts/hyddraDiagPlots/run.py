@@ -249,6 +249,9 @@ def _print_summaries(summaries):
                       f"{mu_eff:>{col_w[6]}} "
                       f"{ns_removed:>{col_w[7]}}")
         print(divider)
+        if s.get('cutflow'):
+            print()
+            print(s['cutflow'])
 
     if any_dups:
         print(f"\n  WARNING: duplicate gold matches detected.")
@@ -292,14 +295,19 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
         ("summary",        lambda: summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
+    cutflow_str = None
     with tqdm(stages, desc=f"  {stem} [leptonic]", unit="stage", leave=True) as pbar:
         for stage_name, fn in pbar:
             pbar.set_postfix_str(stage_name)
             with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
-                fn()
+                result = fn()
+            if result is not None:
+                cutflow_str = result
         pbar.set_postfix_str("done")
 
-    return _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
+    summ = _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
+    summ['cutflow'] = cutflow_str
+    return summ
 
 
 def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None):
@@ -369,6 +377,9 @@ def _print_summaries_hadronic(hadronic_summaries):
                   f"{tight_eff:>{col_w[5]}} "
                   f"{ns_removed:>{col_w[6]}}")
         print(divider)
+        if s.get('cutflow'):
+            print()
+            print(s['cutflow'])
 
 
 def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
@@ -402,14 +413,19 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
         ("summary",        lambda: hadronic_summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
+    cutflow_str = None
     with tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=True) as pbar:
         for stage_name, fn in pbar:
             pbar.set_postfix_str(stage_name)
             with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
-                fn()
+                result = fn()
+            if result is not None:
+                cutflow_str = result
         pbar.set_postfix_str("done")
 
-    return _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig)
+    summ = _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig)
+    summ['cutflow'] = cutflow_str
+    return summ
 
 
 # ── Core plot runner ───────────────────────────────────────────────────────────

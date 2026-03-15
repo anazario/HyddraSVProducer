@@ -14,13 +14,9 @@ Plots:
   - reco_cleaned_{cosTheta,decayAngle,pOverE,dxySignif,mass,nTracks}
   - hadronic_cleaning_cutflow  (independent per-cut removal bar chart)
 """
-import sys
 import numpy as np
 import awkward as ak
 import ROOT
-
-def _eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
 
 from ..src.config  import HADRONIC_RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL
 from ..src.style   import draw_cms_label, draw_axis_grid
@@ -81,25 +77,30 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     header = (f"  {'Cut':<26} | {'Signal lost':{col_w}} | "
               f"{'Non-sig reduction':{col_w}} | {'Non-sig removed':>10}")
     sep = "  " + "-" * (len(header) - 2)
-    _eprint("  [had_cleaning_cutflow] Per-cut removal (denominator = all merged SVs):")
-    _eprint(f"  {'Denominator':<26} | "
-            f"{'':>5}{n_gold_total:<5}{'':>18}| "
-            f"{'':>5}{n_nonsig_total:<5}{'':>18}|")
-    _eprint(header)
-    _eprint(sep)
+    lines = [
+        "  [had_cleaning_cutflow] Per-cut removal (denominator = all merged SVs):",
+        f"  {'Denominator':<26} | "
+        f"{'':>5}{n_gold_total:<5}{'':>18}| "
+        f"{'':>5}{n_nonsig_total:<5}{'':>18}|",
+        header, sep,
+    ]
 
     for label, fail_mask in cuts:
         n_sig_fail    = int(np.sum(fail_mask &  is_signal))
         n_nonsig_fail = int(np.sum(fail_mask & ~is_signal))
         sig_frac    = n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0
         nonsig_frac = n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0
-        _eprint(f"  {label:<26} | "
-                f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
-                f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
-                f"{n_nonsig_fail:>10}")
+        lines.append(
+            f"  {label:<26} | "
+            f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
+            f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
+            f"{n_nonsig_fail:>10}"
+        )
         cut_labels.append(label)
         sig_fracs.append(sig_frac)
         nonsig_fracs.append(nonsig_frac)
+
+    table_str = "\n".join(lines)
 
     # ── ROOT bar chart ────────────────────────────────────────────────────────
     n_bins = len(cut_labels)
@@ -151,15 +152,12 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     c._h_ax = h_ax; c._h_sig = h_sig; c._h_nonsig = h_nonsig; c._leg = leg
     tdir.cd()
     c.Write()
-    print("    [had_cleaning_cutflow] done")
+    return table_str
 
 
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
 def make_plots(tdir, gf, sv_sig, sv_bkg, cfg=None):
-    print("  [had/cleaning] Reco observables...")
     for obs_key, obs_cfg in HADRONIC_RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "cleaned", obs_key, obs_cfg, sv_bkg, hadronic=True)
-        print(f"    [reco_cleaned_{obs_key}] done")
-    print("  [had/cleaning] Cleaning cutflow...")
-    make_cleaning_cutflow(tdir, sv_sig, cfg)
+    return make_cleaning_cutflow(tdir, sv_sig, cfg)

@@ -7,13 +7,9 @@ Plots:
   - reco_filtered_minTrackCosTheta  (1D, filtering stage only)
   - filter_cutflow  (sequential removal efficiency per cut, signal vs non-signal)
 """
-import sys
 import numpy as np
 import awkward as ak
 import ROOT
-
-def _eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
 
 from ..src.config  import RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL
 from ..src.style   import draw_cms_label, draw_colz_grid, draw_axis_grid
@@ -304,12 +300,13 @@ def make_cutflow_table(tdir, sv_sig, cfg):
     header = (f"  {'Cut':<22} | {'Gold lost':{col_w}} | "
               f"{'Non-sig reduction':{col_w}} | {'Non-sig removed':>10}")
     sep    = "  " + "-" * (len(header) - 2)
-    _eprint("  [filter_cutflow] Per-cut removal (denominator = all disambig SVs):")
-    _eprint(f"  {'Denominator':<22} | "
-            f"{'':>5}{n_gold_total:<5}{'':>14}| "
-            f"{'':>5}{n_nonsig_total:<5}{'':>14}|")
-    _eprint(header)
-    _eprint(sep)
+    lines = [
+        "  [filter_cutflow] Per-cut removal (denominator = all disambig SVs):",
+        f"  {'Denominator':<22} | "
+        f"{'':>5}{n_gold_total:<5}{'':>14}| "
+        f"{'':>5}{n_nonsig_total:<5}{'':>14}|",
+        header, sep,
+    ]
 
     for label, fail_mask in cuts:
         n_sig_fail    = int(np.sum(fail_mask &  is_gold))
@@ -318,10 +315,14 @@ def make_cutflow_table(tdir, sv_sig, cfg):
         sig_frac    = n_sig_fail    / n_gold_total   if n_gold_total   > 0 else 0.0
         nonsig_frac = n_nonsig_fail / n_nonsig_total if n_nonsig_total > 0 else 0.0
 
-        _eprint(f"  {label:<22} | "
-                f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
-                f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
-                f"{n_nonsig_fail:>10}")
+        lines.append(
+            f"  {label:<22} | "
+            f"{n_sig_fail:>5}/{n_gold_total:<5} ({sig_frac*100:>5.1f}%) | "
+            f"{n_nonsig_fail:>5}/{n_nonsig_total:<5} ({nonsig_frac*100:>5.1f}%) | "
+            f"{n_nonsig_fail:>10}"
+        )
+
+    table_str = "\n".join(lines)
 
         cut_labels.append(label)
         sig_fracs.append(sig_frac)
@@ -376,21 +377,15 @@ def make_cutflow_table(tdir, sv_sig, cfg):
     c._h_ax = h_ax; c._h_sig = h_sig; c._h_nonsig = h_nonsig; c._leg = leg
     tdir.cd()
     c.Write()
-    print("    [filter_cutflow] done")
+    return table_str
 
 
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
 def make_plots(tdir, gf, sv_sig, sv_bkg, cfg=None):
-    print("  [filtering] Reco observables...")
     for obs_key, obs_cfg in RECO_OBSERVABLES.items():
         plot_reco_observable(tdir, gf, sv_sig, "filtered", obs_key, obs_cfg, sv_bkg)
-        print(f"    [reco_filtered_{obs_key}] done")
-    print("  [filtering] 1D track cos theta (pre/post filter)...")
     plot_filtering_mintrackcos_1d(tdir, sv_sig, sv_bkg)
-    print("  [filtering] 1D track cos theta CM (pre/post filter)...")
     plot_filtering_trackcosThetaCM_1d(tdir, sv_sig, sv_bkg)
-    print("  [filtering] 2D track cos theta vs decay angle...")
     plot_filtering_costheta_decay_2d(tdir, sv_sig)
-    print("  [filtering] Sequential cut-flow table...")
-    make_cutflow_table(tdir, sv_sig, cfg)
+    return make_cutflow_table(tdir, sv_sig, cfg)
