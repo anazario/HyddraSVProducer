@@ -68,6 +68,15 @@ FILES_MASS60=(
     "TTALPto2Mu_MALP-60_ctau-1e3mm_AODSIM.txt"
 )
 
+FILES_SMSMINI=(
+    "_SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
+    "_SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "_SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p1_MINI.txt"
+    "_SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p5_MINI.txt"
+    "_SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p1_MINI.txt"
+    "_SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p5_MINI.txt"
+)
+
 # ── Track collection menus per format ─────────────────────────────────────────
 TRACK_COLLECTIONS_MINIAOD=(
     "sip2DMuonEnhanced"
@@ -251,15 +260,16 @@ else
     COMPLETED_SAMPLES=()
 
     # ── Step 1: Mass group ────────────────────────────────────────────────────
-    echo -e "${BOLD}Step 1: Select mass group${NC}"
+    echo -e "${BOLD}Step 1: Select sample set${NC}"
     echo "  1) MALP-2   (2 GeV  — 5 samples)"
     echo "  2) MALP-60  (60 GeV — 5 samples)"
     echo "  3) Both     (10 samples total)"
+    echo "  4) SMSMini  (MiniAOD — 6 samples)"
     echo ""
 
     MASS_CHOICE=""
     while [[ -z "$MASS_CHOICE" ]]; do
-        read -rp "$(echo -e "${CYAN}Mass group [1/2/3]: ${NC}")" MASS_CHOICE
+        read -rp "$(echo -e "${CYAN}Sample set [1/2/3/4]: ${NC}")" MASS_CHOICE
         case "$MASS_CHOICE" in
             1)
                 SELECTED_FILES=("${FILES_MASS2[@]}")
@@ -273,8 +283,12 @@ else
                 SELECTED_FILES=("${FILES_MASS2[@]}" "${FILES_MASS60[@]}")
                 MASS_LABEL="Both (2 GeV + 60 GeV)"
                 ;;
+            4)
+                SELECTED_FILES=("${FILES_SMSMINI[@]}")
+                MASS_LABEL="SMS-GlGl MiniAOD (6 samples)"
+                ;;
             *)
-                echo -e "${RED}  Please enter 1, 2, or 3.${NC}"
+                echo -e "${RED}  Please enter 1, 2, 3, or 4.${NC}"
                 MASS_CHOICE=""
                 ;;
         esac
