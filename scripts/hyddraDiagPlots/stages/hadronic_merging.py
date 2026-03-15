@@ -20,7 +20,7 @@ def plot_hadronic_track_absorption(tdir, gf):
     Shows whether signal vertices accumulate extra tracks after merging.
     Uses matchRatio thresholds: tight (>=0.5) and loose (>0, <0.5).
     """
-    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_hasTracks"])).astype(bool)
+    has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
     ntrk_merge = ak.to_numpy(ak.flatten(gf["GenFunnel_nTracks_merged"]))[has_tracks]
     mr_merge   = ak.to_numpy(ak.flatten(gf["GenFunnel_matchRatio_merged"]))[has_tracks]
 
