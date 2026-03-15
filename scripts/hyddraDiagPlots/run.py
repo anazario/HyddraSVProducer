@@ -298,11 +298,20 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
     return _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
 
 
-def _compute_summary_hadronic(stem, gf_sig, sc_sig):
+def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None):
     """Compute per-file hadronic signal efficiency summary using matchRatio."""
-    import numpy as np
     is_hadronic = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_isHadronic"])).astype(bool)
     n_gen       = int(np.sum(is_hadronic))
+
+    # Per-stage non-signal reco count from allStageVtx (matchRatio <= 0)
+    nonsig_by_stage = {}
+    if sv_sig is not None and len(sv_sig) > 0:
+        sv_stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
+        sv_mr    = ak.to_numpy(sv_sig["StageVtx_matchRatio"])
+        for si, key in enumerate(_STAGE_KEYS):
+            mask = sv_stage == si
+            nonsig_by_stage[key] = int(np.sum(mask & (sv_mr <= 0)))
+
     rows = []
     for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
         mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[is_hadronic]
@@ -310,10 +319,11 @@ def _compute_summary_hadronic(stem, gf_sig, sc_sig):
         n_tight  = int(np.sum(mr >= 0.5))
         n_reco   = sc_sig.get(f"Stage_n_{key}", 0)
         rows.append({
-            'label':   label,
-            'n_reco':  n_reco,
-            'n_loose': n_loose,
-            'n_tight': n_tight,
+            'label':        label,
+            'n_reco':       n_reco,
+            'n_loose':      n_loose,
+            'n_tight':      n_tight,
+            'n_nonsig_reco': nonsig_by_stage.get(key, None),
         })
     return {'stem': stem, 'mode': 'hadronic', 'n_gen': n_gen, 'rows': rows}
 
@@ -322,11 +332,12 @@ def _print_summaries_hadronic(hadronic_summaries):
     """Print hadronic efficiency table."""
     if not hadronic_summaries:
         return
-    col_w = [16, 10, 11, 11, 12, 12]
+    col_w = [16, 10, 11, 11, 12, 12, 13]
     divider = '  ' + '-' * (sum(col_w) + len(col_w) * 3 - 1)
     hdr = (f"  {'Stage':<{col_w[0]}} {'Reco vtx':>{col_w[1]}} "
            f"{'Loose gen':>{col_w[2]}} {'Tight gen':>{col_w[3]}} "
-           f"{'Eff (loose)':>{col_w[4]}} {'Eff (tight)':>{col_w[5]}}")
+           f"{'Eff (loose)':>{col_w[4]}} {'Eff (tight)':>{col_w[5]}} "
+           f"{'% NS removed':>{col_w[6]}}")
     for s in hadronic_summaries:
         n_gen = s['n_gen']
         print(f"\n  File : {s['stem']} [hadronic]")
@@ -334,15 +345,25 @@ def _print_summaries_hadronic(hadronic_summaries):
         print(divider)
         print(hdr)
         print(divider)
+        prev_nonsig = None
         for row in s['rows']:
             loose_eff = f"{row['n_loose'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
             tight_eff = f"{row['n_tight'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A'
+            n_ns = row.get('n_nonsig_reco', None)
+            if n_ns is None or prev_nonsig is None:
+                ns_removed = '---'
+            elif prev_nonsig > 0:
+                ns_removed = f"{(prev_nonsig - n_ns) / prev_nonsig * 100:.1f}%"
+            else:
+                ns_removed = 'N/A'
+            prev_nonsig = n_ns
             print(f"  {row['label']:<{col_w[0]}} "
                   f"{row['n_reco']:>{col_w[1]}} "
                   f"{row['n_loose']:>{col_w[2]}} "
                   f"{row['n_tight']:>{col_w[3]}} "
                   f"{loose_eff:>{col_w[4]}} "
-                  f"{tight_eff:>{col_w[5]}}")
+                  f"{tight_eff:>{col_w[5]}} "
+                  f"{ns_removed:>{col_w[6]}}")
         print(divider)
 
 
@@ -380,7 +401,7 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
     for stage_name, fn in tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=False):
         fn()
 
-    return _compute_summary_hadronic(stem, gf_sig, sc_sig)
+    return _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig)
 
 
 # ── Core plot runner ───────────────────────────────────────────────────────────

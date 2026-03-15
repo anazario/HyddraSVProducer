@@ -62,15 +62,17 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
         else:
             bkg_total = [max(0, total_reco[i] - loose_count[i]) for i in range(len(STAGE_KEYS))]
 
-        norm_tight = tight_count[0] if (normalized and tight_count[0] > 0) else 1
-        norm_loose = loose_count[0] if (normalized and loose_count[0] > 0) else 1
-        norm_bkg   = bkg_total[0]   if (normalized and bkg_total[0]   > 0) else 1
+        # Normalise to Merging (index 1) — that is when hadronic SV candidates
+        # are actually formed.  Seeding only produces track seeds, not SVs.
+        norm_tight = tight_count[1] if (normalized and tight_count[1] > 0) else 1
+        norm_loose = loose_count[1] if (normalized and loose_count[1] > 0) else 1
+        norm_bkg   = bkg_total[1]   if (normalized and bkg_total[1]   > 0) else 1
 
         if normalized:
             tight_y = [v / norm_tight for v in tight_count]
             loose_y = [v / norm_loose for v in loose_count]
             bkg_y   = [v / norm_bkg   for v in bkg_total]
-            y_title = "Survival Fraction (relative to Seeding)"
+            y_title = "Survival Fraction (relative to Merging)"
             min_y, max_y = 1e-6, 1.2
         else:
             tight_y = [float(v) for v in tight_count]
@@ -255,19 +257,19 @@ def plot_loss_stage_distribution(tdir, gf):
         mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
         matched_at[:, i] = mr > 0
 
-    # Classify each gen vertex
-    # -1 = survived, 0 = never found, 1..N = lost at stage index (1-based)
+    # Classify each gen vertex starting from Merging (index 1), which is when
+    # hadronic SV candidates are first formed.  Seeding only produces track seeds.
+    # -1 = survived, 0 = never merged, 1..N-2 = lost at cleaning/disambig/filtering
     n_gen    = matched_at.shape[0]
     lost_idx = np.full(n_gen, -1, dtype=int)  # default: survived
 
-    never_found = ~matched_at[:, 0]  # not matched even at seeding
-    lost_idx[never_found] = 0
+    lost_idx[~matched_at[:, 1]] = 0  # not matched at merging
 
-    for i in range(1, len(STAGE_KEYS)):
+    for i in range(2, len(STAGE_KEYS)):
         lost_here = matched_at[:, i - 1] & ~matched_at[:, i] & (lost_idx == -1)
-        lost_idx[lost_here] = i
+        lost_idx[lost_here] = i - 1  # 1 = lost at cleaning, 2 = disambig, 3 = filtering
 
-    labels = ["Never found"] + [f"Lost at {STAGE_NAMES[i]}" for i in range(1, len(STAGE_KEYS))]
+    labels = ["Never merged"] + [f"Lost at {STAGE_NAMES[i]}" for i in range(2, len(STAGE_KEYS))]
     n_cats  = len(labels)
     counts  = np.array([np.sum(lost_idx == v) for v in range(0, n_cats)], dtype=float)
     n_surv  = int(np.sum(lost_idx == -1))
@@ -297,7 +299,7 @@ def plot_loss_stage_distribution(tdir, gf):
     latex.SetTextFont(42)
     latex.SetTextSize(0.035)
     latex.DrawLatex(0.18, 0.84,
-                    f"Survived to filter: {n_surv}/{n_gen}")
+                    f"Survived to filtering: {n_surv}/{n_gen}")
     canvas._h = h
     draw_cms_label()
     canvas.Update()
