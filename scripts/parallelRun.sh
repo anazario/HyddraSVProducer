@@ -64,6 +64,42 @@ print_usage() {
     echo "  $0 files.txt -c testTrackAnalyzer_miniAOD_cfg.py --apply-cuts --min-pt 2.0"
 }
 
+# Check / auto-setup CMSSW environment
+check_cmsenv() {
+    if [[ -n "$CMSSW_BASE" ]]; then
+        return 0
+    fi
+
+    # Walk up the directory tree from the script location to find a .SCRAM dir
+    local dir
+    dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cmssw_base=""
+    while [[ "$dir" != "/" ]]; do
+        if [[ -d "$dir/.SCRAM" ]]; then
+            cmssw_base="$dir"
+            break
+        fi
+        dir="$(dirname "$dir")"
+    done
+
+    if [[ -z "$cmssw_base" ]]; then
+        echo -e "${RED}Error: cmsenv has not been run and no CMSSW release area was found.${NC}"
+        echo "  cd to your CMSSW release directory and run: cmsenv"
+        exit 1
+    fi
+
+    if ! command -v scram &>/dev/null; then
+        echo -e "${RED}Error: cmsenv has not been run and 'scram' is not in PATH.${NC}"
+        echo "  Source the CMS software environment, then: cd $cmssw_base && cmsenv"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}[cmsenv] Auto-detected CMSSW area: $cmssw_base${NC}"
+    eval "$(cd "$cmssw_base" && scram runtime -sh)"
+    echo -e "${GREEN}[cmsenv] Environment ready (CMSSW_BASE=$CMSSW_BASE)${NC}"
+    echo ""
+}
+
 # Check for GNU parallel
 check_parallel() {
     if ! command -v parallel &> /dev/null; then
@@ -181,6 +217,7 @@ if [[ ! -f "$CONFIG" ]]; then
     fi
 fi
 
+check_cmsenv
 check_parallel
 
 # Count files (excluding comments and empty lines)
