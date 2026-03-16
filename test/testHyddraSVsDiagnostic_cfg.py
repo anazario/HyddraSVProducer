@@ -24,10 +24,10 @@ options.register('trackCollection',
                  "promptMuonLLPNano, displacedMuonLLPNano, "
                  "general, generalFiltered, selected, sip2D, sip2DMuonEnhanced, muonEnhanced")
 options.register('processMode',
-                 'leptonic',
+                 'both',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.string,
-                 "Processing mode: leptonic (default), hadronic, or both")
+                 "Processing mode: both (default), leptonic, or hadronic")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,

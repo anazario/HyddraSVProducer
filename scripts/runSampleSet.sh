@@ -440,7 +440,7 @@ else
             read -rp "$(echo -e "${CYAN}Process mode [1/2/3, default 1]: ${NC}")" PM_CHOICE
             PM_CHOICE="${PM_CHOICE:-1}"
             case "$PM_CHOICE" in
-                1) ;;   # 'both' is the default; no flag needed
+                1) EXTRA_ARGS="$EXTRA_ARGS --process-mode both" ;;
                 2) EXTRA_ARGS="$EXTRA_ARGS --process-mode leptonic" ;;
                 3) EXTRA_ARGS="$EXTRA_ARGS --process-mode hadronic" ;;
                 *)
