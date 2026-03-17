@@ -106,7 +106,7 @@ class LeptonicHYDDRA : public HYDDRABase<LeptonicHYDDRA> {
 
     this->clear();
     for (const auto& v : cleanedVertices) {
-      this->add(v);
+      if (v.size() == 2) this->add(v);
     }
   }
 
