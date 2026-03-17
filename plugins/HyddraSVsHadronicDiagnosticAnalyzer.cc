@@ -535,8 +535,13 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
     if (!isFullAOD_)
       iEvent.getByToken(packedGenToken_, packedGenHandle_);
 
-    // Build gen vertices from prunedGenParticles (identifies hadronic Z decays)
-    genVertices_ = GenVertices(*genHandle_);
+    // Build gen vertices from prunedGenParticles; keep only hadronic ones.
+    // GenVertices() returns all decay vertices (hadronic, muon, electron).
+    // Leptonic gen vertices must be excluded here: if muon/electron inner
+    // tracks end up in a hadronic SV they would otherwise appear as tight
+    // signal in the genFunnel (Z-peak at ~91 GeV).
+    for (const auto& gv : GenVertices(*genHandle_))
+      if (gv.isGenHadronic()) genVertices_.push_back(gv);
     perVertexSignalTracks.resize(genVertices_.size());
 
     // Build signal tracks per gen vertex from stable charged daughters
