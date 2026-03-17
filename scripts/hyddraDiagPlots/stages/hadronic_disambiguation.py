@@ -142,7 +142,7 @@ def _plot_purity_2d(tdir, sv_sig, stage_key, title_suffix, shared_only=False):
         if pal:
             h.GetListOfFunctions().Remove(pal)
 
-        draw_cms_label()
+        draw_cms_label("Hadronic HYDDRA")
         c.Update()
         c._h = h; c._lines = lines; c._leg = leg
         tdir.cd()

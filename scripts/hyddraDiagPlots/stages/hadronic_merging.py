@@ -84,7 +84,7 @@ def plot_hadronic_track_absorption(tdir, gf):
     leg.AddEntry(h_loose, "Signal (0 < matchRatio < 0.5)", "l")
     leg.Draw()
 
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     canvas.Update()
 
     canvas._h_ax = h_ax; canvas._h_tight = h_tight; canvas._h_loose = h_loose

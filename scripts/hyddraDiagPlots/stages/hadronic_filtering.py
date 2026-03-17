@@ -107,7 +107,7 @@ def plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg):
     l1.SetLineColor(ROOT.kRed); l1.SetLineStyle(2); l1.SetLineWidth(2)
     leg.AddEntry(l1, f"Cut: dxySignif > {cut_val:.0f}", "l")
     leg.Draw()
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     c.Update()
 
     c._hists = hists; c._leg = leg; c._cut_line = ln
@@ -198,7 +198,7 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
     leg.AddEntry(h_sig,    "Signal (matchRatio > 0)", "f")
     leg.AddEntry(h_nonsig, "Non-signal",    "f")
     leg.Draw()
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     c.Update()
 
     c._h_ax = h_ax; c._h_sig = h_sig; c._h_nonsig = h_nonsig; c._leg = leg

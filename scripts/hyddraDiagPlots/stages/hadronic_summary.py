@@ -36,6 +36,10 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
     """
     has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool) if gf is not None and len(gf) > 0 else None
 
+    # Hadronic SV candidates are first formed at Merging; exclude Seeding.
+    _had_keys  = STAGE_KEYS[1:]
+    _had_names = STAGE_NAMES[1:]
+
     for normalized in [False, True]:
         suffix = "norm" if normalized else "unnorm"
         canvas = make_canvas(
@@ -44,29 +48,29 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
             logy=(not normalized),
         )
 
-        total_reco = [sc_sig.get(f"Stage_n_{s}", 0) for s in STAGE_KEYS]
+        total_reco = [sc_sig.get(f"Stage_n_{s}", 0) for s in _had_keys]
 
         if has_tracks is not None:
             loose_count = []
             tight_count = []
-            for s in STAGE_KEYS:
+            for s in _had_keys:
                 mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
                 loose_count.append(int(np.sum(mr > 0)))
                 tight_count.append(int(np.sum(mr >= 0.5)))
         else:
-            loose_count = [0] * len(STAGE_KEYS)
-            tight_count = [0] * len(STAGE_KEYS)
+            loose_count = [0] * len(_had_keys)
+            tight_count = [0] * len(_had_keys)
 
         if sc_bkg:
-            bkg_total = [sc_bkg.get(f"Stage_n_{s}", 0) for s in STAGE_KEYS]
+            bkg_total = [sc_bkg.get(f"Stage_n_{s}", 0) for s in _had_keys]
         else:
-            bkg_total = [max(0, total_reco[i] - loose_count[i]) for i in range(len(STAGE_KEYS))]
+            bkg_total = [max(0, total_reco[i] - loose_count[i]) for i in range(len(_had_keys))]
 
-        # Normalise to Merging (index 1) — that is when hadronic SV candidates
-        # are actually formed.  Seeding only produces track seeds, not SVs.
-        norm_tight = tight_count[1] if (normalized and tight_count[1] > 0) else 1
-        norm_loose = loose_count[1] if (normalized and loose_count[1] > 0) else 1
-        norm_bkg   = bkg_total[1]   if (normalized and bkg_total[1]   > 0) else 1
+        # Normalise to Merging (index 0 in _had_keys) — that is when hadronic
+        # SV candidates are actually formed.
+        norm_tight = tight_count[0] if (normalized and tight_count[0] > 0) else 1
+        norm_loose = loose_count[0] if (normalized and loose_count[0] > 0) else 1
+        norm_bkg   = bkg_total[0]   if (normalized and bkg_total[0]   > 0) else 1
 
         if normalized:
             tight_y = [v / norm_tight for v in tight_count]
@@ -84,10 +88,10 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
             min_y    = max(0.5, min(nonzero) / 2) if nonzero else 0.5
             max_y    = max(nonzero) * 5 if nonzero else 10
 
-        h = setup_axis_hist(canvas, STAGE_NAMES, y_title, min_y, max_y)
+        h = setup_axis_hist(canvas, _had_names, y_title, min_y, max_y)
         h.Draw("AXIS")
 
-        x        = np.arange(1, len(STAGE_NAMES) + 1, dtype=float)
+        x        = np.arange(1, len(_had_names) + 1, dtype=float)
         bkg_label = "Background (total)" if sc_bkg else "Non-signal SVs (signal file)"
         g_tight = make_tgraph(x, tight_y, _COLOR_TIGHT, 20, "Signal tight (matchRatio #geq 0.5)", 1)
         g_loose = make_tgraph(x, loose_y, _COLOR_LOOSE, 24, "Signal loose (matchRatio > 0)",      1)
@@ -102,8 +106,8 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
         canvas._graphs = graphs
 
         add_legend(canvas, graphs, x1=0.50, y1=0.72, x2=0.88, y2=0.88)
-        draw_grid_lines(canvas, len(STAGE_NAMES), min_y, max_y, logy=not normalized)
-        draw_cms_label()
+        draw_grid_lines(canvas, len(_had_names), min_y, max_y, logy=not normalized)
+        draw_cms_label("Hadronic HYDDRA")
         canvas.Update()
         tdir.cd()
         canvas.Write()
@@ -172,7 +176,7 @@ def plot_efficiency_funnel(tdir, gf):
     canvas._leg = leg; canvas._hs = hs
     canvas._htight = h_tight; canvas._hloose = h_loose
 
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     canvas.Update()
     tdir.cd()
     canvas.Write()
@@ -232,7 +236,7 @@ def plot_efficiency_vs_var(tdir, gf, var_key, var_label, bins, canvas_name):
 
     canvas._grid_lines = draw_axis_grid(h_ax, logy=False)
     add_legend(canvas, graphs, x1=0.55, y1=0.45, x2=0.88, y2=0.88)
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     canvas.Update()
     tdir.cd()
     canvas.Write()
@@ -301,7 +305,7 @@ def plot_loss_stage_distribution(tdir, gf):
     latex.DrawLatex(0.18, 0.84,
                     f"Survived to filtering: {n_surv}/{n_gen}")
     canvas._h = h
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     canvas.Update()
     tdir.cd()
     canvas.Write()

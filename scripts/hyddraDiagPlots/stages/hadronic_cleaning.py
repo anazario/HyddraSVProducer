@@ -146,7 +146,7 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     leg.AddEntry(h_sig,    "Signal (matchRatio > 0)", "f")
     leg.AddEntry(h_nonsig, "Non-signal",    "f")
     leg.Draw()
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA")
     c.Update()
 
     c._h_ax = h_ax; c._h_sig = h_sig; c._h_nonsig = h_nonsig; c._leg = leg
