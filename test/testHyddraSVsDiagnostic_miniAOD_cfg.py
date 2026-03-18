@@ -143,6 +143,8 @@ if not _run_leptonic and not _run_hadronic:
 if _run_leptonic:
     process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticProducer_cfi")
     process.hyddraSVsDiag.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
+    process.hyddraSVsDiag.muonTracks   = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
+    process.hyddraSVsDiag.mergedSCs    = cms.InputTag("reducedEgamma", "reducedSuperClusters")
 
     process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi")
     process.hyddraSVsDiagAnalyzer.hasGenInfo        = cms.bool(options.hasGenInfo)

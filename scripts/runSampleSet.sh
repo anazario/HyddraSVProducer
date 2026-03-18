@@ -688,14 +688,16 @@ for i in "${!SELECTED_FILES[@]}"; do
         continue
     fi
 
-    # Each sample gets its own subdir inside the workspace.
-    # If the subdir already exists the sample was interrupted — pass --continue
-    # so parallelRun re-checks per-file logs and skips successful files.
     SAMPLE_WORK_DIR="$TEMP_OUTPUT/sample_${i}"
     SAMPLE_CONTINUE_FLAG=""
     if [[ -d "$SAMPLE_WORK_DIR" ]]; then
-        echo -e "  ${YELLOW}Existing work dir found — passing --continue to parallelRun.sh${NC}"
-        SAMPLE_CONTINUE_FLAG="--continue"
+        if $IS_CONTINUE; then
+            echo -e "  ${YELLOW}Existing work dir found — resuming with --continue${NC}"
+            SAMPLE_CONTINUE_FLAG="--continue"
+        else
+            echo -e "  ${YELLOW}Removing leftover work dir from previous run...${NC}"
+            rm -rf "$SAMPLE_WORK_DIR"
+        fi
     fi
 
     # Run parallelRun.sh; capture exit code without propagating set -e

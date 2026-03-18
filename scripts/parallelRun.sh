@@ -232,20 +232,17 @@ fi
 mkdir -p "$OUTPUT_DIR"
 LOG_DIR="$OUTPUT_DIR/logs"
 mkdir -p "$LOG_DIR"
+LEDGER="$OUTPUT_DIR/.completed_files"
 
 # Build the list of files to process
 FILES_TO_PROCESS=$(mktemp)
 grep -v '^#' "$INPUT_LIST" | grep -v '^$' > "$FILES_TO_PROCESS"
 
 N_SKIPPED=0
-if [[ "$CONTINUE" == true ]]; then
+if [[ "$CONTINUE" == true ]] && [[ -f "$LEDGER" ]]; then
     FILTERED=$(mktemp)
     while IFS= read -r INPUT_FILE; do
-        BASENAME=$(basename "$INPUT_FILE" .root)
-        BASENAME=${BASENAME#file:}
-        LOG_FILE="$LOG_DIR/${BASENAME}.log"
-
-        if [[ -f "$LOG_FILE" ]] && grep -q "CMSRUN_EXIT_SUCCESS" "$LOG_FILE"; then
+        if grep -qxF "$INPUT_FILE" "$LEDGER"; then
             N_SKIPPED=$((N_SKIPPED + 1))
         else
             echo "$INPUT_FILE" >> "$FILTERED"
@@ -328,6 +325,7 @@ CHUNK_FILE="$1"
 CONFIG="$2"
 OUTPUT_DIR="$3"
 EXTRA_ARGS="$4"
+LEDGER="$5"
 
 while IFS= read -r INPUT_FILE; do
     [[ -z "$INPUT_FILE" ]] && continue
@@ -339,7 +337,7 @@ while IFS= read -r INPUT_FILE; do
     echo "[$(date '+%H:%M:%S')] Starting: $BASENAME"
 
     if cmsRun "$CONFIG" inputFiles="$INPUT_FILE" outputFile="$OUTPUT_FILE" $EXTRA_ARGS > "$LOG_FILE" 2>&1; then
-        echo "CMSRUN_EXIT_SUCCESS" >> "$LOG_FILE"
+        echo "$INPUT_FILE" >> "$LEDGER"
         echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
     else
         rm -f "$OUTPUT_FILE"
@@ -356,7 +354,10 @@ cleanup_partial_outputs() {
     for f in "$OUTPUT_DIR"/*_ntuple.root; do
         [[ -f "$f" ]] || continue
         BASENAME=$(basename "$f" _ntuple.root)
-        if ! grep -q "CMSRUN_EXIT_SUCCESS" "$LOG_DIR/${BASENAME}.log" 2>/dev/null; then
+        # Reconstruct the input file path to check against the ledger.
+        # If it's not in the ledger the job didn't finish — remove the partial output.
+        INPUT_PATTERN="${BASENAME}.root"
+        if ! grep -q "$INPUT_PATTERN" "$LEDGER" 2>/dev/null; then
             rm -f "$f"
         fi
     done
@@ -386,7 +387,7 @@ START_TIME=$(date +%s)
 
 set +e
 cat "$CHUNK_LIST" | \
-    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
+    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'" "$LEDGER"
 PARALLEL_EXIT=$?
 set -e
 trap - INT TERM
