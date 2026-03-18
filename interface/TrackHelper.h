@@ -153,5 +153,3 @@ inline bool TrackHelper::AreTrackCollectionsIdentical(const reco::TrackCollectio
   // All tracks are identical
   return true;
 }
-
-#endif
