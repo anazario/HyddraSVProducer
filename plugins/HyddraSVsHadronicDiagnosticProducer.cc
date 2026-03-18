@@ -39,9 +39,6 @@
 // HYDDRA
 #include "KUCMSNtupleizer/HyddraSVProducer/interface/HadronicHYDDRA.h"
 
-// Vertex helpers
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
-
 class HyddraSVsHadronicDiagnosticProducer : public edm::stream::EDProducer<> {
 
 public:

@@ -44,8 +44,7 @@
 // HYDDRA
 #include "KUCMSNtupleizer/HyddraSVProducer/interface/LeptonicHYDDRA.h"
 
-// Vertex and track helpers
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
+// Track helpers
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 
