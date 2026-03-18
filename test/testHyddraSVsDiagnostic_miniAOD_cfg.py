@@ -148,6 +148,11 @@ if _run_leptonic:
     process.hyddraSVsDiag.pvCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
     process.hyddraSVsDiag.muonTracks   = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
     process.hyddraSVsDiag.mergedSCs    = cms.InputTag("reducedEgamma", "reducedSuperClusters")
+    # Override TrackAssociatorParameters for MiniAOD rechit collections
+    process.hyddraSVsDiag.TrackAssociatorParameters.EBRecHitCollectionLabel   = cms.InputTag("reducedEgamma", "reducedEBRecHits")
+    process.hyddraSVsDiag.TrackAssociatorParameters.EERecHitCollectionLabel   = cms.InputTag("reducedEgamma", "reducedEERecHits")
+    process.hyddraSVsDiag.TrackAssociatorParameters.HBHERecHitCollectionLabel = cms.InputTag("reducedEgamma", "reducedHBHEHits")
+    process.hyddraSVsDiag.TrackAssociatorParameters.HORecHitCollectionLabel   = cms.InputTag("reducedEgamma", "reducedHORecHits")
 
     process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraSVsDiagnosticAnalyzer_cfi")
     process.hyddraSVsDiagAnalyzer.hasGenInfo        = cms.bool(options.hasGenInfo)
