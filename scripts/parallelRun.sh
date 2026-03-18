@@ -362,11 +362,14 @@ cleanup_partial_outputs() {
     done
 }
 
-# On Ctrl+C / SIGTERM: kill child processes, clean up, and exit 130.
+# On Ctrl+C / SIGTERM: kill parallel by PID, clean up, and exit 130.
+PARALLEL_PID=""
 cleanup_and_exit() {
+    trap - INT TERM  # prevent re-entry
     echo ""
     echo -e "${YELLOW}Interrupted — cleaning up partial outputs...${NC}"
-    kill 0 2>/dev/null || true
+    [[ -n "$PARALLEL_PID" ]] && kill "$PARALLEL_PID" 2>/dev/null || true
+    wait "$PARALLEL_PID" 2>/dev/null || true
     cleanup_partial_outputs
     rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS" "$CHUNK_LIST"
     rm -rf "$CHUNK_DIR"
@@ -382,8 +385,9 @@ echo ""
 START_TIME=$(date +%s)
 
 cat "$CHUNK_LIST" | \
-    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
-
+    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'" &
+PARALLEL_PID=$!
+wait $PARALLEL_PID
 PARALLEL_EXIT=$?
 trap - INT TERM
 
