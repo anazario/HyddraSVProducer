@@ -5,7 +5,7 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "TrackVertexSetCollection.h"
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/TrackHelper.h"
+#include "TrackHelper.h"
 
 // Debug output toggle. Comment out to disable.
 //#define HYDDRA_DEBUG_ENABLED

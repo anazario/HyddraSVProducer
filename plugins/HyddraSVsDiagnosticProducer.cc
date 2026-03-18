@@ -41,8 +41,11 @@
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 
+// Matrix type alias required by MatchTracksToSC (defined in DeltaRMatch.h but
+// that header pulls in the canonical TrackHelper which conflicts here)
+template <typename S> using Matrix = std::vector<std::vector<S>>;
+
 // Track/SC matching helpers (must come before HYDDRA headers)
-#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 
