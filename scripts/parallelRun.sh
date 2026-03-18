@@ -353,7 +353,7 @@ chmod +x "$TEMP_SCRIPT"
 # Called on both clean exit and interruption to prevent partial files from
 # being included in the hadd merge.
 cleanup_partial_outputs() {
-    for f in "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null; do
+    for f in "$OUTPUT_DIR"/*_ntuple.root; do
         [[ -f "$f" ]] || continue
         BASENAME=$(basename "$f" _ntuple.root)
         if ! grep -q "CMSRUN_EXIT_SUCCESS" "$LOG_DIR/${BASENAME}.log" 2>/dev/null; then
