@@ -41,12 +41,12 @@
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 
-// HYDDRA
-#include "KUCMSNtupleizer/HyddraSVProducer/interface/LeptonicHYDDRA.h"
-
-// Track helpers
+// Track/SC matching helpers (must come before HYDDRA headers)
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
+
+// HYDDRA (transitively provides VertexHelper)
+#include "KUCMSNtupleizer/HyddraSVProducer/interface/LeptonicHYDDRA.h"
 
 class HyddraSVsDiagnosticProducer : public edm::stream::EDProducer<> {
 
