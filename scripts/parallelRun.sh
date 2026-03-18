@@ -362,14 +362,14 @@ cleanup_partial_outputs() {
     done
 }
 
-# On Ctrl+C / SIGTERM: kill parallel by PID, clean up, and exit 130.
-PARALLEL_PID=""
+# On Ctrl+C: terminal already sends SIGINT to the whole foreground process
+# group, so parallel and its children are already stopping. Just wait for
+# them, clean up partial outputs, and exit.
 cleanup_and_exit() {
     trap - INT TERM  # prevent re-entry
     echo ""
-    echo -e "${YELLOW}Interrupted — cleaning up partial outputs...${NC}"
-    [[ -n "$PARALLEL_PID" ]] && kill "$PARALLEL_PID" 2>/dev/null || true
-    wait "$PARALLEL_PID" 2>/dev/null || true
+    echo -e "${YELLOW}Interrupted — waiting for jobs to stop...${NC}"
+    wait 2>/dev/null || true
     cleanup_partial_outputs
     rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS" "$CHUNK_LIST"
     rm -rf "$CHUNK_DIR"
@@ -384,11 +384,11 @@ echo ""
 
 START_TIME=$(date +%s)
 
+set +e
 cat "$CHUNK_LIST" | \
-    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'" &
-PARALLEL_PID=$!
-wait $PARALLEL_PID
+    parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
 PARALLEL_EXIT=$?
+set -e
 trap - INT TERM
 
 # Cleanup temp files and any partial outputs from failed jobs
