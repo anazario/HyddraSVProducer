@@ -70,7 +70,8 @@ static constexpr size_t kHadMerged  = 1;
 static constexpr size_t kHadCleaned = 2;
 static constexpr size_t kHadDisambig= 3;
 static constexpr size_t kHadFiltered= 4;
-static constexpr size_t kHadNStages = 5;
+static constexpr size_t kHadID      = 5;
+static constexpr size_t kHadNStages = 6;
 
 // ─────────────────────────────────────────────────────────────────────────────
 class HyddraSVsHadronicDiagnosticAnalyzer
@@ -148,28 +149,28 @@ private:
 
   std::vector<float> genFunnel_mass_seed_,       genFunnel_mass_merged_,
                      genFunnel_mass_cleaned_,     genFunnel_mass_disambig_,
-                     genFunnel_mass_filtered_;
+                     genFunnel_mass_filtered_,    genFunnel_mass_id_;
   std::vector<float> genFunnel_dxySignif_seed_,   genFunnel_dxySignif_merged_,
                      genFunnel_dxySignif_cleaned_, genFunnel_dxySignif_disambig_,
-                     genFunnel_dxySignif_filtered_;
+                     genFunnel_dxySignif_filtered_,genFunnel_dxySignif_id_;
   std::vector<float> genFunnel_normChi2_seed_,    genFunnel_normChi2_merged_,
                      genFunnel_normChi2_cleaned_,  genFunnel_normChi2_disambig_,
-                     genFunnel_normChi2_filtered_;
+                     genFunnel_normChi2_filtered_, genFunnel_normChi2_id_;
   std::vector<int>   genFunnel_nTracks_seed_,     genFunnel_nTracks_merged_,
                      genFunnel_nTracks_cleaned_,   genFunnel_nTracks_disambig_,
-                     genFunnel_nTracks_filtered_;
+                     genFunnel_nTracks_filtered_,  genFunnel_nTracks_id_;
   std::vector<float> genFunnel_cosTheta_seed_,    genFunnel_cosTheta_merged_,
                      genFunnel_cosTheta_cleaned_,  genFunnel_cosTheta_disambig_,
-                     genFunnel_cosTheta_filtered_;
+                     genFunnel_cosTheta_filtered_, genFunnel_cosTheta_id_;
   std::vector<float> genFunnel_matchRatio_seed_,  genFunnel_matchRatio_merged_,
                      genFunnel_matchRatio_cleaned_,genFunnel_matchRatio_disambig_,
-                     genFunnel_matchRatio_filtered_;
+                     genFunnel_matchRatio_filtered_,genFunnel_matchRatio_id_;
   std::vector<float> genFunnel_decayAngle_seed_,  genFunnel_decayAngle_merged_,
                      genFunnel_decayAngle_cleaned_,genFunnel_decayAngle_disambig_,
-                     genFunnel_decayAngle_filtered_;
+                     genFunnel_decayAngle_filtered_,genFunnel_decayAngle_id_;
   std::vector<float> genFunnel_pOverE_seed_,      genFunnel_pOverE_merged_,
                      genFunnel_pOverE_cleaned_,    genFunnel_pOverE_disambig_,
-                     genFunnel_pOverE_filtered_;
+                     genFunnel_pOverE_filtered_,   genFunnel_pOverE_id_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // stageCounts branches — total vertex count per stage, one row per event.
@@ -177,7 +178,7 @@ private:
   // plot time via nSignalTracks thresholds.
   // ═══════════════════════════════════════════════════════════════════════════
   unsigned int stage_n_seed_,     stage_n_merged_,  stage_n_cleaned_,
-               stage_n_disambig_, stage_n_filtered_;
+               stage_n_disambig_, stage_n_filtered_, stage_n_id_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // allStageVtx branches — one TTree::Fill per vertex per stage.
@@ -189,6 +190,9 @@ private:
   float stageVtx_decayAngle_;
   float stageVtx_pOverE_;
   float stageVtx_dxySignif_;
+  float stageVtx_x_;
+  float stageVtx_y_;
+  float stageVtx_z_;
   float stageVtx_normChi2_;
   int   stageVtx_nTracks_;
   int   stageVtx_nSignalTracks_;
@@ -223,7 +227,7 @@ HyddraSVsHadronicDiagnosticAnalyzer::HyddraSVsHadronicDiagnosticAnalyzer(
 
   static const std::array<std::string, kHadNStages> kTagNames = {{
     "seedVertices", "mergedVertices", "cleanedVertices",
-    "disambiguatedVertices", "filteredVertices"
+    "disambiguatedVertices", "filteredVertices", "idVertices"
   }};
   for (size_t i = 0; i < kHadNStages; ++i) {
     stageTokens_[i] = consumes<reco::VertexCollection>(
@@ -281,48 +285,56 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_mass_cleaned",      &genFunnel_mass_cleaned_);
   genFunnelTree_->Branch("GenFunnel_mass_disambig",     &genFunnel_mass_disambig_);
   genFunnelTree_->Branch("GenFunnel_mass_filtered",     &genFunnel_mass_filtered_);
+  genFunnelTree_->Branch("GenFunnel_mass_id",           &genFunnel_mass_id_);
 
   genFunnelTree_->Branch("GenFunnel_dxySignif_seed",    &genFunnel_dxySignif_seed_);
   genFunnelTree_->Branch("GenFunnel_dxySignif_merged",  &genFunnel_dxySignif_merged_);
   genFunnelTree_->Branch("GenFunnel_dxySignif_cleaned", &genFunnel_dxySignif_cleaned_);
   genFunnelTree_->Branch("GenFunnel_dxySignif_disambig",&genFunnel_dxySignif_disambig_);
   genFunnelTree_->Branch("GenFunnel_dxySignif_filtered",&genFunnel_dxySignif_filtered_);
+  genFunnelTree_->Branch("GenFunnel_dxySignif_id",      &genFunnel_dxySignif_id_);
 
   genFunnelTree_->Branch("GenFunnel_normChi2_seed",     &genFunnel_normChi2_seed_);
   genFunnelTree_->Branch("GenFunnel_normChi2_merged",   &genFunnel_normChi2_merged_);
   genFunnelTree_->Branch("GenFunnel_normChi2_cleaned",  &genFunnel_normChi2_cleaned_);
   genFunnelTree_->Branch("GenFunnel_normChi2_disambig", &genFunnel_normChi2_disambig_);
   genFunnelTree_->Branch("GenFunnel_normChi2_filtered", &genFunnel_normChi2_filtered_);
+  genFunnelTree_->Branch("GenFunnel_normChi2_id",       &genFunnel_normChi2_id_);
 
   genFunnelTree_->Branch("GenFunnel_nTracks_seed",      &genFunnel_nTracks_seed_);
   genFunnelTree_->Branch("GenFunnel_nTracks_merged",    &genFunnel_nTracks_merged_);
   genFunnelTree_->Branch("GenFunnel_nTracks_cleaned",   &genFunnel_nTracks_cleaned_);
   genFunnelTree_->Branch("GenFunnel_nTracks_disambig",  &genFunnel_nTracks_disambig_);
   genFunnelTree_->Branch("GenFunnel_nTracks_filtered",  &genFunnel_nTracks_filtered_);
+  genFunnelTree_->Branch("GenFunnel_nTracks_id",        &genFunnel_nTracks_id_);
 
   genFunnelTree_->Branch("GenFunnel_cosTheta_seed",     &genFunnel_cosTheta_seed_);
   genFunnelTree_->Branch("GenFunnel_cosTheta_merged",   &genFunnel_cosTheta_merged_);
   genFunnelTree_->Branch("GenFunnel_cosTheta_cleaned",  &genFunnel_cosTheta_cleaned_);
   genFunnelTree_->Branch("GenFunnel_cosTheta_disambig", &genFunnel_cosTheta_disambig_);
   genFunnelTree_->Branch("GenFunnel_cosTheta_filtered", &genFunnel_cosTheta_filtered_);
+  genFunnelTree_->Branch("GenFunnel_cosTheta_id",       &genFunnel_cosTheta_id_);
 
   genFunnelTree_->Branch("GenFunnel_matchRatio_seed",    &genFunnel_matchRatio_seed_);
   genFunnelTree_->Branch("GenFunnel_matchRatio_merged",  &genFunnel_matchRatio_merged_);
   genFunnelTree_->Branch("GenFunnel_matchRatio_cleaned", &genFunnel_matchRatio_cleaned_);
   genFunnelTree_->Branch("GenFunnel_matchRatio_disambig",&genFunnel_matchRatio_disambig_);
   genFunnelTree_->Branch("GenFunnel_matchRatio_filtered",&genFunnel_matchRatio_filtered_);
+  genFunnelTree_->Branch("GenFunnel_matchRatio_id",      &genFunnel_matchRatio_id_);
 
   genFunnelTree_->Branch("GenFunnel_decayAngle_seed",     &genFunnel_decayAngle_seed_);
   genFunnelTree_->Branch("GenFunnel_decayAngle_merged",   &genFunnel_decayAngle_merged_);
   genFunnelTree_->Branch("GenFunnel_decayAngle_cleaned",  &genFunnel_decayAngle_cleaned_);
   genFunnelTree_->Branch("GenFunnel_decayAngle_disambig", &genFunnel_decayAngle_disambig_);
   genFunnelTree_->Branch("GenFunnel_decayAngle_filtered", &genFunnel_decayAngle_filtered_);
+  genFunnelTree_->Branch("GenFunnel_decayAngle_id",       &genFunnel_decayAngle_id_);
 
   genFunnelTree_->Branch("GenFunnel_pOverE_seed",         &genFunnel_pOverE_seed_);
   genFunnelTree_->Branch("GenFunnel_pOverE_merged",       &genFunnel_pOverE_merged_);
   genFunnelTree_->Branch("GenFunnel_pOverE_cleaned",      &genFunnel_pOverE_cleaned_);
   genFunnelTree_->Branch("GenFunnel_pOverE_disambig",     &genFunnel_pOverE_disambig_);
   genFunnelTree_->Branch("GenFunnel_pOverE_filtered",     &genFunnel_pOverE_filtered_);
+  genFunnelTree_->Branch("GenFunnel_pOverE_id",           &genFunnel_pOverE_id_);
 
   // ── stageCounts ────────────────────────────────────────────────────────────
   stageCountsTree_ = fs->make<TTree>("stageCounts",
@@ -332,6 +344,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   stageCountsTree_->Branch("Stage_n_cleaned",  &stage_n_cleaned_);
   stageCountsTree_->Branch("Stage_n_disambig", &stage_n_disambig_);
   stageCountsTree_->Branch("Stage_n_filtered", &stage_n_filtered_);
+  stageCountsTree_->Branch("Stage_n_id",      &stage_n_id_);
 
   // ── allStageVtx ────────────────────────────────────────────────────────────
   allStageVtxTree_ = fs->make<TTree>("allStageVtx",
@@ -342,6 +355,9 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   allStageVtxTree_->Branch("StageVtx_decayAngle",      &stageVtx_decayAngle_);
   allStageVtxTree_->Branch("StageVtx_pOverE",          &stageVtx_pOverE_);
   allStageVtxTree_->Branch("StageVtx_dxySignif",       &stageVtx_dxySignif_);
+  allStageVtxTree_->Branch("StageVtx_x",               &stageVtx_x_);
+  allStageVtxTree_->Branch("StageVtx_y",               &stageVtx_y_);
+  allStageVtxTree_->Branch("StageVtx_z",               &stageVtx_z_);
   allStageVtxTree_->Branch("StageVtx_normChi2",        &stageVtx_normChi2_);
   allStageVtxTree_->Branch("StageVtx_nTracks",         &stageVtx_nTracks_);
   allStageVtxTree_->Branch("StageVtx_nSignalTracks",   &stageVtx_nSignalTracks_);
@@ -370,31 +386,31 @@ void HyddraSVsHadronicDiagnosticAnalyzer::clearBranches() {
 
   genFunnel_mass_seed_.clear();     genFunnel_mass_merged_.clear();
   genFunnel_mass_cleaned_.clear();  genFunnel_mass_disambig_.clear();
-  genFunnel_mass_filtered_.clear();
+  genFunnel_mass_filtered_.clear();  genFunnel_mass_id_.clear();
   genFunnel_dxySignif_seed_.clear(); genFunnel_dxySignif_merged_.clear();
   genFunnel_dxySignif_cleaned_.clear();genFunnel_dxySignif_disambig_.clear();
-  genFunnel_dxySignif_filtered_.clear();
+  genFunnel_dxySignif_filtered_.clear();genFunnel_dxySignif_id_.clear();
   genFunnel_normChi2_seed_.clear();  genFunnel_normChi2_merged_.clear();
   genFunnel_normChi2_cleaned_.clear();genFunnel_normChi2_disambig_.clear();
-  genFunnel_normChi2_filtered_.clear();
+  genFunnel_normChi2_filtered_.clear();genFunnel_normChi2_id_.clear();
   genFunnel_nTracks_seed_.clear();   genFunnel_nTracks_merged_.clear();
   genFunnel_nTracks_cleaned_.clear();genFunnel_nTracks_disambig_.clear();
-  genFunnel_nTracks_filtered_.clear();
+  genFunnel_nTracks_filtered_.clear();genFunnel_nTracks_id_.clear();
   genFunnel_cosTheta_seed_.clear();  genFunnel_cosTheta_merged_.clear();
   genFunnel_cosTheta_cleaned_.clear();genFunnel_cosTheta_disambig_.clear();
-  genFunnel_cosTheta_filtered_.clear();
+  genFunnel_cosTheta_filtered_.clear();genFunnel_cosTheta_id_.clear();
   genFunnel_matchRatio_seed_.clear(); genFunnel_matchRatio_merged_.clear();
   genFunnel_matchRatio_cleaned_.clear();genFunnel_matchRatio_disambig_.clear();
-  genFunnel_matchRatio_filtered_.clear();
+  genFunnel_matchRatio_filtered_.clear();genFunnel_matchRatio_id_.clear();
   genFunnel_decayAngle_seed_.clear();  genFunnel_decayAngle_merged_.clear();
   genFunnel_decayAngle_cleaned_.clear();genFunnel_decayAngle_disambig_.clear();
-  genFunnel_decayAngle_filtered_.clear();
+  genFunnel_decayAngle_filtered_.clear();genFunnel_decayAngle_id_.clear();
   genFunnel_pOverE_seed_.clear();    genFunnel_pOverE_merged_.clear();
   genFunnel_pOverE_cleaned_.clear(); genFunnel_pOverE_disambig_.clear();
-  genFunnel_pOverE_filtered_.clear();
+  genFunnel_pOverE_filtered_.clear();genFunnel_pOverE_id_.clear();
 
   stage_n_seed_ = stage_n_merged_ = stage_n_cleaned_ =
-  stage_n_disambig_ = stage_n_filtered_ = 0;
+  stage_n_disambig_ = stage_n_filtered_ = stage_n_id_ = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,28 +458,36 @@ void HyddraSVsHadronicDiagnosticAnalyzer::fillRecoPropsAt(
 
   std::array<std::vector<float>*, kHadNStages> massVecs = {{
       &genFunnel_mass_seed_,  &genFunnel_mass_merged_,
-      &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_}};
+      &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_,
+      &genFunnel_mass_id_}};
   std::array<std::vector<float>*, kHadNStages> dxsVecs = {{
       &genFunnel_dxySignif_seed_,  &genFunnel_dxySignif_merged_,
-      &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_}};
+      &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_,
+      &genFunnel_dxySignif_id_}};
   std::array<std::vector<float>*, kHadNStages> chi2Vecs = {{
       &genFunnel_normChi2_seed_,  &genFunnel_normChi2_merged_,
-      &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_}};
+      &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_,
+      &genFunnel_normChi2_id_}};
   std::array<std::vector<int>*, kHadNStages> ntrkVecs = {{
       &genFunnel_nTracks_seed_,  &genFunnel_nTracks_merged_,
-      &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_}};
+      &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_,
+      &genFunnel_nTracks_id_}};
   std::array<std::vector<float>*, kHadNStages> ctVecs = {{
       &genFunnel_cosTheta_seed_,  &genFunnel_cosTheta_merged_,
-      &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_}};
+      &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_,
+      &genFunnel_cosTheta_id_}};
   std::array<std::vector<float>*, kHadNStages> mrVecs = {{
       &genFunnel_matchRatio_seed_,  &genFunnel_matchRatio_merged_,
-      &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
+      &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_,
+      &genFunnel_matchRatio_id_}};
   std::array<std::vector<float>*, kHadNStages> daVecs = {{
       &genFunnel_decayAngle_seed_,  &genFunnel_decayAngle_merged_,
-      &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_}};
+      &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_,
+      &genFunnel_decayAngle_id_}};
   std::array<std::vector<float>*, kHadNStages> poeVecs = {{
       &genFunnel_pOverE_seed_,  &genFunnel_pOverE_merged_,
-      &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_}};
+      &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_,
+      &genFunnel_pOverE_id_}};
 
   auto p4 = VertexHelper::GetVertex4Vector(vtx);
   double p  = p4.P();
@@ -520,6 +544,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
   stage_n_cleaned_  = safeSize(kHadCleaned);
   stage_n_disambig_ = safeSize(kHadDisambig);
   stage_n_filtered_ = safeSize(kHadFiltered);
+  stage_n_id_       = safeSize(kHadID);
 
   // ── Build signal tracks ────────────────────────────────────────────────────
   genVertices_.clear();
@@ -564,28 +589,36 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
     auto pushSentinel = [&](size_t si) {
       std::array<std::vector<float>*, kHadNStages> massV = {{
           &genFunnel_mass_seed_,&genFunnel_mass_merged_,
-          &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_}};
+          &genFunnel_mass_cleaned_,&genFunnel_mass_disambig_,&genFunnel_mass_filtered_,
+          &genFunnel_mass_id_}};
       std::array<std::vector<float>*, kHadNStages> dxsV = {{
           &genFunnel_dxySignif_seed_,&genFunnel_dxySignif_merged_,
-          &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_}};
+          &genFunnel_dxySignif_cleaned_,&genFunnel_dxySignif_disambig_,&genFunnel_dxySignif_filtered_,
+          &genFunnel_dxySignif_id_}};
       std::array<std::vector<float>*, kHadNStages> chi2V = {{
           &genFunnel_normChi2_seed_,&genFunnel_normChi2_merged_,
-          &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_}};
+          &genFunnel_normChi2_cleaned_,&genFunnel_normChi2_disambig_,&genFunnel_normChi2_filtered_,
+          &genFunnel_normChi2_id_}};
       std::array<std::vector<int>*, kHadNStages> ntrkV = {{
           &genFunnel_nTracks_seed_,&genFunnel_nTracks_merged_,
-          &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_}};
+          &genFunnel_nTracks_cleaned_,&genFunnel_nTracks_disambig_,&genFunnel_nTracks_filtered_,
+          &genFunnel_nTracks_id_}};
       std::array<std::vector<float>*, kHadNStages> ctV = {{
           &genFunnel_cosTheta_seed_,&genFunnel_cosTheta_merged_,
-          &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_}};
+          &genFunnel_cosTheta_cleaned_,&genFunnel_cosTheta_disambig_,&genFunnel_cosTheta_filtered_,
+          &genFunnel_cosTheta_id_}};
       std::array<std::vector<float>*, kHadNStages> mrV = {{
           &genFunnel_matchRatio_seed_,&genFunnel_matchRatio_merged_,
-          &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_}};
+          &genFunnel_matchRatio_cleaned_,&genFunnel_matchRatio_disambig_,&genFunnel_matchRatio_filtered_,
+          &genFunnel_matchRatio_id_}};
       std::array<std::vector<float>*, kHadNStages> daV = {{
           &genFunnel_decayAngle_seed_,&genFunnel_decayAngle_merged_,
-          &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_}};
+          &genFunnel_decayAngle_cleaned_,&genFunnel_decayAngle_disambig_,&genFunnel_decayAngle_filtered_,
+          &genFunnel_decayAngle_id_}};
       std::array<std::vector<float>*, kHadNStages> poeV = {{
           &genFunnel_pOverE_seed_,&genFunnel_pOverE_merged_,
-          &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_}};
+          &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_,
+          &genFunnel_pOverE_id_}};
       massV[si]->push_back(-1.f);  dxsV[si]->push_back(-1.f);
       chi2V[si]->push_back(-1.f);  ntrkV[si]->push_back(-1);
       ctV  [si]->push_back(-1.f);  mrV  [si]->push_back(-1.f);
@@ -645,6 +678,9 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
       stageVtx_decayAngle_   = float(VertexHelper::CalculateDecayAngle(vtx));
       stageVtx_pOverE_       = (E > 1e-6) ? float(p / E) : -1.f;
       stageVtx_dxySignif_    = computeDxySignif(vtx, pv);
+      stageVtx_x_            = float(vtx.x());
+      stageVtx_y_            = float(vtx.y());
+      stageVtx_z_            = float(vtx.z());
       stageVtx_normChi2_     = float(vtx.normalizedChi2());
       stageVtx_nTracks_      = int(vtx.tracksSize());
       stageVtx_nSignalTracks_= hasGenInfo_ ? computeNSignalTracks(vtx) : -1;
@@ -677,6 +713,8 @@ void HyddraSVsHadronicDiagnosticAnalyzer::fillDescriptions(
       edm::InputTag("hyddraSVsHadronicDiag", "hadronicDisambiguated"));
   desc.add<edm::InputTag>("filteredVertices",
       edm::InputTag("hyddraSVsHadronicDiag", "hadronicFiltered"));
+  desc.add<edm::InputTag>("idVertices",
+      edm::InputTag("hyddraSVsHadronicDiag", "hadronicID"));
   desc.add<edm::InputTag>("pvCollection",        edm::InputTag("offlinePrimaryVertices"));
   desc.add<edm::InputTag>("tracks",              edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("genParticles",        edm::InputTag("genParticles"));

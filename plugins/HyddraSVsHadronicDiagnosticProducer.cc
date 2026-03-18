@@ -39,6 +39,9 @@
 // HYDDRA
 #include "KUCMSNtupleizer/HyddraSVProducer/interface/HadronicHYDDRA.h"
 
+// Vertex helpers
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
+
 class HyddraSVsHadronicDiagnosticProducer : public edm::stream::EDProducer<> {
 
 public:
@@ -71,6 +74,7 @@ HyddraSVsHadronicDiagnosticProducer::HyddraSVsHadronicDiagnosticProducer(
   produces<reco::VertexCollection>("hadronicCleaned");
   produces<reco::VertexCollection>("hadronicDisambiguated");
   produces<reco::VertexCollection>("hadronicFiltered");
+  produces<reco::VertexCollection>("hadronicID");
 }
 
 void HyddraSVsHadronicDiagnosticProducer::produce(edm::Event& iEvent,
@@ -104,6 +108,16 @@ void HyddraSVsHadronicDiagnosticProducer::produce(edm::Event& iEvent,
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterCleaning),       "hadronicCleaned");
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterDisambiguation), "hadronicDisambiguated");
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterFiltering),      "hadronicFiltered");
+
+  // ID stage: nTracks >= 3 AND mass/nTracks > 1
+  auto hadronicID = std::make_unique<reco::VertexCollection>();
+  for (const auto& vtx : snaps.afterFiltering) {
+    if (vtx.tracksSize() < 3) continue;
+    auto p4 = VertexHelper::GetVertex4Vector(vtx);
+    if (p4.M() / float(vtx.tracksSize()) > 1.0)
+      hadronicID->push_back(vtx);
+  }
+  iEvent.put(std::move(hadronicID), "hadronicID");
 }
 
 void HyddraSVsHadronicDiagnosticProducer::fillDescriptions(
@@ -112,6 +126,8 @@ void HyddraSVsHadronicDiagnosticProducer::fillDescriptions(
 
   desc.add<edm::InputTag>("tracks",       edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));
+  // hadronicID is produced automatically (purely kinematic: nTracks>=3 AND mass/nTracks>1)
+  // No extra config parameters needed.
 
   // Hadronic PSet — same defaults as HyddraSVsProducer
   edm::ParameterSetDescription hadronicDesc;

@@ -4,9 +4,9 @@ config.py — shared constants for the hyddraDiagPlots package.
 import numpy as np
 import ROOT
 
-STAGE_NAMES = ["Seeding", "Merging", "Cleaning", "Disambiguation", "Filtering"]
-STAGE_KEYS  = ["seed", "merged", "cleaned", "disambig", "filtered"]
-STAGE_DIRS  = ["seeding", "merging", "cleaning", "disambiguation", "filtering", "summary"]
+STAGE_NAMES = ["Seeding", "Merging", "Cleaning", "Disambiguation", "Filtering", "ID"]
+STAGE_KEYS  = ["seed", "merged", "cleaned", "disambig", "filtered", "id"]
+STAGE_DIRS  = ["seeding", "merging", "cleaning", "disambiguation", "filtering", "id", "summary"]
 STAGE_IDX   = {k: i for i, k in enumerate(STAGE_KEYS)}
 
 # ── Colours ──────────────────────────────────────────────────────────────────
@@ -15,8 +15,8 @@ COLOR_SILVER    = ROOT.kAzure  + 6   # light blue
 COLOR_BRONZE    = ROOT.kRed    - 3
 COLOR_NONSIGNAL = ROOT.kGray   + 2   # non-signal from signal file
 COLOR_BKG       = ROOT.kRed    + 2   # dedicated background file
-COLORS_STAGE    = [ROOT.kBlue+2, ROOT.kGreen+2, ROOT.kRed+2, ROOT.kOrange-3, ROOT.kMagenta-2]
-MARKERS         = [20, 21, 22, 23, 29]
+COLORS_STAGE    = [ROOT.kBlue+2, ROOT.kGreen+2, ROOT.kRed+2, ROOT.kOrange-3, ROOT.kMagenta-2, ROOT.kCyan+2]
+MARKERS         = [20, 21, 22, 23, 29, 33]
 
 # ── Reco observables shown per stage ─────────────────────────────────────────
 RECO_OBSERVABLES = {

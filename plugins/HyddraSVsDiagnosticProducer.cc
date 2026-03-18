@@ -30,13 +30,24 @@
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "DataFormats/EgammaReco/interface/SuperCluster.h"
+#include "DataFormats/EgammaReco/interface/SuperClusterFwd.h"
 
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+#include "Geometry/CaloGeometry/interface/CaloGeometry.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 
 // HYDDRA
 #include "KUCMSNtupleizer/HyddraSVProducer/interface/LeptonicHYDDRA.h"
+
+// Vertex and track helpers
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/VertexHelper.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 
 class HyddraSVsDiagnosticProducer : public edm::stream::EDProducer<> {
 
@@ -52,7 +63,14 @@ private:
   // Input tokens
   edm::EDGetTokenT<reco::TrackCollection> tracksToken_;
   edm::EDGetTokenT<reco::VertexCollection> pvToken_;
+  edm::EDGetTokenT<reco::TrackCollection> muonTracksToken_;
+  edm::EDGetTokenT<reco::SuperClusterCollection> mergedSCsToken_;
   edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> ttBuilderToken_;
+  edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> magneticFieldToken_;
+  edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeometryToken_;
+
+  TrackDetectorAssociator trackAssociator_;
+  TrackAssociatorParameters trackAssocParameters_;
 
   // HYDDRA leptonic reconstruction object
   LeptonicHYDDRA leptonic_;
@@ -61,14 +79,24 @@ private:
 HyddraSVsDiagnosticProducer::HyddraSVsDiagnosticProducer(const edm::ParameterSet& iConfig) :
   tracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("tracks"))),
   pvToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("pvCollection"))),
+  muonTracksToken_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("muonTracks"))),
+  mergedSCsToken_(consumes<reco::SuperClusterCollection>(iConfig.getParameter<edm::InputTag>("mergedSCs"))),
   ttBuilderToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
+  magneticFieldToken_(esConsumes()),
+  caloGeometryToken_(esConsumes()),
   leptonic_(iConfig.getParameter<edm::ParameterSet>("leptonic"))
 {
+  trackAssociator_.useDefaultPropagator();
+  edm::ParameterSet trackAssocPSet = iConfig.getParameter<edm::ParameterSet>("TrackAssociatorParameters");
+  edm::ConsumesCollector iC = consumesCollector();
+  trackAssocParameters_.loadParameters(trackAssocPSet, iC);
+
   produces<reco::VertexCollection>("leptonicSeeds");
   produces<reco::VertexCollection>("leptonicMerged");
   produces<reco::VertexCollection>("leptonicCleaned");
   produces<reco::VertexCollection>("leptonicDisambiguated");
   produces<reco::VertexCollection>("leptonicFiltered");
+  produces<reco::VertexCollection>("leptonicID");
 }
 
 void HyddraSVsDiagnosticProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
@@ -79,7 +107,15 @@ void HyddraSVsDiagnosticProducer::produce(edm::Event& iEvent, const edm::EventSe
   edm::Handle<reco::VertexCollection> pvHandle;
   iEvent.getByToken(pvToken_, pvHandle);
 
+  edm::Handle<reco::TrackCollection> muonTracksHandle;
+  iEvent.getByToken(muonTracksToken_, muonTracksHandle);
+
+  edm::Handle<reco::SuperClusterCollection> mergedSCsHandle;
+  iEvent.getByToken(mergedSCsToken_, mergedSCsHandle);
+
   const TransientTrackBuilder* ttBuilder = &iSetup.getData(ttBuilderToken_);
+  const edm::ESTransientHandle<MagneticField> magfield = iSetup.getTransientHandle(magneticFieldToken_);
+  const CaloGeometry ecalGeometry = iSetup.getData(caloGeometryToken_);
 
   // Build TrackRef vector from the input collection
   std::vector<reco::TrackRef> trackRefs;
@@ -104,6 +140,33 @@ void HyddraSVsDiagnosticProducer::produce(edm::Event& iEvent, const edm::EventSe
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterCleaning),      "leptonicCleaned");
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterDisambiguation),"leptonicDisambiguated");
   iEvent.put(std::make_unique<reco::VertexCollection>(snaps.afterFiltering),     "leptonicFiltered");
+
+  // ID stage: build electron track collection via SC matching, then apply
+  // muon ID (both tracks in muon collection) or electron ID (both SC-matched).
+  reco::TrackCollection allFilteredTracks;
+  for (const auto& vtx : snaps.afterFiltering)
+    for (auto it = vtx.tracks_begin(); it != vtx.tracks_end(); ++it)
+      allFilteredTracks.emplace_back(**it);
+
+  reco::TrackCollection electronTracks;
+  if (mergedSCsHandle.isValid() && !mergedSCsHandle->empty()) {
+    MatchTracksToSC<reco::Track> scAssigner(iEvent, iSetup, magfield, ecalGeometry,
+                                            trackAssocParameters_, allFilteredTracks,
+                                            *mergedSCsHandle);
+    for (const auto& pair : scAssigner.GetMatchedTrackSCPairs())
+      if (pair.GetDeltaR() < 0.04)
+        electronTracks.emplace_back(pair.GetTrack());
+  }
+
+  auto leptonicID = std::make_unique<reco::VertexCollection>();
+  for (const auto& vtx : snaps.afterFiltering) {
+    if (vtx.tracksSize() != 2) continue;
+    const bool passLooseMuonID     = VertexHelper::CountInstances(vtx, *muonTracksHandle) == 2;
+    const bool passLooseElectronID = VertexHelper::CountInstances(vtx, electronTracks)    == 2;
+    if (passLooseMuonID || passLooseElectronID)
+      leptonicID->push_back(vtx);
+  }
+  iEvent.put(std::move(leptonicID), "leptonicID");
 }
 
 void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -111,6 +174,12 @@ void HyddraSVsDiagnosticProducer::fillDescriptions(edm::ConfigurationDescription
 
   desc.add<edm::InputTag>("tracks",       edm::InputTag("muonBestTrackProducer", "globalTracks"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlinePrimaryVertices"));
+  desc.add<edm::InputTag>("muonTracks",   edm::InputTag("muonEnhancedTracks", "muonGlobalTracks"));
+  desc.add<edm::InputTag>("mergedSCs",    edm::InputTag("ecalTracks", "displacedElectronSCs"));
+
+  edm::ParameterSetDescription trackAssocDesc;
+  trackAssocDesc.setAllowAnything();
+  desc.add<edm::ParameterSetDescription>("TrackAssociatorParameters", trackAssocDesc);
 
   // Leptonic PSet — same defaults as HyddraSVsProducer
   edm::ParameterSetDescription leptonicDesc;

@@ -57,12 +57,13 @@ sys.path.insert(0, os.path.dirname(_HERE))
 from hyddraDiagPlots.src    import config, loader
 from hyddraDiagPlots.stages import (
     summary, seeding, merging, cleaning, disambiguation, filtering,
+    id_stage,
     hadronic_seeding, hadronic_merging, hadronic_cleaning,
-    hadronic_disambiguation, hadronic_filtering, hadronic_summary,
+    hadronic_disambiguation, hadronic_filtering, hadronic_summary, hadronic_id,
 )
 
-_STAGE_KEYS   = ['seed',    'merged',  'cleaned',  'disambig',       'filtered']
-_STAGE_LABELS = ['Seeding', 'Merging', 'Cleaning', 'Disambiguation', 'Filtering']
+_STAGE_KEYS   = ['seed',    'merged',  'cleaned',  'disambig',       'filtered',  'id']
+_STAGE_LABELS = ['Seeding', 'Merging', 'Cleaning', 'Disambiguation', 'Filtering', 'ID']
 
 
 # ── Mode detection ─────────────────────────────────────────────────────────────
@@ -292,6 +293,7 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
         ("cleaning",       lambda: cleaning.make_plots(       stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, ct_sig, cfg)),
         ("disambiguation", lambda: disambiguation.make_plots( stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
         ("filtering",      lambda: filtering.make_plots(      stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
+        ("id",             lambda: id_stage.make_plots(       stage_dirs["id"],             gf_sig, sv_sig, sv_bkg)),
         ("summary",        lambda: summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 
@@ -410,6 +412,7 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
         ("cleaning",       lambda: hadronic_cleaning.make_plots(       stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, cfg)),
         ("disambiguation", lambda: hadronic_disambiguation.make_plots( stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
         ("filtering",      lambda: hadronic_filtering.make_plots(      stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
+        ("id",             lambda: hadronic_id.make_plots(             stage_dirs["id"],             gf_sig, sv_sig, sv_bkg)),
         ("summary",        lambda: hadronic_summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
 

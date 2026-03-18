@@ -838,7 +838,10 @@ void HyddraSVAnalyzer::fillVertexBranches(const reco::Vertex& vertex, const reco
 
   const bool passLooseMuonID(vertex.tracksSize() == 2 && VertexHelper::CountInstances(vertex, *muonTracksHandle_) == 2);
   const bool passLooseElectronID(vertex.tracksSize() == 2 && VertexHelper::CountInstances(vertex, electronTracks_) == 2);
-  const bool passLooseID(vertex.tracksSize() < 4 ? (passLooseMuonID || passLooseElectronID) : true);
+  const double massOverNTracks = vertex4Vec.M() / float(vertex.tracksSize());
+  const bool passLooseID(vertex.tracksSize() == 2
+    ? (passLooseMuonID || passLooseElectronID)
+    : (vertex.tracksSize() >= 3 && massOverNTracks > 1.0));
 
   isLeptonic_.push_back(isLeptonic);
   nTracks_.push_back(unsigned(vertex.tracksSize()));
