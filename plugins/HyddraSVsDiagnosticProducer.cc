@@ -42,6 +42,7 @@
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 
 // Track/SC matching helpers (must come before HYDDRA headers)
+#include "KUCMSNtupleizer/KUCMSNtupleizer/interface/DeltaRMatch.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/TrackPropagator.h"
 #include "KUCMSNtupleizer/KUCMSNtupleizer/interface/MatchTracksToSC.h"
 
