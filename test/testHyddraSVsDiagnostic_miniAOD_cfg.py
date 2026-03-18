@@ -98,6 +98,9 @@ if 'CASTOR' in process.CaloGeometryBuilder.SelectedCalos:
 # TransientTrackBuilder (required for vertex fitting)
 process.load("TrackingTools.TransientTrack.TransientTrackBuilder_cfi")
 
+# DetId associator ESProducers (required by TrackDetectorAssociator)
+process.load("TrackingTools.TrackAssociator.DetIdAssociatorESProducer_cff")
+
 # Set the GlobalTag — adjust for your data/MC era
 from Configuration.AlCa.GlobalTag import GlobalTag
 # For Run3 MC:
