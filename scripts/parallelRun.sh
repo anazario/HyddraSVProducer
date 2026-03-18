@@ -342,11 +342,38 @@ while IFS= read -r INPUT_FILE; do
         echo "CMSRUN_EXIT_SUCCESS" >> "$LOG_FILE"
         echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
     else
+        rm -f "$OUTPUT_FILE"
         echo "[$(date '+%H:%M:%S')] FAILED: $BASENAME (see $LOG_FILE)"
     fi
 done < "$CHUNK_FILE"
 SCRIPT_EOF
 chmod +x "$TEMP_SCRIPT"
+
+# Remove any output files that don't have a matching success log entry.
+# Called on both clean exit and interruption to prevent partial files from
+# being included in the hadd merge.
+cleanup_partial_outputs() {
+    for f in "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null; do
+        [[ -f "$f" ]] || continue
+        BASENAME=$(basename "$f" _ntuple.root)
+        if ! grep -q "CMSRUN_EXIT_SUCCESS" "$LOG_DIR/${BASENAME}.log" 2>/dev/null; then
+            rm -f "$f"
+        fi
+    done
+}
+
+# On Ctrl+C / SIGTERM: kill child processes, clean up, and exit 130.
+cleanup_and_exit() {
+    echo ""
+    echo -e "${YELLOW}Interrupted — cleaning up partial outputs...${NC}"
+    kill 0 2>/dev/null || true
+    cleanup_partial_outputs
+    rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS" "$CHUNK_LIST"
+    rm -rf "$CHUNK_DIR"
+    echo -e "${YELLOW}Partial outputs removed. Resume with --continue.${NC}"
+    exit 130
+}
+trap cleanup_and_exit INT TERM
 
 # Run parallel processing
 echo -e "${YELLOW}Starting parallel processing ($N_CHUNKS chunks, $FILES_PER_JOB file(s)/job)...${NC}"
@@ -358,24 +385,29 @@ cat "$CHUNK_LIST" | \
     parallel --bar -j "$N_JOBS" "$TEMP_SCRIPT" {} "$CONFIG" "$OUTPUT_DIR" "'$EXTRA_ARGS'"
 
 PARALLEL_EXIT=$?
+trap - INT TERM
 
-# Cleanup temp files
+# Cleanup temp files and any partial outputs from failed jobs
 rm -f "$TEMP_SCRIPT" "$FILES_TO_PROCESS" "$CHUNK_LIST"
 rm -rf "$CHUNK_DIR"
+cleanup_partial_outputs
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
 
 echo ""
-if [[ $PARALLEL_EXIT -ne 0 ]]; then
-    echo -e "${RED}Some jobs failed. Check logs in $LOG_DIR${NC}"
-fi
-
 echo -e "${GREEN}Processing completed in ${ELAPSED}s${NC}"
 
-# Count successful outputs
+# Count jobs that wrote CMSRUN_EXIT_SUCCESS to their log (this run + skipped)
+N_SUCCESS=$(grep -rl "CMSRUN_EXIT_SUCCESS" "$LOG_DIR" 2>/dev/null | wc -l | tr -d ' ')
+N_FAILED=$((N_FILES - N_SUCCESS))
+echo "  Successful: $N_SUCCESS / $N_FILES (${N_SKIPPED} from previous run)"
+if [[ $N_FAILED -gt 0 ]]; then
+    echo -e "${RED}  Failed: $N_FAILED — check logs in $LOG_DIR${NC}"
+fi
+
+# Count output files (failed jobs have their outputs removed)
 N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
-echo "  Successful outputs: $N_OUTPUTS / $N_FILES (${N_SKIPPED} from previous run)"
 
 # Merge outputs
 if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -gt 0 ]]; then
@@ -398,3 +430,7 @@ fi
 
 echo ""
 echo -e "${GREEN}Done!${NC}"
+
+if [[ $N_FAILED -gt 0 ]]; then
+    exit 1
+fi

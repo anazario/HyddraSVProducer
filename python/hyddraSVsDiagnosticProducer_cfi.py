@@ -1,18 +1,19 @@
 import FWCore.ParameterSet.Config as cms
 
-from KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi import hyddraSVAnalyzer
+from KUCMSNtupleizer.HyddraSVProducer.hyddraSVAnalyzer_cfi import hyddraSVAnalyzer, tkAssocParamBlock
+from KUCMSNtupleizer.HyddraSVProducer.hyddra_cfi import leptonicHYDDRA
 
 # =============================================================================
-# Default diagnostic producer — clone TrackAssociatorParameters from analyzer
+# Default diagnostic producer — shares TrackAssociatorParameters with analyzer
 # =============================================================================
 hyddraSVsDiag = cms.EDProducer("HyddraSVsDiagnosticProducer",
 
-    tracks       = hyddraSVAnalyzer.tracks.clone(),
-    pvCollection = hyddraSVAnalyzer.pvCollection.clone(),
-    muonTracks   = hyddraSVAnalyzer.muonTracks.clone(),
-    mergedSCs    = hyddraSVAnalyzer.mergedSCs.clone(),
+    tracks       = cms.InputTag("muonBestTrackProducer", "globalTracks"),
+    pvCollection = cms.InputTag("offlinePrimaryVertices"),
+    muonTracks   = cms.InputTag("muonEnhancedTracks", "muonGlobalTracks"),
+    mergedSCs    = cms.InputTag("ecalTracks", "displacedElectronSCs"),
 
-    TrackAssociatorParameters = hyddraSVAnalyzer.TrackAssociatorParameters.clone(),
+    TrackAssociatorParameters = tkAssocParamBlock.TrackAssociatorParameters.clone(),
 
-    leptonic = hyddraSVAnalyzer.leptonic.clone(),
+    leptonic = leptonicHYDDRA,
 )
