@@ -515,7 +515,10 @@ def main():
     sig_files = []
     for pat in args.signal:
         expanded = sorted(glob_module.glob(pat))
-        sig_files.extend(expanded if expanded else [pat])
+        if not expanded:
+            print(f"Error: no files matched pattern: {pat}", file=sys.stderr)
+            sys.exit(1)
+        sig_files.extend(expanded)
     sig_files = list(dict.fromkeys(sig_files))
 
     if not sig_files:

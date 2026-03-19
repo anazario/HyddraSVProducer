@@ -18,6 +18,7 @@ hyddraSVsHadronicDiagAnalyzer = cms.EDAnalyzer("HyddraSVsHadronicDiagnosticAnaly
     cleanedVertices       = cms.InputTag("hyddraSVsHadronicDiag", "hadronicCleaned"),
     disambiguatedVertices = cms.InputTag("hyddraSVsHadronicDiag", "hadronicDisambiguated"),
     filteredVertices      = cms.InputTag("hyddraSVsHadronicDiag", "hadronicFiltered"),
+    idVertices            = cms.InputTag("hyddraSVsHadronicDiag", "hadronicID"),
 
     pvCollection       = cms.InputTag("offlinePrimaryVertices"),
     tracks             = TRACK_COLLECTION_CONFIG['promptMuonBestTrack'],
