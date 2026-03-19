@@ -17,6 +17,8 @@
 #   bash scripts/runSampleSet.sh
 #   bash scripts/runSampleSet.sh --continue WORKSPACEDIR   # Resume using a specific workspace
 #   bash scripts/runSampleSet.sh --continue                # Resume, searching for workspaces
+#   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR   # Re-run all jobs with same settings
+#   bash scripts/runSampleSet.sh --resubmit                # Re-run, searching for workspaces
 #
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -27,13 +29,22 @@ TEST_DIR="$PROJECT_ROOT/test"
 PARALLEL_SCRIPT="$SCRIPT_DIR/parallelRun.sh"
 TEMP_OUTPUT=""  # set interactively below
 
-# ── Continue mode flag ────────────────────────────────────────────────────────
+# ── Continue / resubmit mode flags ───────────────────────────────────────────
 IS_CONTINUE=false
+IS_RESUBMIT=false
 CONTINUE_WORKSPACE=""
 if [[ "$1" == "--continue" ]]; then
     IS_CONTINUE=true
     if [[ -n "$2" ]]; then
-        # Resolve workspace path (relative → under project root)
+        if [[ "$2" == /* ]]; then
+            CONTINUE_WORKSPACE="$2"
+        else
+            CONTINUE_WORKSPACE="$PROJECT_ROOT/$2"
+        fi
+    fi
+elif [[ "$1" == "--resubmit" ]]; then
+    IS_RESUBMIT=true
+    if [[ -n "$2" ]]; then
         if [[ "$2" == /* ]]; then
             CONTINUE_WORKSPACE="$2"
         else
@@ -225,9 +236,13 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 print_header
 
-if $IS_CONTINUE; then
-    # ── Continue mode: load saved state from workspace ────────────────────────
-    echo -e "${BOLD}Continue mode — loading saved run state...${NC}"
+if $IS_CONTINUE || $IS_RESUBMIT; then
+    # ── Continue / resubmit: load saved state from workspace ─────────────────
+    if $IS_RESUBMIT; then
+        echo -e "${BOLD}Resubmit mode — loading saved run settings...${NC}"
+    else
+        echo -e "${BOLD}Continue mode — loading saved run state...${NC}"
+    fi
     echo ""
 
     if [[ -n "$CONTINUE_WORKSPACE" ]]; then
@@ -291,6 +306,14 @@ if $IS_CONTINUE; then
     [[ -n "$CONTINUE_WORKSPACE" ]] && TEMP_OUTPUT="$CONTINUE_WORKSPACE"
 
     echo -e "  ${GREEN}Loaded: $CHOSEN_STATE${NC}"
+
+    # Resubmit: discard progress so every sample runs again from scratch.
+    # IS_CONTINUE stays false so work dirs are wiped and --continue is NOT
+    # passed to parallelRun.sh.
+    if $IS_RESUBMIT; then
+        COMPLETED_SAMPLES=()
+        echo -e "  ${YELLOW}Resubmit: all samples will be re-run (progress reset).${NC}"
+    fi
     echo ""
 
 else
@@ -587,6 +610,9 @@ echo ""
 
 if $IS_CONTINUE; then
     echo -e "  ${YELLOW}${BOLD}Mode: CONTINUE (completed samples will be skipped)${NC}"
+    echo ""
+elif $IS_RESUBMIT; then
+    echo -e "  ${YELLOW}${BOLD}Mode: RESUBMIT (all samples re-run with saved settings)${NC}"
     echo ""
 fi
 

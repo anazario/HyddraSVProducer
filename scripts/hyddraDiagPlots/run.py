@@ -122,14 +122,21 @@ def _resolve_modes(requested_mode, sig_path):
 
 # ── Efficiency summary helpers ─────────────────────────────────────────────────
 
-def _compute_summary(stem, gf_sig, sc_sig, mode_prefix=""):
+def _compute_summary(stem, gf_sig, sc_sig, mode_prefix="", active_stage_keys=None):
     """Compute per-file signal efficiency summary from loaded data.
 
     Only leptonic gen vertices (electrons + muons) are counted; hadronic gen
     vertices are never reconstructed by the leptonic pipeline and would
     artificially inflate the denominator if included.
+
+    active_stage_keys restricts which stages appear in the summary table; pass
+    a subset of _STAGE_KEYS to skip stages absent from older files.
     """
     import numpy as np
+    if active_stage_keys is None:
+        active_stage_keys = _STAGE_KEYS
+    active_stage_labels = [_STAGE_LABELS[_STAGE_KEYS.index(k)] for k in active_stage_keys]
+
     is_elec = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isElectron'])).astype(bool)
     is_muon = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isMuon'])).astype(bool)
     is_lep  = is_elec | is_muon
@@ -139,7 +146,7 @@ def _compute_summary(stem, gf_sig, sc_sig, mode_prefix=""):
     n_gen      = n_gen_elec + n_gen_muon
 
     rows = []
-    for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
+    for key, label in zip(active_stage_keys, active_stage_labels):
         gold_flat   = ak.to_numpy(ak.flatten(gf_sig[f'GenFunnel_gold_{key}'])).astype(bool)
         silver_flat = ak.to_numpy(ak.flatten(gf_sig[f'GenFunnel_silver_{key}'])).astype(bool)
 
@@ -268,12 +275,18 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
     stem = os.path.splitext(os.path.basename(sig_path))[0]
 
     with uproot.open(sig_path) as sig_f:
+        has_id = loader.has_id_stage(sig_f, base=loader._BASE)
         gf_sig = loader.load_gen_funnel(sig_f)
         sc_sig = loader.load_stage_counts(sig_f)
         ct_sig = loader.load_cleaning_tracks(sig_f)
         sv_sig = loader.load_all_stage_vtx(sig_f)
         st_sig = loader.load_seed_tracks(sig_f)
         cfg    = loader.load_leptonic_config(sig_f)
+
+    if not has_id:
+        print(f"  [{stem}/leptonic] Note: ID stage not found in file "
+              "(produced before ID stage was added); skipping ID plots.",
+              file=sys.stderr)
 
     if cfg is None:
         print(f"  [{stem}/leptonic] Warning: leptonicConfig not found; "
@@ -293,9 +306,12 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
         ("cleaning",       lambda: cleaning.make_plots(       stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, ct_sig, cfg)),
         ("disambiguation", lambda: disambiguation.make_plots( stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
         ("filtering",      lambda: filtering.make_plots(      stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
-        ("id",             lambda: id_stage.make_plots(       stage_dirs["id"],             gf_sig, sv_sig, sv_bkg)),
         ("summary",        lambda: summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
+    if has_id:
+        stages.insert(-1, ("id", lambda: id_stage.make_plots(stage_dirs["id"], gf_sig, sv_sig, sv_bkg)))
+
+    active_stage_keys = _STAGE_KEYS if has_id else [k for k in _STAGE_KEYS if k != 'id']
 
     cutflow_str = None
     with tqdm(stages, desc=f"  {stem} [leptonic]", unit="stage", leave=True) as pbar:
@@ -307,13 +323,18 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
                 cutflow_str = result
         pbar.set_postfix_str("done")
 
-    summ = _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic")
+    summ = _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic",
+                            active_stage_keys=active_stage_keys)
     summ['cutflow'] = cutflow_str
     return summ
 
 
-def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None):
+def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None, active_stage_keys=None):
     """Compute per-file hadronic signal efficiency summary using matchRatio."""
+    if active_stage_keys is None:
+        active_stage_keys = _STAGE_KEYS
+    active_stage_labels = [_STAGE_LABELS[_STAGE_KEYS.index(k)] for k in active_stage_keys]
+
     is_hadronic = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_isHadronic"])).astype(bool)
     n_gen       = int(np.sum(is_hadronic))
 
@@ -322,12 +343,12 @@ def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None):
     if sv_sig is not None and len(sv_sig) > 0:
         sv_stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
         sv_mr    = ak.to_numpy(sv_sig["StageVtx_matchRatio"])
-        for si, key in enumerate(_STAGE_KEYS):
+        for si, key in enumerate(active_stage_keys):
             mask = sv_stage == si
             nonsig_by_stage[key] = int(np.sum(mask & (sv_mr <= 0)))
 
     rows = []
-    for key, label in zip(_STAGE_KEYS, _STAGE_LABELS):
+    for key, label in zip(active_stage_keys, active_stage_labels):
         mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[is_hadronic]
         n_loose  = int(np.sum(mr > 0))
         n_tight  = int(np.sum(mr >= 0.5))
@@ -389,10 +410,16 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
     stem = os.path.splitext(os.path.basename(sig_path))[0]
 
     with uproot.open(sig_path) as sig_f:
+        has_id = loader.has_id_stage(sig_f, base=loader._HADRONIC_BASE)
         gf_sig = loader.load_gen_funnel(sig_f,               base=loader._HADRONIC_BASE)
         sc_sig = loader.load_stage_counts_hadronic(sig_f)
         sv_sig = loader.load_all_stage_vtx(sig_f,            base=loader._HADRONIC_BASE)
         cfg    = loader.load_hadronic_config(sig_f)
+
+    if not has_id:
+        print(f"  [{stem}/hadronic] Note: ID stage not found in file "
+              "(produced before ID stage was added); skipping ID plots.",
+              file=sys.stderr)
 
     if cfg is None:
         print(f"  [{stem}/hadronic] Warning: hadronicConfig not found; "
@@ -412,9 +439,12 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
         ("cleaning",       lambda: hadronic_cleaning.make_plots(       stage_dirs["cleaning"],       gf_sig, sv_sig, sv_bkg, cfg)),
         ("disambiguation", lambda: hadronic_disambiguation.make_plots( stage_dirs["disambiguation"], gf_sig, sv_sig, sv_bkg)),
         ("filtering",      lambda: hadronic_filtering.make_plots(      stage_dirs["filtering"],      gf_sig, sv_sig, sv_bkg, cfg)),
-        ("id",             lambda: hadronic_id.make_plots(             stage_dirs["id"],             gf_sig, sv_sig, sv_bkg)),
         ("summary",        lambda: hadronic_summary.make_plots(        stage_dirs["summary"],        gf_sig, sc_sig, sc_bkg)),
     ]
+    if has_id:
+        stages.insert(-1, ("id", lambda: hadronic_id.make_plots(stage_dirs["id"], gf_sig, sv_sig, sv_bkg)))
+
+    active_stage_keys = _STAGE_KEYS if has_id else [k for k in _STAGE_KEYS if k != 'id']
 
     cutflow_str = None
     with tqdm(stages, desc=f"  {stem} [hadronic]", unit="stage", leave=True) as pbar:
@@ -426,7 +456,8 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
                 cutflow_str = result
         pbar.set_postfix_str("done")
 
-    summ = _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig)
+    summ = _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig,
+                                     active_stage_keys=active_stage_keys)
     summ['cutflow'] = cutflow_str
     return summ
 

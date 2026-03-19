@@ -13,24 +13,40 @@ def load_gen_funnel(root_file, base=_BASE):
     return root_file[f"{base}/genFunnel"].arrays(library="ak")
 
 
+def has_id_stage(root_file, base=_BASE):
+    """Return True if the file contains the ID stage (Stage_n_id in stageCounts)."""
+    try:
+        arr = root_file[f"{base}/stageCounts"].arrays(library="ak")
+        return "Stage_n_id" in arr.fields
+    except KeyError:
+        return False
+
+
 def load_stage_counts(root_file, base=_BASE):
-    """Return stageCounts summed over all events as a flat dict."""
+    """Return stageCounts summed over all events as a flat dict.
+
+    Missing branches (e.g. Stage_n_id in files predating the ID stage) are
+    returned as 0 so callers don't need to guard individually.
+    """
     arr = root_file[f"{base}/stageCounts"].arrays(library="ak")
     totals = {}
     for key in ["n", "nGold", "nSilver", "nBronze"]:
         for stage in STAGE_KEYS:
             branch = f"Stage_{key}_{stage}"
-            totals[branch] = int(ak.sum(arr[branch]))
+            totals[branch] = int(ak.sum(arr[branch])) if branch in arr.fields else 0
     return totals
 
 
 def load_stage_counts_hadronic(root_file, base=_HADRONIC_BASE):
-    """Return hadronic stageCounts summed over all events (total counts only)."""
+    """Return hadronic stageCounts summed over all events (total counts only).
+
+    Missing branches are returned as 0 for backwards compatibility.
+    """
     arr = root_file[f"{base}/stageCounts"].arrays(library="ak")
     totals = {}
     for stage in STAGE_KEYS:
         branch = f"Stage_n_{stage}"
-        totals[branch] = int(ak.sum(arr[branch]))
+        totals[branch] = int(ak.sum(arr[branch])) if branch in arr.fields else 0
     return totals
 
 
