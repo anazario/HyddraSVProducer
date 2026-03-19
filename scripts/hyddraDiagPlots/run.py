@@ -416,6 +416,12 @@ def _print_id_summaries(summaries):
             print(f"  {'Reco vertices':<22}  Pre-ID: {d['n_filtered']:<8} "
                   f"Post-ID: {d['n_id_reco']:<8}"
                   f"(non-signal removed: {ns_pct})")
+            n_sig_reco = (d['n_id_reco'] - d['n_nonsig_reco']
+                          if d['n_nonsig_reco'] is not None else None)
+            sig_str = str(n_sig_reco) if n_sig_reco is not None else 'N/A'
+            print(f"  {'Post-ID breakdown':<22}: "
+                  f"Signal (matchRatio > 0): {sig_str:<8}"
+                  f"  |  Non-signal: {ns_str}")
 
             eff_loose = (f"{d['n_loose'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
             eff_tight = (f"{d['n_tight'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
