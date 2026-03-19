@@ -268,6 +268,167 @@ def _print_summaries(summaries):
     print()
 
 
+# ── ID stage summary helpers ───────────────────────────────────────────────────
+
+def _compute_id_summary_leptonic(gf_sig, sc_sig, sv_sig):
+    """Compute leptonic ID-stage stats.  Returns None if id data is absent."""
+    if sc_sig.get('Stage_n_id', 0) == 0 and 'GenFunnel_gold_id' not in gf_sig.fields:
+        return None
+
+    is_muon = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isMuon'    ])).astype(bool)
+    is_elec = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isElectron'])).astype(bool)
+    n_gen_muon = int(np.sum(is_muon))
+    n_gen_elec = int(np.sum(is_elec))
+    n_gen      = n_gen_muon + n_gen_elec
+
+    gold_id = (ak.to_numpy(ak.flatten(gf_sig['GenFunnel_gold_id'])).astype(bool)
+               if 'GenFunnel_gold_id' in gf_sig.fields
+               else np.zeros(len(is_muon), dtype=bool))
+    n_gold_gen_muon = int(np.sum(gold_id & is_muon))
+    n_gold_gen_elec = int(np.sum(gold_id & is_elec))
+    n_gold_gen      = n_gold_gen_muon + n_gold_gen_elec
+
+    n_id_reco     = sc_sig.get('Stage_n_id',       0)
+    n_gold_reco   = sc_sig.get('Stage_nGold_id',   0)
+    n_silver_reco = sc_sig.get('Stage_nSilver_id', 0)
+    n_bronze_reco = sc_sig.get('Stage_nBronze_id', 0)
+    n_nonsig_reco = max(0, n_id_reco - n_gold_reco - n_silver_reco - n_bronze_reco)
+    n_filtered    = sc_sig.get('Stage_n_filtered', 0)
+
+    # Flavor breakdown from allStageVtx (may be absent in older files)
+    flavor = None
+    sidx_id = config.STAGE_IDX.get('id', 5)
+    if (sv_sig is not None and len(sv_sig) > 0
+            and 'StageVtx_passLooseMuonID' in sv_sig.fields):
+        mask_id = ak.to_numpy(sv_sig['StageVtx_stageIdx']).astype(int) == sidx_id
+        if np.any(mask_id):
+            is_gold  = ak.to_numpy(sv_sig['StageVtx_isGold'             ])[mask_id].astype(bool)
+            pass_mu  = ak.to_numpy(sv_sig['StageVtx_passLooseMuonID'    ])[mask_id].astype(bool)
+            pass_el  = ak.to_numpy(sv_sig['StageVtx_passLooseElectronID'])[mask_id].astype(bool)
+            flavor = {
+                'sig_muon': int(np.sum( is_gold & pass_mu)),
+                'sig_elec': int(np.sum( is_gold & pass_el)),
+                'ns_muon':  int(np.sum(~is_gold & pass_mu)),
+                'ns_elec':  int(np.sum(~is_gold & pass_el)),
+            }
+
+    return {
+        'n_gen': n_gen, 'n_gen_muon': n_gen_muon, 'n_gen_elec': n_gen_elec,
+        'n_gold_gen': n_gold_gen, 'n_gold_gen_muon': n_gold_gen_muon,
+        'n_gold_gen_elec': n_gold_gen_elec,
+        'n_id_reco': n_id_reco, 'n_gold_reco': n_gold_reco,
+        'n_silver_reco': n_silver_reco, 'n_bronze_reco': n_bronze_reco,
+        'n_nonsig_reco': n_nonsig_reco, 'n_filtered': n_filtered,
+        'flavor': flavor,
+    }
+
+
+def _compute_id_summary_hadronic(gf_sig, sc_sig, sv_sig):
+    """Compute hadronic ID-stage stats.  Returns None if id data is absent."""
+    if sc_sig.get('Stage_n_id', 0) == 0 and 'GenFunnel_matchRatio_id' not in gf_sig.fields:
+        return None
+
+    is_hadronic = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_isHadronic'])).astype(bool)
+    n_gen = int(np.sum(is_hadronic))
+
+    mr_id   = (ak.to_numpy(ak.flatten(gf_sig['GenFunnel_matchRatio_id']))[is_hadronic]
+               if 'GenFunnel_matchRatio_id' in gf_sig.fields
+               else np.full(n_gen, -1.0))
+    n_loose = int(np.sum(mr_id > 0))
+    n_tight = int(np.sum(mr_id >= 0.5))
+
+    n_id_reco  = sc_sig.get('Stage_n_id',       0)
+    n_filtered = sc_sig.get('Stage_n_filtered', 0)
+
+    sidx_id = config.STAGE_IDX.get('id', 5)
+    n_nonsig_reco = None
+    if sv_sig is not None and len(sv_sig) > 0 and 'StageVtx_matchRatio' in sv_sig.fields:
+        mask_id = ak.to_numpy(sv_sig['StageVtx_stageIdx']).astype(int) == sidx_id
+        if np.any(mask_id):
+            mr = ak.to_numpy(sv_sig['StageVtx_matchRatio'])[mask_id]
+            n_nonsig_reco = int(np.sum(mr <= 0))
+
+    return {
+        'n_gen': n_gen, 'n_loose': n_loose, 'n_tight': n_tight,
+        'n_id_reco': n_id_reco, 'n_filtered': n_filtered,
+        'n_nonsig_reco': n_nonsig_reco,
+    }
+
+
+def _print_id_summaries(summaries):
+    """Print per-file ID stage summary for all processed files."""
+    id_summs = [(s['stem'], s['mode'], s.get('id_summary'))
+                for s in sorted(summaries, key=lambda s: (s['stem'], s['mode']))
+                if s.get('id_summary') is not None]
+    if not id_summs:
+        return
+
+    print(f"\n{'=' * 79}")
+    print(f"  HYDDRA ID stage summary")
+    print(f"{'=' * 79}")
+
+    for stem, mode, d in id_summs:
+        divider = '  ' + '-' * 75
+        print(f"\n  File : {stem} [{mode}]")
+
+        if mode == 'leptonic':
+            n_gen = d['n_gen']
+            print(f"  Gen signal      : {n_gen}"
+                  f"  (muon: {d['n_gen_muon']}, electron: {d['n_gen_elec']})")
+            print(divider)
+
+            ns_pct = (f"{d['n_nonsig_reco'] / d['n_filtered'] * 100:.1f}%"
+                      if d['n_filtered'] > 0 else 'N/A')
+            print(f"  {'Reco vertices':<22}  Pre-ID: {d['n_filtered']:<8} "
+                  f"Post-ID: {d['n_id_reco']:<8}"
+                  f"(non-signal removed: {ns_pct})")
+            print(f"  {'Gold reco at ID':<22}: {d['n_gold_reco']}"
+                  f"  |  Silver: {d['n_silver_reco']}"
+                  f"  |  Bronze: {d['n_bronze_reco']}"
+                  f"  |  Non-signal: {d['n_nonsig_reco']}")
+
+            eff     = (f"{d['n_gold_gen']      / n_gen                * 100:.1f}%"
+                       if n_gen > 0 else 'N/A')
+            eff_mu  = (f"{d['n_gold_gen_muon'] / d['n_gen_muon']      * 100:.1f}%"
+                       if d['n_gen_muon'] > 0 else 'N/A')
+            eff_el  = (f"{d['n_gold_gen_elec'] / d['n_gen_elec']      * 100:.1f}%"
+                       if d['n_gen_elec'] > 0 else 'N/A')
+            print(f"  {'Gen ID efficiency':<22}: {eff}"
+                  f"  (muon: {eff_mu},  electron: {eff_el})")
+
+            if d['flavor']:
+                f = d['flavor']
+                print(f"  {'Flavor breakdown':<22}  "
+                      f"Muon ID:     signal (gold) {f['sig_muon']:<6}  "
+                      f"non-signal {f['ns_muon']}")
+                print(f"  {'':<22}  "
+                      f"Electron ID: signal (gold) {f['sig_elec']:<6}  "
+                      f"non-signal {f['ns_elec']}")
+
+        else:  # hadronic
+            n_gen = d['n_gen']
+            print(f"  Gen signal      : {n_gen}")
+            print(divider)
+
+            ns_str = (str(d['n_nonsig_reco']) if d['n_nonsig_reco'] is not None else 'N/A')
+            ns_pct = ('N/A' if d['n_nonsig_reco'] is None or d['n_filtered'] == 0
+                      else f"{d['n_nonsig_reco'] / d['n_filtered'] * 100:.1f}%")
+            print(f"  {'Reco vertices':<22}  Pre-ID: {d['n_filtered']:<8} "
+                  f"Post-ID: {d['n_id_reco']:<8}"
+                  f"(non-signal removed: {ns_pct})")
+
+            eff_loose = (f"{d['n_loose'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
+            eff_tight = (f"{d['n_tight'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
+            print(f"  {'Gen efficiency':<22}  "
+                  f"Loose (matchRatio > 0):    {d['n_loose']:<6} / {n_gen}  ({eff_loose})")
+            print(f"  {'':<22}  "
+                  f"Tight (matchRatio >= 0.5): {d['n_tight']:<6} / {n_gen}  ({eff_tight})")
+
+        print(divider)
+
+    print()
+
+
 # ── Mode-specific plot runners ─────────────────────────────────────────────────
 
 def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
@@ -325,7 +486,8 @@ def _run_leptonic_plots(mode_dir, sig_path, bkg_path):
 
     summ = _compute_summary(stem, gf_sig, sc_sig, mode_prefix="leptonic",
                             active_stage_keys=active_stage_keys)
-    summ['cutflow'] = cutflow_str
+    summ['cutflow']    = cutflow_str
+    summ['id_summary'] = _compute_id_summary_leptonic(gf_sig, sc_sig, sv_sig) if has_id else None
     return summ
 
 
@@ -458,7 +620,8 @@ def _run_hadronic_plots(mode_dir, sig_path, bkg_path):
 
     summ = _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig,
                                      active_stage_keys=active_stage_keys)
-    summ['cutflow'] = cutflow_str
+    summ['cutflow']    = cutflow_str
+    summ['id_summary'] = _compute_id_summary_hadronic(gf_sig, sc_sig, sv_sig) if has_id else None
     return summ
 
 
@@ -605,6 +768,7 @@ def main():
         _print_summaries(lep_summs)
     if had_summs:
         _print_summaries_hadronic(had_summs)
+    _print_id_summaries(summaries)
     print(f"[hyddraDiagPlots] Plots saved to {args.output}")
 
 
