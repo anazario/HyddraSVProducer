@@ -403,8 +403,9 @@ ELAPSED=$((END_TIME - START_TIME))
 echo ""
 echo -e "${GREEN}Processing completed in ${ELAPSED}s${NC}"
 
-# Count jobs that wrote CMSRUN_EXIT_SUCCESS to their log (this run + skipped)
-N_SUCCESS=$(grep -rl "CMSRUN_EXIT_SUCCESS" "$LOG_DIR" 2>/dev/null | wc -l | tr -d ' ')
+# Count successful jobs from the ledger
+N_SUCCESS=$(wc -l < "$LEDGER" 2>/dev/null | tr -d ' ')
+N_SUCCESS=${N_SUCCESS:-0}
 N_FAILED=$((N_FILES - N_SUCCESS))
 echo "  Successful: $N_SUCCESS / $N_FILES (${N_SKIPPED} from previous run)"
 if [[ $N_FAILED -gt 0 ]]; then
