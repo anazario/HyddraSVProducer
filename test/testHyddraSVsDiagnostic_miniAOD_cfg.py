@@ -158,6 +158,7 @@ if _run_leptonic:
     process.hyddraSVsDiagAnalyzer.hasGenInfo        = cms.bool(options.hasGenInfo)
     process.hyddraSVsDiagAnalyzer.isFullAOD         = cms.bool(False)
     process.hyddraSVsDiagAnalyzer.pvCollection      = cms.InputTag("offlineSlimmedPrimaryVertices")
+    process.hyddraSVsDiagAnalyzer.muonTracks        = cms.InputTag("miniAODTrackProducer", "muonGlobalTracks")
     process.hyddraSVsDiagAnalyzer.genParticles      = cms.InputTag("prunedGenParticles")
     process.hyddraSVsDiagAnalyzer.packedGenParticles= cms.InputTag("packedGenParticles")
 
