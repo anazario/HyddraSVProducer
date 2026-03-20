@@ -16,7 +16,7 @@ import ROOT
 
 from ..src.config  import HADRONIC_RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL, COLOR_BKG
 from ..src.style   import draw_cms_label, draw_axis_grid
-from ..src.plotter import plot_reco_observable
+from ..src.plotter import had_signal_mask, plot_reco_observable
 
 
 def plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg):
@@ -35,7 +35,7 @@ def plot_dxySignif_pre_post(tdir, sv_sig, sv_bkg, cfg):
     bins = np.linspace(0, 150, 76)
 
     stage     = ak.to_numpy(sv_sig["StageVtx_stageIdx"]).astype(int)
-    is_signal = ak.to_numpy(sv_sig["StageVtx_matchRatio"]) > 0
+    is_signal = had_signal_mask(sv_sig)
     vals      = ak.to_numpy(sv_sig["StageVtx_dxySignif"]).astype(float)
 
     # Mask out sentinel values (-1)
@@ -135,7 +135,7 @@ def make_filter_cutflow(tdir, sv_sig, cfg):
         return
 
     dxy_signif = ak.to_numpy(sv_sig["StageVtx_dxySignif" ][mask]).astype(float)
-    is_signal  = ak.to_numpy(sv_sig["StageVtx_matchRatio"][mask]) > 0
+    is_signal  = had_signal_mask(sv_sig)[mask]
 
     min_dxy_sig = float(cfg["minDxySignificance"]) if cfg else 40.0
 

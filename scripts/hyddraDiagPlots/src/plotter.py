@@ -6,10 +6,31 @@ import awkward as ak
 import ROOT
 
 from .config import (
-    STAGE_NAMES, STAGE_IDX,
+    STAGE_NAMES, STAGE_KEYS, STAGE_IDX,
     COLOR_GOLD, COLOR_SILVER, COLOR_BRONZE, COLOR_NONSIGNAL, COLOR_BKG,
+    COLORS_STAGE, MARKERS, GEN_DXY_BINS, HAD_MIN3D_CUT,
 )
 from .style import make_canvas, draw_cms_label, draw_axis_grid
+
+
+# ── Hadronic signal mask ──────────────────────────────────────────────────────
+
+def had_signal_mask(sv_sig):
+    """
+    Boolean signal mask for hadronic allStageVtx rows (full-length array).
+
+    Signal = matchRatio > 0  AND  StageVtx_min3D < HAD_MIN3D_CUT (0.05 cm).
+    The position cut rejects SVs that pass momentum-space track matching by
+    coincidence but are spatially unrelated to any hadronic gen vertex.
+
+    Falls back to matchRatio > 0 only when StageVtx_min3D is absent (old ntuples).
+    """
+    mr = ak.to_numpy(sv_sig["StageVtx_matchRatio"]).astype(float)
+    mask = mr > 0
+    if "StageVtx_min3D" in sv_sig.fields:
+        min3d = ak.to_numpy(sv_sig["StageVtx_min3D"]).astype(float)
+        mask = mask & (min3d < HAD_MIN3D_CUT)
+    return mask
 
 
 # ── Axis / graph helpers ──────────────────────────────────────────────────────
@@ -139,9 +160,8 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
 
         if sv_sig is not None and len(sv_sig) > 0:
             sv_stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"]) == sidx
-            sv_mr    = ak.to_numpy(sv_sig["StageVtx_matchRatio"])
             sv_vals  = ak.to_numpy(sv_sig[sv_branch_map[obs_key]])
-            _fill_hist(h_nonsig, sv_vals, sv_stage & (sv_mr <= 0))
+            _fill_hist(h_nonsig, sv_vals, sv_stage & ~had_signal_mask(sv_sig))
 
         if sv_bkg is not None and len(sv_bkg) > 0:
             sv_stage_b = ak.to_numpy(sv_bkg["StageVtx_stageIdx"]) == sidx
@@ -257,6 +277,78 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
     canvas._h_ax    = h_ax
     canvas._hists   = [h for h, _ in active_hists]
     canvas._leg     = leg
+
+
+# ── Fakes vs reco dxy (shared, called from leptonic and hadronic ID stages) ──
+
+def plot_fakes_vs_dxy(tdir, sv_sig, is_signal, cms_label="", tag="fakes_vs_dxy"):
+    """
+    Fake fraction (non-signal SVs / all SVs) vs reconstructed dxy, one curve
+    per algorithm stage.  Complementary to the per-stage eff_vs_dxy plots.
+
+    is_signal : full-length boolean array aligned with sv_sig rows.
+                True = signal (gold for leptonic, matchRatio>0 for hadronic).
+    """
+    if sv_sig is None or len(sv_sig) == 0:
+        print(f"    [{tag}] No allStageVtx data — skipping"); return
+    if "StageVtx_x" not in sv_sig.fields:
+        print(f"    [{tag}] StageVtx_x not in ntuple — skipping"); return
+
+    bins   = np.array(GEN_DXY_BINS, dtype=float)
+    n_bins = len(bins) - 1
+
+    stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"]).astype(int)
+    dxy   = np.sqrt(ak.to_numpy(sv_sig["StageVtx_x"]).astype(float)**2 +
+                    ak.to_numpy(sv_sig["StageVtx_y"]).astype(float)**2)
+
+    graphs, hists = [], []
+    for i, s in enumerate(STAGE_KEYS):
+        mask = stage == i
+        h_denom = ROOT.TH1F(f"h_denom_{tag}_{s}", "", n_bins, bins)
+        h_numer = ROOT.TH1F(f"h_numer_{tag}_{s}", "", n_bins, bins)
+        h_denom.SetDirectory(0); h_numer.SetDirectory(0)
+        for v in dxy[mask]:
+            h_denom.Fill(v)
+        for v in dxy[mask & ~is_signal]:
+            h_numer.Fill(v)
+        if h_denom.Integral() == 0:
+            hists.append((h_denom, h_numer, None))
+            continue
+        eff = ROOT.TEfficiency(h_numer, h_denom)
+        eff.SetStatisticOption(ROOT.TEfficiency.kFCP)
+        g = eff.CreateGraph()
+        g.SetTitle(STAGE_NAMES[i])
+        g.SetMarkerColor(COLORS_STAGE[i]); g.SetLineColor(COLORS_STAGE[i])
+        g.SetMarkerStyle(MARKERS[i]); g.SetLineWidth(2)
+        graphs.append(g)
+        hists.append((h_denom, h_numer, eff))
+
+    c = ROOT.TCanvas(tag, tag, 800, 600)
+    c.SetLeftMargin(0.14); c.SetRightMargin(0.06)
+    c.SetBottomMargin(0.12); c.SetTopMargin(0.10)
+
+    h_ax = ROOT.TH1F(f"h_ax_{tag}", ";Reco dxy (cm);Fake fraction at ID stage",
+                     n_bins, bins)
+    h_ax.SetMinimum(0.0); h_ax.SetMaximum(1.1)
+    h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
+    h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
+    h_ax.GetXaxis().SetLabelSize(0.04);  h_ax.GetYaxis().SetLabelSize(0.04)
+    h_ax.GetXaxis().SetTitleOffset(1.2); h_ax.GetYaxis().SetTitleOffset(1.3)
+    h_ax.SetStats(0)
+    h_ax.Draw("AXIS")
+
+    for g in graphs:
+        g.Draw("P SAME")
+
+    c._grid_lines = draw_axis_grid(h_ax, logy=False)
+    add_legend(c, graphs, x1=0.55, y1=0.55, x2=0.88, y2=0.88)
+    draw_cms_label(cms_label)
+    c.Update()
+
+    c._h_ax = h_ax; c._hists = hists; c._graphs = graphs
+    tdir.cd()
+    c.Write()
+    print(f"    [{tag}] done")
 
 
 # ── Shared geometry-cut line drawers ─────────────────────────────────────────

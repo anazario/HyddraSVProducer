@@ -15,6 +15,7 @@ from ..src.config  import RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGN
 from ..src.style   import draw_cms_label, draw_axis_grid
 from ..src.plotter import (plot_reco_observable, plot_costheta_zoom,
                             plot_dxy_1d, plot_2d_dxy_vs_x,
+                            plot_fakes_vs_dxy,
                             geom_cut_lines_z, geom_cut_lines_eta)
 
 
@@ -224,3 +225,5 @@ def make_plots(tdir, gf, sv_sig, sv_bkg=None):
                              cut_lines_fn=geom_cut_lines_eta)
 
     plot_eff_vs_dxy(tdir, gf)
+    if is_sig is not None:
+        plot_fakes_vs_dxy(tdir, sv_sig, is_sig, tag="id_fakes_vs_dxy")

@@ -80,12 +80,34 @@ FILES_MASS60=(
 )
 
 FILES_SMSMINI=(
-    "_SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
-    "_SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
-    "_SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p1_MINI.txt"
-    "_SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p5_MINI.txt"
-    "_SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p1_MINI.txt"
-    "_SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2150_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2150_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2350_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2350_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2400_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2400_GZ_N2ctau-0p5_MINI.txt"
 )
 
 # ── Track collection menus per format ─────────────────────────────────────────
@@ -325,7 +347,7 @@ else
     echo "  1) MALP-2   (2 GeV  — 5 samples)"
     echo "  2) MALP-60  (60 GeV — 5 samples)"
     echo "  3) Both     (10 samples total)"
-    echo "  4) SMSMini  (MiniAOD — 6 samples)"
+    echo "  4) SMSMini  (MiniAOD — 28 samples)"
     echo ""
 
     MASS_CHOICE=""
@@ -346,7 +368,7 @@ else
                 ;;
             4)
                 SELECTED_FILES=("${FILES_SMSMINI[@]}")
-                MASS_LABEL="SMS-GlGl MiniAOD (6 samples)"
+                MASS_LABEL="SMS-GlGl MiniAOD (28 samples)"
                 ;;
             *)
                 echo -e "${RED}  Please enter 1, 2, 3, or 4.${NC}"
@@ -644,7 +666,7 @@ printf "  %-22s %s\n" "Parallel jobs:"     "8"
 printf "  %-22s %s\n" "Extra args:"        "${EXTRA_ARGS:-<none>}"
 echo ""
 echo "  Output naming example:"
-EXAMPLE_BASE="${SELECTED_FILES[0]%.txt}"
+EXAMPLE_BASE="$(basename "${SELECTED_FILES[0]%.txt}")"
 if [[ -n "$OPTIONAL_FLAG" ]]; then
     EXAMPLE_OUT="${EXAMPLE_BASE}_${ANALYZER_NAME}_${TRACK_COLLECTION}_${OPTIONAL_FLAG}.root"
 else
@@ -680,7 +702,7 @@ for i in "${!SELECTED_FILES[@]}"; do
     SAMPLE="${SELECTED_FILES[$i]}"
     SAMPLE_NUM=$((i+1))
 
-    FILENAME_NOEXT="${SAMPLE%.txt}"
+    FILENAME_NOEXT="$(basename "${SAMPLE%.txt}")"
     if [[ -n "$OPTIONAL_FLAG" ]]; then
         OUTPUT_NAME="${FILENAME_NOEXT}_${ANALYZER_NAME}_${TRACK_COLLECTION}_${OPTIONAL_FLAG}.root"
     else

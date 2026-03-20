@@ -55,6 +55,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 
 from hyddraDiagPlots.src    import config, loader
+from hyddraDiagPlots.src.plotter import had_signal_mask
 from hyddraDiagPlots.stages import (
     summary, seeding, merging, cleaning, disambiguation, filtering,
     id_stage,
@@ -415,13 +416,7 @@ def _print_id_summaries(summaries):
                       else f"{d['n_nonsig_reco'] / d['n_filtered'] * 100:.1f}%")
             print(f"  {'Reco vertices':<22}  Pre-ID: {d['n_filtered']:<8} "
                   f"Post-ID: {d['n_id_reco']:<8}"
-                  f"(non-signal removed: {ns_pct})")
-            n_sig_reco = (d['n_id_reco'] - d['n_nonsig_reco']
-                          if d['n_nonsig_reco'] is not None else None)
-            sig_str = str(n_sig_reco) if n_sig_reco is not None else 'N/A'
-            print(f"  {'Post-ID breakdown':<22}: "
-                  f"Signal (matchRatio > 0): {sig_str:<8}"
-                  f"  |  Non-signal: {ns_str}")
+                  f"(non-signal: {ns_str},  removed: {ns_pct})")
 
             eff_loose = (f"{d['n_loose'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
             eff_tight = (f"{d['n_tight'] / n_gen * 100:.1f}%" if n_gen > 0 else 'N/A')
@@ -506,14 +501,14 @@ def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None, active_stage_ke
     is_hadronic = ak.to_numpy(ak.flatten(gf_sig["GenFunnel_isHadronic"])).astype(bool)
     n_gen       = int(np.sum(is_hadronic))
 
-    # Per-stage non-signal reco count from allStageVtx (matchRatio <= 0)
+    # Per-stage non-signal reco count from allStageVtx
     nonsig_by_stage = {}
     if sv_sig is not None and len(sv_sig) > 0:
-        sv_stage = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
-        sv_mr    = ak.to_numpy(sv_sig["StageVtx_matchRatio"])
+        sv_stage  = ak.to_numpy(sv_sig["StageVtx_stageIdx"])
+        sv_is_sig = had_signal_mask(sv_sig)
         for si, key in enumerate(active_stage_keys):
             mask = sv_stage == si
-            nonsig_by_stage[key] = int(np.sum(mask & (sv_mr <= 0)))
+            nonsig_by_stage[key] = int(np.sum(mask & ~sv_is_sig))
 
     rows = []
     for key, label in zip(active_stage_keys, active_stage_labels):

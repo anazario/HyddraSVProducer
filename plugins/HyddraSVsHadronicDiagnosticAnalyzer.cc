@@ -197,6 +197,7 @@ private:
   int   stageVtx_nTracks_;
   int   stageVtx_nSignalTracks_;
   float stageVtx_matchRatio_;
+  float stageVtx_min3D_;
   bool  stageVtx_hasSharedTrack_;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -362,6 +363,7 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   allStageVtxTree_->Branch("StageVtx_nTracks",         &stageVtx_nTracks_);
   allStageVtxTree_->Branch("StageVtx_nSignalTracks",   &stageVtx_nSignalTracks_);
   allStageVtxTree_->Branch("StageVtx_matchRatio",      &stageVtx_matchRatio_);
+  allStageVtxTree_->Branch("StageVtx_min3D",           &stageVtx_min3D_);
   allStageVtxTree_->Branch("StageVtx_hasSharedTrack",  &stageVtx_hasSharedTrack_);
 
   // ── hadronicConfig ─────────────────────────────────────────────────────────
@@ -685,6 +687,19 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
       stageVtx_nTracks_      = int(vtx.tracksSize());
       stageVtx_nSignalTracks_= hasGenInfo_ ? computeNSignalTracks(vtx) : -1;
       stageVtx_matchRatio_   = hasGenInfo_ ? computeMatchRatio(vtx)    : -1.f;
+      if (hasGenInfo_ && !genVertices_.empty()) {
+        double minDist = std::numeric_limits<double>::max();
+        for (const auto& gv : genVertices_) {
+          double dx = vtx.x() - gv.x();
+          double dy = vtx.y() - gv.y();
+          double dz = vtx.z() - gv.z();
+          double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+          if (dist < minDist) minDist = dist;
+        }
+        stageVtx_min3D_ = float(minDist);
+      } else {
+        stageVtx_min3D_ = -1.f;
+      }
       stageVtx_hasSharedTrack_= sharedFlags[vi];
 
       allStageVtxTree_->Fill();

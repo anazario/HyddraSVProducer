@@ -4,6 +4,13 @@ config.py — shared constants for the hyddraDiagPlots package.
 import numpy as np
 import ROOT
 
+# ── Hadronic signal definition ────────────────────────────────────────────────
+# An allStageVtx row is considered signal if matchRatio > 0 AND the reco vertex
+# is within HAD_MIN3D_CUT cm of the nearest hadronic gen vertex in 3D.
+# Without the position cut, momentum-only track matching lets completely unrelated
+# SVs accumulate matchRatio > 0 just by having a track pointing the same way.
+HAD_MIN3D_CUT = 0.05  # cm
+
 STAGE_NAMES = ["Seeding", "Merging", "Cleaning", "Disambiguation", "Filtering", "ID"]
 STAGE_KEYS  = ["seed", "merged", "cleaned", "disambig", "filtered", "id"]
 STAGE_DIRS  = ["seeding", "merging", "cleaning", "disambiguation", "filtering", "id", "summary"]
@@ -34,7 +41,7 @@ HADRONIC_RECO_OBSERVABLES = {
     "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1,  51)), "log_y": True},
     "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 150,  76)), "log_y": True},
     "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100,  51)), "log_y": True},
-    "nTracks":    {"label": "Number of tracks",         "bins": list(np.arange(1.5, 32.5, 1.0)), "log_y": True},
+    "nTracks":    {"label": "Number of tracks",         "bins": list(range(2, 33)),               "log_y": True},
 }
 
 # ── Gen-level binning for efficiency plots ────────────────────────────────────

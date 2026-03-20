@@ -11,111 +11,125 @@ import numpy as np
 import awkward as ak
 import ROOT
 
-from ..src.config  import HADRONIC_RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL, COLOR_BKG, GEN_DXY_BINS
-from ..src.style   import draw_cms_label, draw_axis_grid
-from ..src.plotter import (plot_reco_observable, plot_costheta_zoom,
+from ..src.config  import (HADRONIC_RECO_OBSERVABLES, STAGE_IDX,
+                           COLOR_GOLD, COLOR_SILVER, COLOR_NONSIGNAL, COLOR_BKG, GEN_DXY_BINS,
+                           HAD_MIN3D_CUT)
+from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
+from ..src.plotter import (had_signal_mask, plot_reco_observable, plot_costheta_zoom,
                             plot_dxy_1d, plot_2d_dxy_vs_x,
+                            plot_fakes_vs_dxy,
                             geom_cut_lines_z, geom_cut_lines_eta)
 
 
 def plot_mass_over_ntracks(tdir, sv_sig, sv_bkg=None):
     """
-    1D mass/nTracks distribution comparing pre-ID (filtered stage) vs post-ID
-    for signal and non-signal.  A dashed vertical line marks the ID cut at 1.0.
+    mass/nTracks distribution at the hadronic ID stage: tight signal, loose signal,
+    non-signal, and optionally background — all normalised to unit area.
+    Matches the visual style of plot_reco_observable.
+    A dashed vertical line marks the ID cut at 1.0.
     """
     tag = "hadronic_id_massOverNTracks"
 
     if sv_sig is None or len(sv_sig) == 0:
         print(f"    [{tag}] No allStageVtx data — skipping")
         return
-
     if "StageVtx_nTracks" not in sv_sig.fields:
         print(f"    [{tag}] StageVtx_nTracks not in ntuple — skipping")
         return
 
-    sidx_pre  = STAGE_IDX["filtered"]
-    sidx_post = STAGE_IDX["id"]
+    sidx = STAGE_IDX["id"]
     bins = np.linspace(0, 10, 51)
 
-    stage     = ak.to_numpy(sv_sig["StageVtx_stageIdx"]).astype(int)
-    mass      = ak.to_numpy(sv_sig["StageVtx_mass"    ]).astype(float)
-    ntracks   = ak.to_numpy(sv_sig["StageVtx_nTracks" ]).astype(int)
-    is_signal = ak.to_numpy(sv_sig["StageVtx_matchRatio"]) > 0
+    stage   = ak.to_numpy(sv_sig["StageVtx_stageIdx"  ]).astype(int)
+    mass    = ak.to_numpy(sv_sig["StageVtx_mass"      ]).astype(float)
+    ntracks = ak.to_numpy(sv_sig["StageVtx_nTracks"   ]).astype(int)
+    mr      = ak.to_numpy(sv_sig["StageVtx_matchRatio"]).astype(float)
+    close   = ((ak.to_numpy(sv_sig["StageVtx_min3D"]).astype(float) < HAD_MIN3D_CUT)
+               if "StageVtx_min3D" in sv_sig.fields
+               else np.ones(len(mr), dtype=bool))
 
-    valid = ntracks > 0
-    mass_over_n = np.where(valid, mass / np.where(valid, ntracks, 1).astype(float), -1.0)
+    at_id = (stage == sidx) & (ntracks > 0)
+    mon   = np.where(at_id, mass / np.where(ntracks > 0, ntracks, 1).astype(float), -1.0)
 
-    def make_th1(name, mask, color, lstyle):
-        h = ROOT.TH1F(name, name, len(bins) - 1, bins)
+    def make_th1(name, extra_mask, color, lstyle):
+        h = ROOT.TH1F(name, "", len(bins) - 1, bins)
         h.SetDirectory(0)
-        combined = mask & valid
-        for v in mass_over_n[combined]:
+        for v in mon[at_id & extra_mask]:
             h.Fill(v)
         h.SetLineColor(color); h.SetLineWidth(2); h.SetLineStyle(lstyle)
         h.SetFillStyle(0); h.SetStats(0)
-        h.GetXaxis().SetTitle("Mass / n_{tracks} (GeV)")
-        h.GetYaxis().SetTitle("Vertices")
-        h.GetXaxis().CenterTitle(True); h.GetYaxis().CenterTitle(True)
-        h.GetXaxis().SetTitleSize(0.045); h.GetYaxis().SetTitleSize(0.045)
-        h.GetXaxis().SetLabelSize(0.04);  h.GetYaxis().SetLabelSize(0.04)
-        h.GetXaxis().SetTitleOffset(1.2); h.GetYaxis().SetTitleOffset(1.3)
         return h
 
-    h_sig_pre    = make_th1(f"h_{tag}_sig_pre",    (stage == sidx_pre)  &  is_signal, COLOR_GOLD,      1)
-    h_sig_post   = make_th1(f"h_{tag}_sig_post",   (stage == sidx_post) &  is_signal, COLOR_GOLD,      2)
-    h_nonsig_pre = make_th1(f"h_{tag}_nonsig_pre", (stage == sidx_pre)  & ~is_signal, COLOR_NONSIGNAL, 1)
-    h_nonsig_post= make_th1(f"h_{tag}_nonsig_post",(stage == sidx_post) & ~is_signal, COLOR_NONSIGNAL, 2)
+    h_tight  = make_th1(f"h_{tag}_tight",  (mr >= 0.5)              &  close, COLOR_GOLD,      1)
+    h_loose  = make_th1(f"h_{tag}_loose",  (mr > 0) & (mr < 0.5)   &  close, COLOR_SILVER,    1)
+    h_nonsig = make_th1(f"h_{tag}_nonsig", (mr <= 0)                | ~close, COLOR_NONSIGNAL, 1)
 
-    hists  = [h_sig_pre, h_sig_post, h_nonsig_pre, h_nonsig_post]
-    labels = ["Signal (pre-ID)", "Signal (post-ID)",
-              "Non-signal (pre-ID)", "Non-signal (post-ID)"]
+    active = [
+        (h_tight,  "Signal (matchRatio #geq 0.5)"),
+        (h_loose,  "Signal (0 < matchRatio < 0.5)"),
+        (h_nonsig, "Non-signal"),
+    ]
 
     if sv_bkg is not None and len(sv_bkg) > 0 and "StageVtx_nTracks" in sv_bkg.fields:
         bkg_stage   = ak.to_numpy(sv_bkg["StageVtx_stageIdx"]).astype(int)
         bkg_mass    = ak.to_numpy(sv_bkg["StageVtx_mass"    ]).astype(float)
         bkg_ntracks = ak.to_numpy(sv_bkg["StageVtx_nTracks" ]).astype(int)
-        bkg_valid   = bkg_ntracks > 0
-        bkg_mon     = np.where(bkg_valid, bkg_mass / np.where(bkg_valid, bkg_ntracks, 1).astype(float), -1.0)
-        h_bkg = ROOT.TH1F(f"h_{tag}_bkg", f"h_{tag}_bkg", len(bins) - 1, bins)
+        bkg_at_id   = (bkg_stage == sidx) & (bkg_ntracks > 0)
+        bkg_mon     = np.where(bkg_at_id, bkg_mass / np.where(bkg_ntracks > 0, bkg_ntracks, 1).astype(float), -1.0)
+        h_bkg = ROOT.TH1F(f"h_{tag}_bkg", "", len(bins) - 1, bins)
         h_bkg.SetDirectory(0)
-        for v in bkg_mon[(bkg_stage == sidx_post) & bkg_valid]:
+        for v in bkg_mon[bkg_at_id]:
             h_bkg.Fill(v)
-        h_bkg.SetLineColor(COLOR_BKG); h_bkg.SetLineWidth(2); h_bkg.SetLineStyle(1)
+        h_bkg.SetLineColor(COLOR_BKG); h_bkg.SetLineWidth(2); h_bkg.SetLineStyle(2)
         h_bkg.SetFillStyle(0); h_bkg.SetStats(0)
-        h_bkg.GetXaxis().SetTitle("Mass / n_{tracks} (GeV)")
-        h_bkg.GetYaxis().SetTitle("Vertices")
-        hists.append(h_bkg)
-        labels.append("Background (post-ID)")
+        active.append((h_bkg, "Background"))
 
-    max_y = max((h.GetMaximum() for h in hists), default=1.0)
+    for h, _ in active:
+        if h.Integral() > 0:
+            h.Scale(1.0 / h.Integral())
 
-    c = ROOT.TCanvas(tag, "Mass / nTracks at ID stage", 800, 600)
-    c.SetLeftMargin(0.14); c.SetRightMargin(0.06)
-    c.SetBottomMargin(0.12); c.SetTopMargin(0.10)
-    c.SetLogy(True)
+    max_y = max((h.GetMaximum() for h, _ in active if h.Integral() > 0), default=1.0)
+    y_max = max_y * 5
+    y_min = 1e-4
 
-    for i, h in enumerate(hists):
-        h.SetMaximum(max_y * 5)
-        h.SetMinimum(0.5)
-        h.Draw("HIST" if i == 0 else "HIST SAME")
+    canvas = make_canvas(tag, "Mass / nTracks at Hadronic ID stage", logy=True)
 
-    line = ROOT.TLine(1.0, 0.5, 1.0, max_y * 5)
+    h_ax = ROOT.TH1F(f"h_ax_{tag}", ";Mass / n_{tracks} (GeV);Normalised to Unit Area",
+                     len(bins) - 1, bins)
+    h_ax.SetMinimum(y_min); h_ax.SetMaximum(y_max)
+    h_ax.GetXaxis().CenterTitle(True); h_ax.GetYaxis().CenterTitle(True)
+    h_ax.GetXaxis().SetTitleSize(0.045); h_ax.GetYaxis().SetTitleSize(0.045)
+    h_ax.GetXaxis().SetLabelSize(0.04);  h_ax.GetYaxis().SetLabelSize(0.04)
+    h_ax.GetXaxis().SetTitleOffset(1.3); h_ax.GetYaxis().SetTitleOffset(1.3)
+    h_ax.SetStats(0)
+    h_ax.Draw("AXIS")
+
+    for h, _ in active:
+        if h.Integral() > 0:
+            h.Draw("HIST SAME")
+
+    line = ROOT.TLine(1.0, y_min, 1.0, y_max)
     line.SetLineColor(ROOT.kBlack); line.SetLineWidth(2); line.SetLineStyle(2)
     line.Draw()
 
-    c._grid_lines = draw_axis_grid(hists[0], logy=True)
+    canvas._grid_lines = draw_axis_grid(h_ax, logy=True)
 
-    leg = ROOT.TLegend(0.55, 0.70, 0.88, 0.88)
+    leg = ROOT.TLegend(0.55, 0.68, 0.88, 0.88)
     leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.033)
-    for h, lbl in zip(hists, labels):
-        leg.AddEntry(h, lbl, "l")
+    for h, lbl in active:
+        if h.Integral() > 0:
+            leg.AddEntry(h, lbl, "l")
+    l1 = ROOT.TLine()
+    l1.SetLineColor(ROOT.kBlack); l1.SetLineStyle(2); l1.SetLineWidth(2)
+    leg.AddEntry(l1, "ID cut: mass/n_{tracks} > 1", "l")
     leg.Draw()
-    draw_cms_label()
-    c.Update()
+    draw_cms_label("Hadronic HYDDRA")
+    canvas.Update()
 
-    c._hists = hists; c._leg = leg; c._line = line
+    canvas._h_ax = h_ax; canvas._hists = [h for h, _ in active]
+    canvas._leg = leg; canvas._line = line
     tdir.cd()
-    c.Write()
+    canvas.Write()
     print(f"    [{tag}] done")
 
 
@@ -203,7 +217,7 @@ def plot_eff_vs_dxy(tdir, gf):
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
 def _had_id_sig_mask(sv_sig):
-    return ak.to_numpy(sv_sig["StageVtx_matchRatio"]).astype(float) > 0
+    return had_signal_mask(sv_sig)
 
 
 def _had_id_pos(sv_sig, sidx):
@@ -247,3 +261,6 @@ def make_plots(tdir, gf, sv_sig, sv_bkg=None, cfg=None):
                              cut_lines_fn=geom_cut_lines_eta, cms_label=_cms)
 
     plot_eff_vs_dxy(tdir, gf)
+    if is_sig is not None:
+        plot_fakes_vs_dxy(tdir, sv_sig, is_sig,
+                          cms_label=_cms, tag="hadronic_id_fakes_vs_dxy")

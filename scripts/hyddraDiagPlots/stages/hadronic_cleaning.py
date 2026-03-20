@@ -20,7 +20,7 @@ import ROOT
 
 from ..src.config  import HADRONIC_RECO_OBSERVABLES, STAGE_IDX, COLOR_GOLD, COLOR_NONSIGNAL
 from ..src.style   import draw_cms_label, draw_axis_grid
-from ..src.plotter import plot_reco_observable
+from ..src.plotter import had_signal_mask, plot_reco_observable
 
 
 def make_cleaning_cutflow(tdir, sv_sig, cfg):
@@ -50,7 +50,7 @@ def make_cleaning_cutflow(tdir, sv_sig, cfg):
     decay_angle= ak.to_numpy(sv_sig["StageVtx_decayAngle" ][mask]).astype(float)
     mass       = ak.to_numpy(sv_sig["StageVtx_mass"       ][mask]).astype(float)
     p_over_e   = ak.to_numpy(sv_sig["StageVtx_pOverE"     ][mask]).astype(float)
-    is_signal  = ak.to_numpy(sv_sig["StageVtx_matchRatio"  ][mask]) > 0
+    is_signal  = had_signal_mask(sv_sig)[mask]
 
     min_size      = int  (cfg["minSize"])       if cfg else 5
     max_norm_chi2 = float(cfg["maxNormChi2"])   if cfg else 5.0
