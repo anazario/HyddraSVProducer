@@ -79,35 +79,52 @@ FILES_MASS60=(
     "TTALPto2Mu_MALP-60_ctau-1e3mm_AODSIM.txt"
 )
 
-FILES_SMSMINI=(
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2150_GZ_N2ctau-0p1_MINI.txt"
+# SMS-GlGl MiniAOD signal grid, split by m(N2)-m(N1) mass splitting.
+# Compressed  : splitting < m(Z) ~91 GeV  — ΔM = 50 GeV  (8 files)
+# Threshold   : splitting ≈ 100 GeV        — ΔM = 100 GeV (8 files)
+# Uncompressed: splitting > 100 GeV        — ΔM = 300–1100 GeV (12 files)
+
+FILES_SMSMINI_COMPRESSED=(
+    # mGl-2300
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2150_GZ_N2ctau-0p1_MINI.txt"  # ΔM=50
     "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2150_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p1_MINI.txt"  # ΔM=50
     "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2200_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2350_GZ_N2ctau-0p1_MINI.txt"
+    # mGl-2500
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2350_GZ_N2ctau-0p1_MINI.txt"  # ΔM=50
     "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2350_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p1_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p5_MINI.txt"
-    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2400_GZ_N2ctau-0p1_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2400_GZ_N2ctau-0p1_MINI.txt"  # ΔM=50
     "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2400_GZ_N2ctau-0p5_MINI.txt"
+)
+
+FILES_SMSMINI_THRESHOLD=(
+    # mGl-2300
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p1_MINI.txt"  # ΔM=100
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2200_mN1-2100_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p1_MINI.txt"  # ΔM=100
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-2250_mN1-2150_GZ_N2ctau-0p5_MINI.txt"
+    # mGl-2500
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p1_MINI.txt"  # ΔM=100
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2400_mN1-2300_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p1_MINI.txt"  # ΔM=100
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2450_mN1-2350_GZ_N2ctau-0p5_MINI.txt"
+)
+
+FILES_SMSMINI_UNCOMPRESSED=(
+    # mGl-2300
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p1_MINI.txt"  # ΔM=300
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1300_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p1_MINI.txt"  # ΔM=600
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p1_MINI.txt"   # ΔM=1100
+    "SMSMiniSignal/SMS-GlGl_mGl-2300_mN2-1600_mN1-500_GZ_N2ctau-0p5_MINI.txt"
+    # mGl-2500
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p1_MINI.txt"   # ΔM=700
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-1200_mN1-500_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p1_MINI.txt"  # ΔM=1000
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1000_GZ_N2ctau-0p5_MINI.txt"
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p1_MINI.txt"  # ΔM=500
+    "SMSMiniSignal/SMS-GlGl_mGl-2500_mN2-2000_mN1-1500_GZ_N2ctau-0p5_MINI.txt"
 )
 
 # ── Track collection menus per format ─────────────────────────────────────────
@@ -344,15 +361,18 @@ else
 
     # ── Step 1: Mass group ────────────────────────────────────────────────────
     echo -e "${BOLD}Step 1: Select sample set${NC}"
-    echo "  1) MALP-2   (2 GeV  — 5 samples)"
-    echo "  2) MALP-60  (60 GeV — 5 samples)"
-    echo "  3) Both     (10 samples total)"
-    echo "  4) SMSMini  (MiniAOD — 28 samples)"
+    echo "  1) MALP-2              (2 GeV  — 5 samples)"
+    echo "  2) MALP-60             (60 GeV — 5 samples)"
+    echo "  3) Both TTALP          (10 samples)"
+    echo "  4) SMS compressed      (ΔM(N2-N1) < m(Z), ΔM=50 GeV  — 8 samples)"
+    echo "  5) SMS threshold       (ΔM(N2-N1) ≈ 100 GeV           — 8 samples)"
+    echo "  6) SMS uncompressed    (ΔM(N2-N1) > 100 GeV           — 12 samples)"
+    echo "  7) SMS all             (all MiniAOD signal grid        — 28 samples)"
     echo ""
 
     MASS_CHOICE=""
     while [[ -z "$MASS_CHOICE" ]]; do
-        read -rp "$(echo -e "${CYAN}Sample set [1/2/3/4]: ${NC}")" MASS_CHOICE
+        read -rp "$(echo -e "${CYAN}Sample set [1-7]: ${NC}")" MASS_CHOICE
         case "$MASS_CHOICE" in
             1)
                 SELECTED_FILES=("${FILES_MASS2[@]}")
@@ -364,14 +384,28 @@ else
                 ;;
             3)
                 SELECTED_FILES=("${FILES_MASS2[@]}" "${FILES_MASS60[@]}")
-                MASS_LABEL="Both (2 GeV + 60 GeV)"
+                MASS_LABEL="Both TTALP (2 GeV + 60 GeV)"
                 ;;
             4)
-                SELECTED_FILES=("${FILES_SMSMINI[@]}")
-                MASS_LABEL="SMS-GlGl MiniAOD (28 samples)"
+                SELECTED_FILES=("${FILES_SMSMINI_COMPRESSED[@]}")
+                MASS_LABEL="SMS-GlGl compressed (ΔM=50 GeV, 8 samples)"
+                ;;
+            5)
+                SELECTED_FILES=("${FILES_SMSMINI_THRESHOLD[@]}")
+                MASS_LABEL="SMS-GlGl threshold (ΔM=100 GeV, 8 samples)"
+                ;;
+            6)
+                SELECTED_FILES=("${FILES_SMSMINI_UNCOMPRESSED[@]}")
+                MASS_LABEL="SMS-GlGl uncompressed (ΔM=300-1100 GeV, 12 samples)"
+                ;;
+            7)
+                SELECTED_FILES=("${FILES_SMSMINI_COMPRESSED[@]}"
+                                "${FILES_SMSMINI_THRESHOLD[@]}"
+                                "${FILES_SMSMINI_UNCOMPRESSED[@]}")
+                MASS_LABEL="SMS-GlGl all MiniAOD (28 samples)"
                 ;;
             *)
-                echo -e "${RED}  Please enter 1, 2, 3, or 4.${NC}"
+                echo -e "${RED}  Please enter a number between 1 and 7.${NC}"
                 MASS_CHOICE=""
                 ;;
         esac
