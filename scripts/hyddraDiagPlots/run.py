@@ -336,8 +336,14 @@ def _compute_id_summary_hadronic(gf_sig, sc_sig, sv_sig):
     mr_id   = (ak.to_numpy(ak.flatten(gf_sig['GenFunnel_matchRatio_id']))[is_hadronic]
                if 'GenFunnel_matchRatio_id' in gf_sig.fields
                else np.full(n_gen, -1.0))
-    n_loose = int(np.sum(mr_id > 0))
-    n_tight = int(np.sum(mr_id >= 0.5))
+    if 'GenFunnel_min3D_id' in gf_sig.fields:
+        min3d_id = ak.to_numpy(ak.flatten(gf_sig['GenFunnel_min3D_id']))[is_hadronic]
+        close    = (min3d_id >= 0) & (min3d_id < HAD_MIN3D_CUT)
+        n_loose  = int(np.sum((mr_id > 0)    & close))
+        n_tight  = int(np.sum((mr_id >= 0.5) & close))
+    else:
+        n_loose = int(np.sum(mr_id > 0))
+        n_tight = int(np.sum(mr_id >= 0.5))
 
     n_id_reco  = sc_sig.get('Stage_n_id',       0)
     n_filtered = sc_sig.get('Stage_n_filtered', 0)

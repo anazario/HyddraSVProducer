@@ -21,7 +21,7 @@ from ..src.config import (
     GEN_DXY_BINS, GEN_PT_BINS,
 )
 from ..src.style  import draw_cms_label, make_canvas, draw_grid_lines, draw_axis_grid
-from ..src.plotter import setup_axis_hist, make_tgraph, add_legend
+from ..src.plotter import setup_axis_hist, make_tgraph, add_legend, had_signal_mask
 
 _COLOR_TIGHT = COLOR_GOLD
 _COLOR_LOOSE = COLOR_SILVER
@@ -54,9 +54,8 @@ def plot_yield_flow(tdir, gf, sc_sig, sc_bkg=None):
             loose_count = []
             tight_count = []
             for s in _had_keys:
-                mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
-                loose_count.append(int(np.sum(mr > 0)))
-                tight_count.append(int(np.sum(mr >= 0.5)))
+                loose_count.append(int(np.sum(had_signal_mask(gf, s, loose=True )[has_tracks])))
+                tight_count.append(int(np.sum(had_signal_mask(gf, s, loose=False)[has_tracks])))
         else:
             loose_count = [0] * len(_had_keys)
             tight_count = [0] * len(_had_keys)
@@ -137,9 +136,10 @@ def plot_efficiency_funnel(tdir, gf):
     eff_loose  = np.zeros(n_stages)
 
     for i, s in enumerate(STAGE_KEYS):
-        mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
-        eff_tight[i] = np.sum(mr >= 0.5)        / n_denom
-        eff_loose[i] = np.sum((mr > 0) & (mr < 0.5)) / n_denom
+        tight_mask = had_signal_mask(gf, s, loose=False)[has_tracks]
+        all_loose_mask = had_signal_mask(gf, s, loose=True)[has_tracks]
+        eff_tight[i] = np.sum(tight_mask)                      / n_denom
+        eff_loose[i] = np.sum(all_loose_mask & ~tight_mask)    / n_denom
 
     h_tight = ROOT.TH1F("h_fgt", ";Algorithm Stage;Efficiency", n_stages, 0.5, n_stages + 0.5)
     h_loose = ROOT.TH1F("h_fgl", ";Algorithm Stage;Efficiency", n_stages, 0.5, n_stages + 0.5)
@@ -203,12 +203,12 @@ def plot_efficiency_vs_var(tdir, gf, var_key, var_label, bins, canvas_name):
 
     graphs, hists = [], []
     for i, s in enumerate(STAGE_KEYS):
-        mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
-        for threshold, label_suffix, line_style in [
-            (0.5, "tight", 1),
-            (0.0, "loose", 2),
+        tight_mask = had_signal_mask(gf, s, loose=False)[has_tracks]
+        loose_mask = had_signal_mask(gf, s, loose=True)[has_tracks]
+        for label_suffix, line_style, sig_mask in [
+            ("tight", 1, tight_mask),
+            ("loose", 2, loose_mask),
         ]:
-            sig_mask = mr >= 0.5 if threshold == 0.5 else mr > 0
             h_num = ROOT.TH1F(f"h_num_{s}_{var_key}_{label_suffix}", "",
                               n_bins_ax, np.array(bins, dtype=float))
             for v in var_vals[sig_mask]:
@@ -258,8 +258,7 @@ def plot_loss_stage_distribution(tdir, gf):
     # Build a [n_gen_vtx, n_stages] array of booleans: True = loose match
     matched_at = np.zeros((int(np.sum(has_tracks)), len(STAGE_KEYS)), dtype=bool)
     for i, s in enumerate(STAGE_KEYS):
-        mr = ak.to_numpy(ak.flatten(gf[f"GenFunnel_matchRatio_{s}"]))[has_tracks]
-        matched_at[:, i] = mr > 0
+        matched_at[:, i] = had_signal_mask(gf, s, loose=True)[has_tracks]
 
     # Classify each gen vertex starting from Merging (index 1), which is when
     # hadronic SV candidates are first formed.  Seeding only produces track seeds.

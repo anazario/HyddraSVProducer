@@ -13,23 +13,32 @@ from .config import (
 from .style import make_canvas, draw_cms_label, draw_axis_grid
 
 
-# ── Hadronic signal mask ──────────────────────────────────────────────────────
+# ── Hadronic signal masks ─────────────────────────────────────────────────────
 
-def had_signal_mask(sv_sig):
+def had_signal_mask(data, key=None, loose=True):
     """
-    Boolean signal mask for hadronic allStageVtx rows (full-length array).
+    Boolean signal mask for hadronic data.  Works for both data sources:
+      key=None  → allStageVtx (StageVtx_matchRatio / StageVtx_min3D, flat arrays)
+      key=<str> → GenFunnel   (GenFunnel_matchRatio_{key} / GenFunnel_min3D_{key}, jagged)
 
-    Signal = matchRatio > 0  AND  StageVtx_min3D < HAD_MIN3D_CUT (0.05 cm).
-    The position cut rejects SVs that pass momentum-space track matching by
-    coincidence but are spatially unrelated to any hadronic gen vertex.
+    loose=True  (default): matchRatio > 0
+    loose=False           : matchRatio >= 0.5
 
-    Falls back to matchRatio > 0 only when StageVtx_min3D is absent (old ntuples).
+    Gates on min3D < HAD_MIN3D_CUT when the branch exists; falls back to
+    matchRatio threshold only for old ntuples.
     """
-    mr = ak.to_numpy(sv_sig["StageVtx_matchRatio"]).astype(float)
-    mask = mr > 0
-    if "StageVtx_min3D" in sv_sig.fields:
-        min3d = ak.to_numpy(sv_sig["StageVtx_min3D"]).astype(float)
-        mask = mask & (min3d < HAD_MIN3D_CUT)
+    jagged      = key is not None
+    mr_field    = f"GenFunnel_matchRatio_{key}" if jagged else "StageVtx_matchRatio"
+    min3d_field = f"GenFunnel_min3D_{key}"      if jagged else "StageVtx_min3D"
+
+    def _flat(arr):
+        return ak.to_numpy(ak.flatten(arr)).astype(float) if jagged else ak.to_numpy(arr).astype(float)
+
+    mr   = _flat(data[mr_field])
+    mask = (mr > 0) if loose else (mr >= 0.5)
+    if min3d_field in data.fields:
+        min3d = _flat(data[min3d_field])
+        mask  = mask & (min3d >= 0) & (min3d < HAD_MIN3D_CUT)
     return mask
 
 

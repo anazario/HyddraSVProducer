@@ -15,7 +15,8 @@ from ..src.config  import (HADRONIC_RECO_OBSERVABLES, STAGE_IDX,
                            COLOR_GOLD, COLOR_SILVER, COLOR_NONSIGNAL, COLOR_BKG, GEN_DXY_BINS,
                            HAD_MIN3D_CUT)
 from ..src.style   import draw_cms_label, make_canvas, draw_axis_grid
-from ..src.plotter import (had_signal_mask, plot_reco_observable, plot_costheta_zoom,
+from ..src.plotter import (had_signal_mask,
+                            plot_reco_observable, plot_costheta_zoom,
                             plot_dxy_1d, plot_2d_dxy_vs_x,
                             plot_fakes_vs_dxy,
                             geom_cut_lines_z, geom_cut_lines_eta)
@@ -148,8 +149,9 @@ def plot_eff_vs_dxy(tdir, gf):
         return
 
     has_tracks = ak.to_numpy(ak.flatten(gf["GenFunnel_isHadronic"])).astype(bool)
-    mr_id      = ak.to_numpy(ak.flatten(gf["GenFunnel_matchRatio_id"]))[has_tracks]
     dxy        = ak.to_numpy(ak.flatten(gf["GenFunnel_dxy"          ]))[has_tracks]
+    loose_mask = had_signal_mask(gf, "id", loose=True )[has_tracks]
+    tight_mask = had_signal_mask(gf, "id", loose=False)[has_tracks]
 
     bins   = np.array(GEN_DXY_BINS, dtype=float)
     n_bins = len(bins) - 1
@@ -160,8 +162,8 @@ def plot_eff_vs_dxy(tdir, gf):
         h_denom.Fill(v)
 
     sig_configs = [
-        ("tight", mr_id >= 0.5, ROOT.kRed+1,   20, 1),
-        ("loose", mr_id > 0,    ROOT.kAzure+6,  24, 2),
+        ("tight", tight_mask, ROOT.kRed+1,   20, 1),
+        ("loose", loose_mask, ROOT.kAzure+6,  24, 2),
     ]
 
     graphs, hists = [], []
