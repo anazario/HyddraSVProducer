@@ -56,6 +56,7 @@ sys.path.insert(0, os.path.dirname(_HERE))
 
 from hyddraDiagPlots.src    import config, loader
 from hyddraDiagPlots.src.plotter import had_signal_mask
+from hyddraDiagPlots.src.config  import HAD_MIN3D_CUT
 from hyddraDiagPlots.stages import (
     summary, seeding, merging, cleaning, disambiguation, filtering,
     id_stage,
@@ -511,9 +512,15 @@ def _compute_summary_hadronic(stem, gf_sig, sc_sig, sv_sig=None, active_stage_ke
 
     rows = []
     for key, label in zip(active_stage_keys, active_stage_labels):
-        mr       = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[is_hadronic]
-        n_loose  = int(np.sum(mr > 0))
-        n_tight  = int(np.sum(mr >= 0.5))
+        mr = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_matchRatio_{key}"]))[is_hadronic]
+        if f"GenFunnel_min3D_{key}" in gf_sig.fields:
+            min3d    = ak.to_numpy(ak.flatten(gf_sig[f"GenFunnel_min3D_{key}"]))[is_hadronic]
+            close    = (min3d >= 0) & (min3d < HAD_MIN3D_CUT)
+            n_loose  = int(np.sum((mr > 0)   & close))
+            n_tight  = int(np.sum((mr >= 0.5) & close))
+        else:
+            n_loose  = int(np.sum(mr > 0))
+            n_tight  = int(np.sum(mr >= 0.5))
         n_reco   = sc_sig.get(f"Stage_n_{key}", 0)
         rows.append({
             'label':        label,

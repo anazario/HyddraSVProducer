@@ -171,6 +171,9 @@ private:
   std::vector<float> genFunnel_pOverE_seed_,      genFunnel_pOverE_merged_,
                      genFunnel_pOverE_cleaned_,    genFunnel_pOverE_disambig_,
                      genFunnel_pOverE_filtered_,   genFunnel_pOverE_id_;
+  std::vector<float> genFunnel_min3D_seed_,       genFunnel_min3D_merged_,
+                     genFunnel_min3D_cleaned_,     genFunnel_min3D_disambig_,
+                     genFunnel_min3D_filtered_,    genFunnel_min3D_id_;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // stageCounts branches — total vertex count per stage, one row per event.
@@ -336,6 +339,13 @@ void HyddraSVsHadronicDiagnosticAnalyzer::beginJob() {
   genFunnelTree_->Branch("GenFunnel_pOverE_disambig",     &genFunnel_pOverE_disambig_);
   genFunnelTree_->Branch("GenFunnel_pOverE_filtered",     &genFunnel_pOverE_filtered_);
   genFunnelTree_->Branch("GenFunnel_pOverE_id",           &genFunnel_pOverE_id_);
+
+  genFunnelTree_->Branch("GenFunnel_min3D_seed",          &genFunnel_min3D_seed_);
+  genFunnelTree_->Branch("GenFunnel_min3D_merged",        &genFunnel_min3D_merged_);
+  genFunnelTree_->Branch("GenFunnel_min3D_cleaned",       &genFunnel_min3D_cleaned_);
+  genFunnelTree_->Branch("GenFunnel_min3D_disambig",      &genFunnel_min3D_disambig_);
+  genFunnelTree_->Branch("GenFunnel_min3D_filtered",      &genFunnel_min3D_filtered_);
+  genFunnelTree_->Branch("GenFunnel_min3D_id",            &genFunnel_min3D_id_);
 
   // ── stageCounts ────────────────────────────────────────────────────────────
   stageCountsTree_ = fs->make<TTree>("stageCounts",
@@ -621,10 +631,15 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
           &genFunnel_pOverE_seed_,&genFunnel_pOverE_merged_,
           &genFunnel_pOverE_cleaned_,&genFunnel_pOverE_disambig_,&genFunnel_pOverE_filtered_,
           &genFunnel_pOverE_id_}};
+      std::array<std::vector<float>*, kHadNStages> m3dV = {{
+          &genFunnel_min3D_seed_,&genFunnel_min3D_merged_,
+          &genFunnel_min3D_cleaned_,&genFunnel_min3D_disambig_,&genFunnel_min3D_filtered_,
+          &genFunnel_min3D_id_}};
       massV[si]->push_back(-1.f);  dxsV[si]->push_back(-1.f);
       chi2V[si]->push_back(-1.f);  ntrkV[si]->push_back(-1);
       ctV  [si]->push_back(-1.f);  mrV  [si]->push_back(-1.f);
       daV  [si]->push_back(-1.f);  poeV [si]->push_back(-1.f);
+      m3dV [si]->push_back(-1.f);
     };
 
     for (size_t gi = 0; gi < genVertices_.size(); ++gi) {
@@ -648,10 +663,19 @@ void HyddraSVsHadronicDiagnosticAnalyzer::analyze(
         }
         // Best match = reco vertex with highest nSignalTracks for this gen vertex
         const reco::Vertex* best = findBestMatch(*stageHandles_[si]);
-        if (best)
+        if (best) {
           fillRecoPropsAt(si, *best, pv);
-        else
+          double dx = best->x() - gv.x();
+          double dy = best->y() - gv.y();
+          double dz = best->z() - gv.z();
+          std::array<std::vector<float>*, kHadNStages> m3dV = {{
+              &genFunnel_min3D_seed_,&genFunnel_min3D_merged_,
+              &genFunnel_min3D_cleaned_,&genFunnel_min3D_disambig_,
+              &genFunnel_min3D_filtered_,&genFunnel_min3D_id_}};
+          m3dV[si]->push_back(float(std::sqrt(dx*dx + dy*dy + dz*dz)));
+        } else {
           pushSentinel(si);
+        }
       }
 
       std::swap(signalTracks_, perVertexSignalTracks[gi]);
