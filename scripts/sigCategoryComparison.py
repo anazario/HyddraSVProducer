@@ -70,11 +70,12 @@ _GEN_PT_BINS = list(np.linspace(0, 100, 21))
 _HAD_MIN3D_CUT = 0.05  # cm
 
 _RECO_OBS = {
-    "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1, 51)), "log_y": True},
-    "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1, 51)), "log_y": True},
-    "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1, 51)), "log_y": True},
-    "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 15000, 151)), "log_y": True},
-    "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100, 51)), "log_y": True},
+    "cosTheta":    {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
+    "decayAngle":  {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
+    "pOverE":      {"label": "p/E",                      "bins": list(np.linspace( 0,    1,    51)),  "log_y": True},
+    "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.85, 1.05, 81)),  "log_y": True, "field": "pOverE"},
+    "dxySignif":   {"label": "dxy Significance",         "bins": list(np.linspace( 0, 15000, 151)),   "log_y": True},
+    "mass":        {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0,   100,  51)),   "log_y": True},
 }
 _HAD_RECO_OBS = {
     **_RECO_OBS,
@@ -283,7 +284,7 @@ def _compute_file_stats(task: tuple) -> dict:
                         sel      = (stg_idx == sidx) & sig_mask
                         sel_fake = (stg_idx == sidx) & ~sig_mask
                         for obs_key, obs_cfg in _RECO_OBS.items():
-                            branch   = f"StageVtx_{obs_key}"
+                            branch   = f"StageVtx_{obs_cfg.get('field', obs_key)}"
                             bins_obs = np.array(obs_cfg['bins'], dtype=float)
                             if branch not in sv.fields:
                                 lep_reco[(sk, obs_key)]  = None
@@ -343,7 +344,7 @@ def _compute_file_stats(task: tuple) -> dict:
                         sel      = (stg_idx == sidx) & sig_had
                         sel_fake = (stg_idx == sidx) & ~sig_had
                         for obs_key, obs_cfg in _HAD_RECO_OBS.items():
-                            branch   = f"StageVtx_{obs_key}"
+                            branch   = f"StageVtx_{obs_cfg.get('field', obs_key)}"
                             bins_obs = np.array(obs_cfg['bins'], dtype=float)
                             if branch not in sv.fields:
                                 had_reco[(sk, obs_key)]  = None

@@ -27,21 +27,23 @@ MARKERS         = [20, 21, 22, 23, 29, 33]
 
 # ── Reco observables shown per stage ─────────────────────────────────────────
 RECO_OBSERVABLES = {
-    "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
-    "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
-    "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1,  51)), "log_y": True},
-    "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 150,  76)), "log_y": True},
-    "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100,  51)), "log_y": True},
+    "cosTheta":    {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,    1,    51)), "log_y": True},
+    "decayAngle":  {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,    1,    51)), "log_y": True},
+    "pOverE":      {"label": "p/E",                      "bins": list(np.linspace( 0,    1,    51)), "log_y": True},
+    "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.85, 1.05, 81)), "log_y": True, "field": "pOverE"},
+    "dxySignif":   {"label": "dxy Significance",         "bins": list(np.linspace( 0,  150,    76)), "log_y": True},
+    "mass":        {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0,  100,    51)), "log_y": True},
 }
 
 # ── Hadronic-specific reco observables (adds nTracks for post-seeding stages) ─
 HADRONIC_RECO_OBSERVABLES = {
-    "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
-    "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1,  51)), "log_y": True},
-    "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1,  51)), "log_y": True},
-    "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 150,  76)), "log_y": True},
-    "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100,  51)), "log_y": True},
-    "nTracks":    {"label": "Number of tracks",         "bins": list(range(2, 33)),               "log_y": True},
+    "cosTheta":    {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,    1,    51)), "log_y": True},
+    "decayAngle":  {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,    1,    51)), "log_y": True},
+    "pOverE":      {"label": "p/E",                      "bins": list(np.linspace( 0,    1,    51)), "log_y": True},
+    "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.85, 1.05, 81)), "log_y": True, "field": "pOverE"},
+    "dxySignif":   {"label": "dxy Significance",         "bins": list(np.linspace( 0,  150,    76)), "log_y": True},
+    "mass":        {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0,  100,    51)), "log_y": True},
+    "nTracks":     {"label": "Number of tracks",         "bins": list(range(2, 33)),                  "log_y": True},
 }
 
 # ── Gen-level binning for efficiency plots ────────────────────────────────────
