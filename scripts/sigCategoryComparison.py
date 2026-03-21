@@ -73,7 +73,7 @@ _RECO_OBS = {
     "cosTheta":   {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,   1, 51)), "log_y": True},
     "decayAngle": {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,   1, 51)), "log_y": True},
     "pOverE":     {"label": "p/E",                      "bins": list(np.linspace( 0,   1, 51)), "log_y": True},
-    "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 150, 76)), "log_y": True},
+    "dxySignif":  {"label": "dxy Significance",         "bins": list(np.linspace( 0, 15000, 151)), "log_y": True},
     "mass":       {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0, 100, 51)), "log_y": True},
 }
 _HAD_RECO_OBS = {
@@ -278,20 +278,29 @@ def _compute_file_stats(task: tuple) -> dict:
                     stg_idx  = ak.to_numpy(sv["StageVtx_stageIdx"]).astype(int)
                     sig_mask = ak.to_numpy(sv["StageVtx_isGold"]).astype(bool)
 
+                    lep_fake: dict = {}
                     for sk, sidx in sidx_map.items():
-                        sel = (stg_idx == sidx) & sig_mask
+                        sel      = (stg_idx == sidx) & sig_mask
+                        sel_fake = (stg_idx == sidx) & ~sig_mask
                         for obs_key, obs_cfg in _RECO_OBS.items():
-                            branch = f"StageVtx_{obs_key}"
-                            if branch not in sv.fields or not np.any(sel):
-                                lep_reco[(sk, obs_key)] = None
+                            branch   = f"StageVtx_{obs_key}"
+                            bins_obs = np.array(obs_cfg['bins'], dtype=float)
+                            if branch not in sv.fields:
+                                lep_reco[(sk, obs_key)]  = None
+                                lep_fake[(sk, obs_key)]  = None
                             else:
-                                vals = ak.to_numpy(sv[branch]).astype(float)[sel]
-                                lep_reco[(sk, obs_key)] = _norm_hist(
-                                    vals, np.array(obs_cfg['bins'], dtype=float))
+                                vals_sig  = ak.to_numpy(sv[branch]).astype(float)
+                                lep_reco[(sk, obs_key)] = (
+                                    _norm_hist(vals_sig[sel],      bins_obs)
+                                    if np.any(sel) else None)
+                                lep_fake[(sk, obs_key)] = (
+                                    _norm_hist(vals_sig[sel_fake], bins_obs)
+                                    if np.any(sel_fake) else None)
 
                     stats.update(has_lep=True,
                                  lep_eff_dxy=lep_eff_dxy, lep_eff_pt=lep_eff_pt,
-                                 lep_stage_eff=lep_stage_eff, lep_reco=lep_reco)
+                                 lep_stage_eff=lep_stage_eff,
+                                 lep_reco=lep_reco, lep_fake=lep_fake)
                     del gf, sv  # free large arrays immediately
 
             # ── hadronic ──────────────────────────────────────────────────────
@@ -329,20 +338,29 @@ def _compute_file_stats(task: tuple) -> dict:
                     else:
                         sig_had = np.zeros(len(stg_idx), dtype=bool)
 
+                    had_fake: dict = {}
                     for sk, sidx in sidx_map.items():
-                        sel = (stg_idx == sidx) & sig_had
+                        sel      = (stg_idx == sidx) & sig_had
+                        sel_fake = (stg_idx == sidx) & ~sig_had
                         for obs_key, obs_cfg in _HAD_RECO_OBS.items():
-                            branch = f"StageVtx_{obs_key}"
-                            if branch not in sv.fields or not np.any(sel):
-                                had_reco[(sk, obs_key)] = None
+                            branch   = f"StageVtx_{obs_key}"
+                            bins_obs = np.array(obs_cfg['bins'], dtype=float)
+                            if branch not in sv.fields:
+                                had_reco[(sk, obs_key)]  = None
+                                had_fake[(sk, obs_key)]  = None
                             else:
-                                vals = ak.to_numpy(sv[branch]).astype(float)[sel]
-                                had_reco[(sk, obs_key)] = _norm_hist(
-                                    vals, np.array(obs_cfg['bins'], dtype=float))
+                                vals_had  = ak.to_numpy(sv[branch]).astype(float)
+                                had_reco[(sk, obs_key)] = (
+                                    _norm_hist(vals_had[sel],      bins_obs)
+                                    if np.any(sel) else None)
+                                had_fake[(sk, obs_key)] = (
+                                    _norm_hist(vals_had[sel_fake], bins_obs)
+                                    if np.any(sel_fake) else None)
 
                     stats.update(has_had=True,
                                  had_eff_dxy=had_eff_dxy, had_eff_pt=had_eff_pt,
-                                 had_stage_eff=had_stage_eff, had_reco=had_reco)
+                                 had_stage_eff=had_stage_eff,
+                                 had_reco=had_reco, had_fake=had_fake)
                     del gf, sv
 
     except Exception as e:
@@ -683,10 +701,15 @@ def plot_stage_summary(ROOT, cat_colors,
 
 def plot_reco_dist_categories(ROOT, cat_colors,
                                tdir, all_stats_by_cat, obs_key, obs_cfg,
-                               reco_accessor, canvas_name):
+                               reco_accessor, canvas_name,
+                               fake_accessor=None, all_stats_flat=None):
     """
-    Normalized signal-vertex distributions overlaid per category (median + IQR band).
+    Normalized signal-vertex distributions overlaid per category (median + IQR band),
+    plus the average fake distribution across all files as a black dashed curve.
+
     reco_accessor(stats_dict) → normalized 1D array or None
+    fake_accessor(stats_dict) → normalized 1D array or None  (optional)
+    all_stats_flat: [(params, stats_dict), ...] across all categories  (for fake avg)
     """
     bins_a = np.array(obs_cfg['bins'], dtype=float)
     n_bins = len(bins_a) - 1
@@ -696,13 +719,14 @@ def plot_reco_dist_categories(ROOT, cat_colors,
     c = _make_canvas(ROOT, canvas_name)
     c.SetLogy(logy)
     h_ax = _axis_hist(ROOT, canvas_name, obs_cfg['label'],
-                      "Normalised (signal, unit area)",
+                      "Normalised to unit area",
                       bins_a, y_min=1e-4 if logy else 0.0, y_max=2.0)
     h_ax.Draw("AXIS"); c._h_ax = h_ax
 
     keep  = []
     drawn = False
 
+    # ── Per-category signal distributions ─────────────────────────────────────
     for cat in CATEGORIES:
         cat_stats = all_stats_by_cat.get(cat, [])
         per_file  = [reco_accessor(s) for _, s in cat_stats]
@@ -733,11 +757,36 @@ def plot_reco_dist_categories(ROOT, cat_colors,
         print(f"    [{canvas_name}] no data — skipping")
         return
 
+    # ── Average fake distribution (all files, signal-independent) ─────────────
+    if fake_accessor is not None and all_stats_flat is not None:
+        fake_per_file = [fake_accessor(s) for _, s in all_stats_flat]
+        fake_per_file = [a for a in fake_per_file if a is not None]
+        if fake_per_file:
+            fake_mat    = np.array(fake_per_file, dtype=float)
+            fake_median = np.nanmedian(fake_mat,         axis=0)
+            fake_q25    = np.nanpercentile(fake_mat, 25, axis=0)
+            fake_q75    = np.nanpercentile(fake_mat, 75, axis=0)
+
+            # IQR band in gray
+            g_fake_band = _iqr_band(ROOT, x_c, fake_q25, fake_q75,
+                                    ROOT.kGray + 2, alpha=0.25)
+            g_fake_band.Draw("E3 SAME"); keep.append(g_fake_band)
+
+            h_fake = ROOT.TH1F(f"h_{canvas_name}_fake", "", n_bins, bins_a)
+            h_fake.SetDirectory(0)
+            for i, v in enumerate(fake_median, 1):
+                h_fake.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
+            h_fake.SetLineColor(ROOT.kBlack); h_fake.SetLineWidth(2)
+            h_fake.SetLineStyle(2)           # dashed
+            h_fake.SetFillStyle(0); h_fake.SetStats(0)
+            h_fake.SetTitle(f"Fakes (avg, {len(fake_per_file)} files)")
+            h_fake.Draw("HIST SAME"); keep.append(h_fake)
+
     c._keep = keep
     c._grid = _draw_axis_grid(ROOT, h_ax, logy=logy)
 
-    leg = ROOT.TLegend(0.52, 0.72, 0.88, 0.88)
-    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.034)
+    leg = ROOT.TLegend(0.50, 0.68, 0.88, 0.88)
+    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.032)
     for obj in keep:
         if isinstance(obj, ROOT.TH1):
             leg.AddEntry(obj, obj.GetTitle(), "l")
@@ -835,6 +884,8 @@ def run_leptonic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
             y_label=f"Gold Efficiency ({flav_label})",
         )
 
+        all_stats_flat = [(p, s) for cat_list in all_stats.values() for p, s in cat_list]
+
         treco = tover.mkdir("reco_distributions")
         for obs_key in _RECO_OBS:
             plot_reco_dist_categories(
@@ -842,6 +893,9 @@ def run_leptonic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 reco_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('lep_reco', {}).get((_sk, _ok)),
                 canvas_name=f"reco_{obs_key}_categories",
+                fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('lep_fake', {}).get((_sk, _ok)),
+                all_stats_flat=all_stats_flat,
             )
 
 
@@ -920,6 +974,8 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
             y_label=f"Efficiency ({tier_label})",
         )
 
+        all_stats_flat = [(p, s) for cat_list in all_stats.values() for p, s in cat_list]
+
         treco = ttier.mkdir("reco_distributions")
         for obs_key in _HAD_RECO_OBS:
             plot_reco_dist_categories(
@@ -927,6 +983,9 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 reco_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('had_reco', {}).get((_sk, _ok)),
                 canvas_name=f"reco_{obs_key}_categories",
+                fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('had_fake', {}).get((_sk, _ok)),
+                all_stats_flat=all_stats_flat,
             )
 
 
