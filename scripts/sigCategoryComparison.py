@@ -506,7 +506,10 @@ def _iqr_band(ROOT, x, q25, q75, color, alpha=0.30):
                                    x.astype(float), med.astype(float),
                                    np.zeros(n), np.zeros(n),
                                    el.astype(float), eh.astype(float))
-    g.SetFillColorAlpha(color, alpha)
+    if alpha < 1.0:
+        g.SetFillColorAlpha(color, alpha)
+    else:
+        g.SetFillColor(color)
     g.SetLineWidth(0)
     return g
 
@@ -941,11 +944,11 @@ def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
         h_ax.Draw("AXIS")
 
         # outer green band: full range (min–max)
-        g_outer = _iqr_band(ROOT, x_c, vmin, vmax, ROOT.kGreen + 1, alpha=0.50)
+        g_outer = _iqr_band(ROOT, x_c, vmin, vmax, ROOT.kGreen + 1, alpha=1.0)
         g_outer.Draw("E3 SAME")
 
         # inner yellow band: IQR (25th–75th percentile)
-        g_inner = _iqr_band(ROOT, x_c, q25, q75, ROOT.kYellow, alpha=0.80)
+        g_inner = _iqr_band(ROOT, x_c, q25, q75, ROOT.kYellow, alpha=1.0)
         g_inner.Draw("E3 SAME")
 
         # median line: black solid
