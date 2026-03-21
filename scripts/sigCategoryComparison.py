@@ -73,7 +73,7 @@ _RECO_OBS = {
     "cosTheta":    {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
     "decayAngle":  {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
     "pOverE":      {"label": "p/E",                      "bins": list(np.linspace( 0,    1,    51)),  "log_y": True},
-    "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.85, 1.05, 81)),  "log_y": True, "field": "pOverE"},
+    "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.95, 1., 101)),  "log_y": True, "field": "pOverE"},
     "dxySignif":   {"label": "dxy Significance",         "bins": list(np.linspace( 0, 15000, 151)),   "log_y": True},
     "mass":        {"label": "Invariant mass (GeV)",     "bins": list(np.linspace( 0,   100,  51)),   "log_y": True},
 }
