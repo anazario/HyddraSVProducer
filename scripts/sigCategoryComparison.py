@@ -527,15 +527,16 @@ def _draw_axis_grid(ROOT, h, logy=False):
     return lines
 
 
-def _cms_label(ROOT):
+def _cms_label(ROOT, mode="leptonic"):
     from hyddraDiagPlots.src.style import draw_cms_label
-    draw_cms_label()
+    label = "Hadronic HYDDRA" if mode == "hadronic" else "Leptonic HYDDRA"
+    draw_cms_label(label)
 
 
 # ── Plot: per-category efficiency band ────────────────────────────────────────
 
 def plot_eff_band(ROOT, cat_colors, cat_palettes,
-                  tdir, cat, band, bins, x_label, y_label, canvas_name):
+                  tdir, cat, band, bins, x_label, y_label, canvas_name, mode="leptonic"):
     if band is None:
         return
     x_cents, per_file, params_list, median, q25, q75 = band
@@ -581,7 +582,7 @@ def plot_eff_band(ROOT, cat_colors, cat_palettes,
     note.DrawLatex(0.16, 0.84, "Solid: c#tau = 0.1 mm   Dashed: c#tau = 0.5 mm")
     c._note = note
 
-    _cms_label(ROOT)
+    _cms_label(ROOT, mode)
     c.Update()
     tdir.cd(); c.Write()
     print(f"    [{canvas_name}] done")
@@ -591,7 +592,7 @@ def plot_eff_band(ROOT, cat_colors, cat_palettes,
 
 def plot_category_overlay(ROOT, cat_colors,
                            tdir, bands_by_cat, bins,
-                           x_label, y_label, canvas_name):
+                           x_label, y_label, canvas_name, mode="leptonic"):
     bins_a = np.array(bins, dtype=float)
     c      = _make_canvas(ROOT, canvas_name)
     h_ax   = _axis_hist(ROOT, canvas_name, x_label, y_label, bins_a)
@@ -624,7 +625,7 @@ def plot_category_overlay(ROOT, cat_colors,
         leg.AddEntry(g, g.GetTitle(), "l")
     leg.Draw(); c._leg = leg
 
-    _cms_label(ROOT)
+    _cms_label(ROOT, mode)
     c.Update()
     tdir.cd(); c.Write()
     print(f"    [{canvas_name}] done")
@@ -634,7 +635,7 @@ def plot_category_overlay(ROOT, cat_colors,
 
 def plot_stage_summary(ROOT, cat_colors,
                         tdir, all_stats_by_cat, stage_eff_accessor,
-                        canvas_name, y_label):
+                        canvas_name, y_label, mode="leptonic"):
     """
     One line per category: median efficiency at each algorithm stage.
     stage_eff_accessor(stats_dict, stage_key) → float
@@ -691,7 +692,7 @@ def plot_stage_summary(ROOT, cat_colors,
         leg.AddEntry(g, g.GetTitle(), "lp")
     leg.Draw(); c._leg = leg
 
-    _cms_label(ROOT)
+    _cms_label(ROOT, mode)
     c.Update()
     tdir.cd(); c.Write()
     print(f"    [{canvas_name}] done")
@@ -702,7 +703,7 @@ def plot_stage_summary(ROOT, cat_colors,
 def plot_reco_dist_categories(ROOT, cat_colors,
                                tdir, all_stats_by_cat, obs_key, obs_cfg,
                                reco_accessor, canvas_name,
-                               fake_accessor=None, all_stats_flat=None):
+                               fake_accessor=None, all_stats_flat=None, mode="leptonic"):
     """
     Normalized signal-vertex distributions overlaid per category (median + IQR band),
     plus the average fake distribution across all files as a black dashed curve.
@@ -792,7 +793,7 @@ def plot_reco_dist_categories(ROOT, cat_colors,
             leg.AddEntry(obj, obj.GetTitle(), "l")
     leg.Draw(); c._leg = leg
 
-    _cms_label(ROOT)
+    _cms_label(ROOT, mode)
     c.Update()
     tdir.cd(); c.Write()
     print(f"    [{canvas_name}] done")
@@ -802,7 +803,8 @@ def plot_reco_dist_categories(ROOT, cat_colors,
 
 def plot_fake_category_comparison(ROOT, cat_colors,
                                    tdir, all_stats_by_cat, obs_key, obs_cfg,
-                                   fake_accessor, all_stats_flat, canvas_name):
+                                   fake_accessor, all_stats_flat, canvas_name,
+                                   mode="leptonic"):
     """
     Four-curve fake comparison: one median per category (colored) + one combined
     median across all files (black dashed).  All normalized to unit area.
@@ -890,7 +892,7 @@ def plot_fake_category_comparison(ROOT, cat_colors,
             leg.AddEntry(obj, obj.GetTitle(), "l")
     leg.Draw(); c._leg = leg
 
-    _cms_label(ROOT)
+    _cms_label(ROOT, mode)
     c.Update()
     tdir.cd(); c.Write()
     print(f"    [{canvas_name}] done")
@@ -1050,11 +1052,11 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 plot_eff_band(ROOT, cat_colors, cat_palettes,
                               tcat, cat, band_dxy, _GEN_DXY_BINS,
                               "Gen dxy (cm)", f"Efficiency [{sk}, {tier_key}]",
-                              f"eff_vs_dxy_{sk}")
+                              f"eff_vs_dxy_{sk}", mode="hadronic")
                 plot_eff_band(ROOT, cat_colors, cat_palettes,
                               tcat, cat, band_pt, _GEN_PT_BINS,
                               "Gen p_{T} (GeV)", f"Efficiency [{sk}, {tier_key}]",
-                              f"eff_vs_pt_{sk}")
+                              f"eff_vs_pt_{sk}", mode="hadronic")
 
                 if stage_key == final_stage:
                     bands_dxy_final[cat] = band_dxy
@@ -1066,12 +1068,12 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                               bands_dxy_final, _GEN_DXY_BINS,
                               "Gen dxy (cm)",
                               f"Efficiency [{final_stage}, {tier_key}]",
-                              "eff_vs_dxy_categories")
+                              "eff_vs_dxy_categories", mode="hadronic")
         plot_category_overlay(ROOT, cat_colors, tover,
                               bands_pt_final, _GEN_PT_BINS,
                               "Gen p_{T} (GeV)",
                               f"Efficiency [{final_stage}, {tier_key}]",
-                              "eff_vs_pt_categories")
+                              "eff_vs_pt_categories", mode="hadronic")
 
         _l = loose
         plot_stage_summary(
@@ -1080,6 +1082,7 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 s.get('had_stage_eff', {}).get((sk, __l), float('nan')),
             canvas_name=f"stage_summary_{tier_key}",
             y_label=f"Efficiency ({tier_label})",
+            mode="hadronic",
         )
 
         all_stats_flat = [(p, s) for cat_list in all_stats.values() for p, s in cat_list]
@@ -1094,6 +1097,7 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('had_fake', {}).get((_sk, _ok)),
                 all_stats_flat=all_stats_flat,
+                mode="hadronic",
             )
 
     # ── Fake category comparison (tier-independent) ────────────────────────────
@@ -1106,6 +1110,7 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 s.get('had_fake', {}).get((_sk, _ok)),
             all_stats_flat=all_stats_flat,
             canvas_name=f"fake_{obs_key}_category_comparison",
+            mode="hadronic",
         )
     print("  [hadronic/fake_category_comparison] done")
 

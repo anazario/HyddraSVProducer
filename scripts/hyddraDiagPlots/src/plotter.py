@@ -278,7 +278,7 @@ def plot_reco_observable(tdir, gf, sv_sig, stage_key, obs_key, obs_cfg, sv_bkg=N
             leg.AddEntry(h, lbl, "l")
     leg.Draw()
 
-    draw_cms_label()
+    draw_cms_label("Hadronic HYDDRA" if hadronic else "Leptonic HYDDRA")
     canvas.Update()
     tdir.cd()
     canvas.Write()
