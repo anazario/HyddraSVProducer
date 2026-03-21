@@ -33,7 +33,7 @@ def plot_hadronic_track_absorption(tdir, gf):
         return
 
     n_bins = 20
-    bins   = np.arange(1, n_bins + 2, 1)
+    bins   = np.arange(1, n_bins + 2, 1, dtype=np.float64)
 
     canvas = make_canvas("hadronic_track_absorption",
                          "Hadronic HYDDRA — nTracks at merge (signal)", logy=False)
