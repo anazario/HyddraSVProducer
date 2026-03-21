@@ -506,7 +506,7 @@ def _iqr_band(ROOT, x, q25, q75, color, alpha=0.30):
                                    x.astype(float), med.astype(float),
                                    np.zeros(n), np.zeros(n),
                                    el.astype(float), eh.astype(float))
-    g.SetFillColor(ROOT.TColor.GetColorTransparent(color, alpha))
+    g.SetFillColorAlpha(color, alpha)
     g.SetLineWidth(0)
     return g
 
@@ -899,6 +899,82 @@ def plot_fake_category_comparison(ROOT, cat_colors,
     print(f"    [{canvas_name}] done")
 
 
+def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
+                     reco_accessor, canvas_name_prefix, mode="leptonic"):
+    """
+    Per-category Brazil-flag band plot.  One canvas per category:
+      outer green  band = full range (min-max) across files  ~ 2-sigma spirit
+      inner yellow band = IQR (25th-75th percentile)         ~ 1-sigma spirit
+      black solid line  = median
+    All distributions are normalised to unit area.
+    """
+    bins_a = np.array(obs_cfg['bins'], dtype=float)
+    n_bins = len(bins_a) - 1
+    x_c    = 0.5 * (bins_a[:-1] + bins_a[1:])
+    logy   = obs_cfg.get('log_y', False)
+
+    for cat in CATEGORIES:
+        cat_stats = all_stats_by_cat.get(cat, [])
+        per_file  = [reco_accessor(s) for _, s in cat_stats]
+        per_file  = [a for a in per_file if a is not None]
+        if not per_file:
+            continue
+
+        mat    = np.array(per_file, dtype=float)
+        median = np.nanmedian(mat,         axis=0)
+        q25    = np.nanpercentile(mat, 25, axis=0)
+        q75    = np.nanpercentile(mat, 75, axis=0)
+        vmin   = np.nanmin(mat,           axis=0)
+        vmax   = np.nanmax(mat,           axis=0)
+
+        canvas_name = f"{canvas_name_prefix}_{cat}"
+        c = _make_canvas(ROOT, canvas_name)
+        c.SetLogy(logy)
+
+        nonzero = vmax[~np.isnan(vmax) & (vmax > 0)]
+        y_max   = float(nonzero.max()) * (5.0 if logy else 1.4) if len(nonzero) else 1.0
+        y_min   = 1e-4 if logy else 0.0
+
+        h_ax = _axis_hist(ROOT, canvas_name, obs_cfg['label'],
+                          "Normalised (unit area)", bins_a,
+                          y_min=y_min, y_max=y_max)
+        h_ax.Draw("AXIS")
+
+        # outer green band: full range (min–max)
+        g_outer = _iqr_band(ROOT, x_c, vmin, vmax, ROOT.kGreen + 1, alpha=0.50)
+        g_outer.Draw("E3 SAME")
+
+        # inner yellow band: IQR (25th–75th percentile)
+        g_inner = _iqr_band(ROOT, x_c, q25, q75, ROOT.kYellow, alpha=0.80)
+        g_inner.Draw("E3 SAME")
+
+        # median line: black solid
+        h_med = ROOT.TH1F(f"h_brz_{canvas_name}", "", n_bins, bins_a)
+        h_med.SetDirectory(0)
+        for i, v in enumerate(median, 1):
+            h_med.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
+        h_med.SetLineColor(ROOT.kBlack)
+        h_med.SetLineWidth(2)
+        h_med.SetFillStyle(0)
+        h_med.SetStats(0)
+        h_med.Draw("HIST SAME")
+
+        c._keep = [g_outer, g_inner, h_med]
+        c._grid  = _draw_axis_grid(ROOT, h_ax, logy=logy)
+
+        leg = ROOT.TLegend(0.48, 0.72, 0.88, 0.88)
+        leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.032)
+        leg.AddEntry(h_med,   f"Median ({len(per_file)} files)",    "l")
+        leg.AddEntry(g_inner, "IQR (25th-75th percentile)",         "f")
+        leg.AddEntry(g_outer, "Full range (min-max)",                "f")
+        leg.Draw(); c._leg = leg
+
+        _cms_label(ROOT, mode)
+        c.Update()
+        tdir.cd(); c.Write()
+        print(f"    [{canvas_name}] done")
+
+
 def _best_final_stage(all_stats_by_cat: dict, leptonic: bool) -> str:
     key = 'lep_eff_dxy' if leptonic else 'had_eff_dxy'
     for cat_stats in all_stats_by_cat.values():
@@ -995,6 +1071,15 @@ def run_leptonic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('lep_fake', {}).get((_sk, _ok)),
                 all_stats_flat=all_stats_flat,
+            )
+
+        tbrz = tover.mkdir("brazil_bands")
+        for obs_key in _RECO_OBS:
+            plot_brazil_band(
+                ROOT, tbrz, all_stats, obs_key, _RECO_OBS[obs_key],
+                reco_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('lep_reco', {}).get((_sk, _ok)),
+                canvas_name_prefix=f"brz_{flav_key}_{obs_key}",
             )
 
     # ── Fake category comparison (flavor-independent) ─────────────────────────
@@ -1098,6 +1183,16 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('had_fake', {}).get((_sk, _ok)),
                 all_stats_flat=all_stats_flat,
+                mode="hadronic",
+            )
+
+        tbrz = ttier.mkdir("brazil_bands")
+        for obs_key in _HAD_RECO_OBS:
+            plot_brazil_band(
+                ROOT, tbrz, all_stats, obs_key, _HAD_RECO_OBS[obs_key],
+                reco_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('had_reco', {}).get((_sk, _ok)),
+                canvas_name_prefix=f"brz_{tier_key}_{obs_key}",
                 mode="hadronic",
             )
 
