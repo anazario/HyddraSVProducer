@@ -800,6 +800,102 @@ def plot_reco_dist_categories(ROOT, cat_colors,
 
 # ── Final stage detection ──────────────────────────────────────────────────────
 
+def plot_fake_category_comparison(ROOT, cat_colors,
+                                   tdir, all_stats_by_cat, obs_key, obs_cfg,
+                                   fake_accessor, all_stats_flat, canvas_name):
+    """
+    Four-curve fake comparison: one median per category (colored) + one combined
+    median across all files (black dashed).  All normalized to unit area.
+    Purpose: check whether fake distributions are truly signal-independent.
+
+    fake_accessor(stats_dict) → normalized 1D array or None
+    all_stats_flat: [(params, stats_dict), ...] across all categories
+    """
+    bins_a = np.array(obs_cfg['bins'], dtype=float)
+    n_bins = len(bins_a) - 1
+    x_c    = 0.5 * (bins_a[:-1] + bins_a[1:])
+    logy   = obs_cfg.get('log_y', False)
+
+    c = _make_canvas(ROOT, canvas_name)
+    c.SetLogy(logy)
+    h_ax = _axis_hist(ROOT, canvas_name, obs_cfg['label'],
+                      "Normalised (fakes, unit area)",
+                      bins_a, y_min=1e-4 if logy else 0.0, y_max=2.0)
+    h_ax.Draw("AXIS"); c._h_ax = h_ax
+
+    keep  = []
+    drawn = False
+
+    # ── Per-category fake medians ──────────────────────────────────────────────
+    for cat in CATEGORIES:
+        cat_stats = all_stats_by_cat.get(cat, [])
+        per_file  = [fake_accessor(s) for _, s in cat_stats]
+        per_file  = [a for a in per_file if a is not None]
+        if not per_file:
+            continue
+        mat    = np.array(per_file, dtype=float)
+        median = np.nanmedian(mat,         axis=0)
+        q25    = np.nanpercentile(mat, 25, axis=0)
+        q75    = np.nanpercentile(mat, 75, axis=0)
+        col    = cat_colors[cat]
+
+        g_band = _iqr_band(ROOT, x_c, q25, q75, col, alpha=0.20)
+        g_band.Draw("E3 SAME"); keep.append(g_band)
+
+        h = ROOT.TH1F(f"h_{canvas_name}_{cat}", "", n_bins, bins_a)
+        h.SetDirectory(0)
+        for i, v in enumerate(median, 1):
+            h.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
+        h.SetLineColor(col); h.SetLineWidth(2)
+        h.SetLineStyle(_CAT_LSTYLE[cat])
+        h.SetFillStyle(0); h.SetStats(0)
+        h.SetTitle(f"{cat.capitalize()} ({len(per_file)} files)")
+        h.Draw("HIST SAME"); keep.append(h)
+        drawn = True
+
+    # ── Combined average across all files ─────────────────────────────────────
+    all_fakes = [fake_accessor(s) for _, s in all_stats_flat]
+    all_fakes = [a for a in all_fakes if a is not None]
+    if all_fakes:
+        mat_all    = np.array(all_fakes, dtype=float)
+        med_all    = np.nanmedian(mat_all,         axis=0)
+        q25_all    = np.nanpercentile(mat_all, 25, axis=0)
+        q75_all    = np.nanpercentile(mat_all, 75, axis=0)
+
+        g_band_all = _iqr_band(ROOT, x_c, q25_all, q75_all, ROOT.kGray + 2, alpha=0.20)
+        g_band_all.Draw("E3 SAME"); keep.append(g_band_all)
+
+        h_all = ROOT.TH1F(f"h_{canvas_name}_all", "", n_bins, bins_a)
+        h_all.SetDirectory(0)
+        for i, v in enumerate(med_all, 1):
+            h_all.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
+        h_all.SetLineColor(ROOT.kBlack); h_all.SetLineWidth(3)
+        h_all.SetLineStyle(2)   # dashed
+        h_all.SetFillStyle(0); h_all.SetStats(0)
+        h_all.SetTitle(f"All combined ({len(all_fakes)} files)")
+        h_all.Draw("HIST SAME"); keep.append(h_all)
+        drawn = True
+
+    if not drawn:
+        print(f"    [{canvas_name}] no fake data — skipping")
+        return
+
+    c._keep = keep
+    c._grid = _draw_axis_grid(ROOT, h_ax, logy=logy)
+
+    leg = ROOT.TLegend(0.48, 0.68, 0.88, 0.88)
+    leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.032)
+    for obj in keep:
+        if isinstance(obj, ROOT.TH1):
+            leg.AddEntry(obj, obj.GetTitle(), "l")
+    leg.Draw(); c._leg = leg
+
+    _cms_label(ROOT)
+    c.Update()
+    tdir.cd(); c.Write()
+    print(f"    [{canvas_name}] done")
+
+
 def _best_final_stage(all_stats_by_cat: dict, leptonic: bool) -> str:
     key = 'lep_eff_dxy' if leptonic else 'had_eff_dxy'
     for cat_stats in all_stats_by_cat.values():
@@ -898,6 +994,18 @@ def run_leptonic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 all_stats_flat=all_stats_flat,
             )
 
+    # ── Fake category comparison (flavor-independent) ─────────────────────────
+    all_stats_flat = [(p, s) for cat_list in all_stats.values() for p, s in cat_list]
+    tfake_cat = lep_tdir.mkdir("fake_category_comparison")
+    for obs_key in _RECO_OBS:
+        plot_fake_category_comparison(
+            ROOT, cat_colors, tfake_cat, all_stats, obs_key, _RECO_OBS[obs_key],
+            fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                s.get('lep_fake', {}).get((_sk, _ok)),
+            all_stats_flat=all_stats_flat,
+            canvas_name=f"fake_{obs_key}_category_comparison",
+        )
+
 
 # ── Hadronic orchestration ─────────────────────────────────────────────────────
 
@@ -987,6 +1095,19 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                     s.get('had_fake', {}).get((_sk, _ok)),
                 all_stats_flat=all_stats_flat,
             )
+
+    # ── Fake category comparison (tier-independent) ────────────────────────────
+    all_stats_flat = [(p, s) for cat_list in all_stats.values() for p, s in cat_list]
+    tfake_cat = had_tdir.mkdir("fake_category_comparison")
+    for obs_key in _HAD_RECO_OBS:
+        plot_fake_category_comparison(
+            ROOT, cat_colors, tfake_cat, all_stats, obs_key, _HAD_RECO_OBS[obs_key],
+            fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                s.get('had_fake', {}).get((_sk, _ok)),
+            all_stats_flat=all_stats_flat,
+            canvas_name=f"fake_{obs_key}_category_comparison",
+        )
+    print("  [hadronic/fake_category_comparison] done")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
