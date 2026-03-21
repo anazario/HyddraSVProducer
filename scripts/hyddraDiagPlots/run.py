@@ -346,8 +346,7 @@ def _compute_id_summary_hadronic(gf_sig, sc_sig, sv_sig):
     if sv_sig is not None and len(sv_sig) > 0 and 'StageVtx_matchRatio' in sv_sig.fields:
         mask_id = ak.to_numpy(sv_sig['StageVtx_stageIdx']).astype(int) == sidx_id
         if np.any(mask_id):
-            mr = ak.to_numpy(sv_sig['StageVtx_matchRatio'])[mask_id]
-            n_nonsig_reco = int(np.sum(mr <= 0))
+            n_nonsig_reco = int(np.sum(mask_id & ~had_signal_mask(sv_sig)))
 
     return {
         'n_gen': n_gen, 'n_loose': n_loose, 'n_tight': n_tight,
