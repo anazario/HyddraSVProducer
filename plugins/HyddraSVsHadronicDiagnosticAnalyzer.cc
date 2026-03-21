@@ -420,6 +420,9 @@ void HyddraSVsHadronicDiagnosticAnalyzer::clearBranches() {
   genFunnel_pOverE_seed_.clear();    genFunnel_pOverE_merged_.clear();
   genFunnel_pOverE_cleaned_.clear(); genFunnel_pOverE_disambig_.clear();
   genFunnel_pOverE_filtered_.clear();genFunnel_pOverE_id_.clear();
+  genFunnel_min3D_seed_.clear();     genFunnel_min3D_merged_.clear();
+  genFunnel_min3D_cleaned_.clear();  genFunnel_min3D_disambig_.clear();
+  genFunnel_min3D_filtered_.clear(); genFunnel_min3D_id_.clear();
 
   stage_n_seed_ = stage_n_merged_ = stage_n_cleaned_ =
   stage_n_disambig_ = stage_n_filtered_ = stage_n_id_ = 0;
