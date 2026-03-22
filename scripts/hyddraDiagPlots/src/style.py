@@ -5,20 +5,20 @@ import math
 import ROOT
 
 
-def draw_cms_label(right_label="Leptonic HYDDRA"):
+def draw_cms_label(right_label="Leptonic HYDDRA", x_pos_cms=0.16, x_pos_label=0.9, y_pos=0.91):
     """Draw CMS / Simulation Preliminary label with right-side descriptor."""
     latex = ROOT.TLatex()
     latex.SetNDC()
     latex.SetTextAlign(11)
     latex.SetTextFont(61)
     latex.SetTextSize(0.057)
-    latex.DrawLatex(0.16, 0.91, "CMS")
+    latex.DrawLatex(x_pos_cms, 0.91, "CMS")
     latex.SetTextFont(52)
     latex.SetTextSize(0.044)
-    latex.DrawLatex(0.25, 0.91, "Simulation Preliminary")
+    latex.DrawLatex(x_pos_cms+0.09, y_pos, "Simulation Preliminary")
     latex.SetTextFont(42)
     latex.SetTextAlign(31)
-    latex.DrawLatex(0.90, 0.91, right_label)
+    latex.DrawLatex(x_pos_label, y_pos, right_label)
 
 
 def make_canvas(name, title, logy=True, width=800, height=600):

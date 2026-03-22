@@ -539,7 +539,7 @@ def _draw_axis_grid(ROOT, h, logy=False):
 def _cms_label(ROOT, mode="leptonic"):
     from hyddraDiagPlots.src.style import draw_cms_label
     label = "Hadronic HYDDRA" if mode == "hadronic" else "Leptonic HYDDRA"
-    draw_cms_label(label)
+    draw_cms_label(label, x_pos_cms=0.14, x_pos_label=0.94)
 
 
 # ── Plot: per-category efficiency band ────────────────────────────────────────
