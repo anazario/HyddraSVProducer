@@ -904,7 +904,8 @@ def plot_fake_category_comparison(ROOT, cat_colors,
 
 
 def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
-                     reco_accessor, canvas_name_prefix, mode="leptonic"):
+                     reco_accessor, canvas_name_prefix, mode="leptonic",
+                     fake_accessor=None):
     """
     Per-category Brazil-flag band plot.  One canvas per category:
       outer green  band = full range (min-max) across files  ~ 2-sigma spirit
@@ -952,25 +953,48 @@ def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
         g_inner = _iqr_band(ROOT, x_c, q25, q75, ROOT.kYellow, alpha=1.0)
         g_inner.Draw("E3 SAME")
 
-        # median line: black solid
+        # median line: black solid, thickness 3
         h_med = ROOT.TH1F(f"h_brz_{canvas_name}", "", n_bins, bins_a)
         h_med.SetDirectory(0)
         for i, v in enumerate(median, 1):
             h_med.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
         h_med.SetLineColor(ROOT.kBlack)
-        h_med.SetLineWidth(2)
+        h_med.SetLineWidth(3)
         h_med.SetFillStyle(0)
         h_med.SetStats(0)
         h_med.Draw("HIST SAME")
 
-        c._keep = [g_outer, g_inner, h_med]
+        # fake median line: red solid, thickness 3
+        h_fake = None
+        if fake_accessor is not None:
+            fake_per_file = [fake_accessor(s) for _, s in cat_stats]
+            fake_per_file = [a for a in fake_per_file if a is not None]
+            if fake_per_file:
+                fake_med = np.nanmedian(np.array(fake_per_file, dtype=float), axis=0)
+                h_fake = ROOT.TH1F(f"h_brz_fake_{canvas_name}", "", n_bins, bins_a)
+                h_fake.SetDirectory(0)
+                for i, v in enumerate(fake_med, 1):
+                    h_fake.SetBinContent(i, float(v) if not np.isnan(v) else 0.0)
+                h_fake.SetLineColor(ROOT.kRed)
+                h_fake.SetLineWidth(3)
+                h_fake.SetFillStyle(0)
+                h_fake.SetStats(0)
+                h_fake.Draw("HIST SAME")
+
+        c._keep = [g_outer, g_inner, h_med] + ([h_fake] if h_fake else [])
         c._grid  = _draw_axis_grid(ROOT, h_ax, logy=logy)
 
-        leg = ROOT.TLegend(0.48, 0.72, 0.88, 0.88)
+        # black outline on band legend entries
+        g_inner.SetLineColor(ROOT.kBlack); g_inner.SetLineWidth(1)
+        g_outer.SetLineColor(ROOT.kBlack); g_outer.SetLineWidth(1)
+
+        leg = ROOT.TLegend(0.48, 0.68, 0.88, 0.88)
         leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.032)
-        leg.AddEntry(h_med,   f"Median ({len(per_file)} files)",    "l")
-        leg.AddEntry(g_inner, "IQR (25th-75th percentile)",         "f")
-        leg.AddEntry(g_outer, "Full range (min-max)",                "f")
+        leg.AddEntry(h_med,   f"Signal median ({len(per_file)} files)", "l")
+        if h_fake:
+            leg.AddEntry(h_fake, "Fake median",                         "l")
+        leg.AddEntry(g_inner, "IQR (25th-75th percentile)",             "lf")
+        leg.AddEntry(g_outer, "Full range (min-max)",                   "lf")
         leg.Draw(); c._leg = leg
 
         _cms_label(ROOT, mode)
@@ -1084,6 +1108,8 @@ def run_leptonic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                 reco_accessor=lambda s, _sk=final_stage, _ok=obs_key:
                     s.get('lep_reco', {}).get((_sk, _ok)),
                 canvas_name_prefix=f"brz_{flav_key}_{obs_key}",
+                fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('lep_fake', {}).get((_sk, _ok)),
             )
 
     # ── Fake category comparison (flavor-independent) ─────────────────────────
@@ -1198,6 +1224,8 @@ def run_hadronic(ROOT, cat_colors, cat_palettes, all_stats, out_file):
                     s.get('had_reco', {}).get((_sk, _ok)),
                 canvas_name_prefix=f"brz_{tier_key}_{obs_key}",
                 mode="hadronic",
+                fake_accessor=lambda s, _sk=final_stage, _ok=obs_key:
+                    s.get('had_fake', {}).get((_sk, _ok)),
             )
 
     # ── Fake category comparison (tier-independent) ────────────────────────────
