@@ -70,7 +70,8 @@ _GEN_PT_BINS = list(np.linspace(0, 100, 21))
 _HAD_MIN3D_CUT = 0.05  # cm
 
 _RECO_OBS = {
-    "cosTheta":    {"label": "cos#theta (wrt PV)",       "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
+    "cosTheta":      {"label": "cos#theta (wrt PV)",         "bins": list(np.linspace(-1,   1,   51)),  "log_y": True},
+    "cosTheta_zoom": {"label": "cos#theta (wrt PV, zoom)",   "bins": list(np.linspace( 0.9, 1,  101)),  "log_y": True, "field": "cosTheta"},
     "decayAngle":  {"label": "cos#theta* (decay angle)", "bins": list(np.linspace(-1,    1,    51)),  "log_y": True},
     "pOverE":      {"label": "p/E",                      "bins": list(np.linspace( 0,    1,    51)),  "log_y": True},
     "pOverE_zoom": {"label": "p/E (zoom)",               "bins": list(np.linspace( 0.95, 1., 101)),  "log_y": True, "field": "pOverE"},
