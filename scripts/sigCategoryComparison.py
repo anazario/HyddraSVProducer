@@ -40,6 +40,8 @@ import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+import warnings
+
 import numpy as np
 
 # ROOT and uproot are imported lazily below so that spawned worker processes
@@ -438,10 +440,12 @@ def build_eff_band(cat_stats: list, accessor, bins: list):
             params.append(p)
     if not per_file:
         return None
-    mat    = np.array(per_file)
-    median = np.nanmedian(mat,         axis=0)
-    q25    = np.nanpercentile(mat, 25, axis=0)
-    q75    = np.nanpercentile(mat, 75, axis=0)
+    mat = np.array(per_file)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        median = np.nanmedian(mat,         axis=0)
+        q25    = np.nanpercentile(mat, 25, axis=0)
+        q75    = np.nanpercentile(mat, 75, axis=0)
     return x_cents, per_file, params, median, q25, q75
 
 
@@ -672,10 +676,12 @@ def plot_stage_summary(ROOT, cat_colors,
                 for _, s in cat_stats]
         if not rows:
             continue
-        mat    = np.array(rows, dtype=float)
-        median = np.nanmedian(mat,         axis=0)
-        q25    = np.nanpercentile(mat, 25, axis=0)
-        q75    = np.nanpercentile(mat, 75, axis=0)
+        mat = np.array(rows, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            median = np.nanmedian(mat,         axis=0)
+            q25    = np.nanpercentile(mat, 25, axis=0)
+            q75    = np.nanpercentile(mat, 75, axis=0)
         col    = cat_colors[cat]
 
         g_band = _iqr_band(ROOT, x, q25, q75, col, alpha=0.25)
@@ -739,10 +745,12 @@ def plot_reco_dist_categories(ROOT, cat_colors,
         per_file  = [a for a in per_file if a is not None]
         if not per_file:
             continue
-        mat    = np.array(per_file, dtype=float)
-        median = np.nanmedian(mat,         axis=0)
-        q25    = np.nanpercentile(mat, 25, axis=0)
-        q75    = np.nanpercentile(mat, 75, axis=0)
+        mat = np.array(per_file, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            median = np.nanmedian(mat,         axis=0)
+            q25    = np.nanpercentile(mat, 25, axis=0)
+            q75    = np.nanpercentile(mat, 75, axis=0)
         col    = cat_colors[cat]
 
         g_band = _iqr_band(ROOT, x_c, q25, q75, col, alpha=0.20)
@@ -768,10 +776,12 @@ def plot_reco_dist_categories(ROOT, cat_colors,
         fake_per_file = [fake_accessor(s) for _, s in all_stats_flat]
         fake_per_file = [a for a in fake_per_file if a is not None]
         if fake_per_file:
-            fake_mat    = np.array(fake_per_file, dtype=float)
-            fake_median = np.nanmedian(fake_mat,         axis=0)
-            fake_q25    = np.nanpercentile(fake_mat, 25, axis=0)
-            fake_q75    = np.nanpercentile(fake_mat, 75, axis=0)
+            fake_mat = np.array(fake_per_file, dtype=float)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                fake_median = np.nanmedian(fake_mat,         axis=0)
+                fake_q25    = np.nanpercentile(fake_mat, 25, axis=0)
+                fake_q75    = np.nanpercentile(fake_mat, 75, axis=0)
 
             # IQR band in gray
             g_fake_band = _iqr_band(ROOT, x_c, fake_q25, fake_q75,
@@ -840,10 +850,12 @@ def plot_fake_category_comparison(ROOT, cat_colors,
         per_file  = [a for a in per_file if a is not None]
         if not per_file:
             continue
-        mat    = np.array(per_file, dtype=float)
-        median = np.nanmedian(mat,         axis=0)
-        q25    = np.nanpercentile(mat, 25, axis=0)
-        q75    = np.nanpercentile(mat, 75, axis=0)
+        mat = np.array(per_file, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            median = np.nanmedian(mat,         axis=0)
+            q25    = np.nanpercentile(mat, 25, axis=0)
+            q75    = np.nanpercentile(mat, 75, axis=0)
         col    = cat_colors[cat]
 
         g_band = _iqr_band(ROOT, x_c, q25, q75, col, alpha=0.20)
@@ -864,10 +876,12 @@ def plot_fake_category_comparison(ROOT, cat_colors,
     all_fakes = [fake_accessor(s) for _, s in all_stats_flat]
     all_fakes = [a for a in all_fakes if a is not None]
     if all_fakes:
-        mat_all    = np.array(all_fakes, dtype=float)
-        med_all    = np.nanmedian(mat_all,         axis=0)
-        q25_all    = np.nanpercentile(mat_all, 25, axis=0)
-        q75_all    = np.nanpercentile(mat_all, 75, axis=0)
+        mat_all = np.array(all_fakes, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            med_all = np.nanmedian(mat_all,         axis=0)
+            q25_all = np.nanpercentile(mat_all, 25, axis=0)
+            q75_all = np.nanpercentile(mat_all, 75, axis=0)
 
         g_band_all = _iqr_band(ROOT, x_c, q25_all, q75_all, ROOT.kGray + 2, alpha=0.20)
         g_band_all.Draw("E3 SAME"); keep.append(g_band_all)
@@ -925,12 +939,14 @@ def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
         if not per_file:
             continue
 
-        mat    = np.array(per_file, dtype=float)
-        median = np.nanmedian(mat,         axis=0)
-        q25    = np.nanpercentile(mat, 25, axis=0)
-        q75    = np.nanpercentile(mat, 75, axis=0)
-        vmin   = np.nanmin(mat,           axis=0)
-        vmax   = np.nanmax(mat,           axis=0)
+        mat = np.array(per_file, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            median = np.nanmedian(mat,         axis=0)
+            q25    = np.nanpercentile(mat, 25, axis=0)
+            q75    = np.nanpercentile(mat, 75, axis=0)
+            vmin   = np.nanmin(mat,           axis=0)
+            vmax   = np.nanmax(mat,           axis=0)
 
         canvas_name = f"{canvas_name_prefix}_{cat}"
         c = _make_canvas(ROOT, canvas_name)
@@ -970,7 +986,9 @@ def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
             fake_per_file = [fake_accessor(s) for _, s in cat_stats]
             fake_per_file = [a for a in fake_per_file if a is not None]
             if fake_per_file:
-                fake_med = np.nanmedian(np.array(fake_per_file, dtype=float), axis=0)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    fake_med = np.nanmedian(np.array(fake_per_file, dtype=float), axis=0)
                 h_fake = ROOT.TH1F(f"h_brz_fake_{canvas_name}", "", n_bins, bins_a)
                 h_fake.SetDirectory(0)
                 for i, v in enumerate(fake_med, 1):
@@ -981,20 +999,26 @@ def plot_brazil_band(ROOT, tdir, all_stats_by_cat, obs_key, obs_cfg,
                 h_fake.SetStats(0)
                 h_fake.Draw("HIST SAME")
 
-        c._keep = [g_outer, g_inner, h_med] + ([h_fake] if h_fake else [])
-        c._grid  = _draw_axis_grid(ROOT, h_ax, logy=logy)
+        # proxy TH1Fs for legend band entries (fill + black line border via "f" option)
+        h_prx_inner = ROOT.TH1F(f"h_prx_inner_{canvas_name}", "", 1, 0, 1)
+        h_prx_inner.SetDirectory(0)
+        h_prx_inner.SetFillColor(ROOT.kYellow)
+        h_prx_inner.SetLineColor(ROOT.kBlack); h_prx_inner.SetLineWidth(1)
+        h_prx_outer = ROOT.TH1F(f"h_prx_outer_{canvas_name}", "", 1, 0, 1)
+        h_prx_outer.SetDirectory(0)
+        h_prx_outer.SetFillColor(ROOT.kGreen + 1)
+        h_prx_outer.SetLineColor(ROOT.kBlack); h_prx_outer.SetLineWidth(1)
 
-        # black outline on band legend entries
-        g_inner.SetLineColor(ROOT.kBlack); g_inner.SetLineWidth(1)
-        g_outer.SetLineColor(ROOT.kBlack); g_outer.SetLineWidth(1)
+        c._keep = [g_outer, g_inner, h_med, h_prx_inner, h_prx_outer] + ([h_fake] if h_fake else [])
+        c._grid  = _draw_axis_grid(ROOT, h_ax, logy=logy)
 
         leg = ROOT.TLegend(0.48, 0.68, 0.88, 0.88)
         leg.SetFillStyle(0); leg.SetBorderSize(0); leg.SetTextSize(0.032)
-        leg.AddEntry(h_med,   f"Signal median ({len(per_file)} files)", "l")
+        leg.AddEntry(h_med,       f"Signal median ({len(per_file)} files)", "l")
         if h_fake:
-            leg.AddEntry(h_fake, "Fake median",                         "l")
-        leg.AddEntry(g_inner, "IQR (25th-75th percentile)",             "lf")
-        leg.AddEntry(g_outer, "Full range (min-max)",                   "lf")
+            leg.AddEntry(h_fake,  "Fake median",                            "l")
+        leg.AddEntry(h_prx_inner, "IQR (25th-75th percentile)",             "f")
+        leg.AddEntry(h_prx_outer, "Full range (min-max)",                   "f")
         leg.Draw(); c._leg = leg
 
         _cms_label(ROOT, mode)
