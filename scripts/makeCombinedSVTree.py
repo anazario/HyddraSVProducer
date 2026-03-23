@@ -111,6 +111,7 @@ def _extract_svs(task: tuple) -> dict | None:
                         evt_idx = _find_event_idx(sv)
                         x = _get(sv, "StageVtx_x", np.nan, np.float32)[mask]
                         y = _get(sv, "StageVtx_y", np.nan, np.float32)[mask]
+                        z = _get(sv, "StageVtx_z", np.nan, np.float32)[mask]
                         chunks.append({
                             "svType":          np.zeros(n, np.int8),
                             "category":        np.full(n, cat_int,            np.int8),
@@ -132,6 +133,7 @@ def _extract_svs(task: tuple) -> dict | None:
                             "dxySignif":       _get(sv, "StageVtx_dxySignif", np.nan, np.float32)[mask],
                             "mass":            mass,
                             "dxy":             np.sqrt(x**2 + y**2),
+                            "z":               z,
                             "evtIdx":          evt_idx[mask].astype(np.int64)
                                                if evt_idx is not None
                                                else np.full(n, -1, np.int64),
@@ -154,6 +156,7 @@ def _extract_svs(task: tuple) -> dict | None:
                         evt_idx = _find_event_idx(sv)
                         x = _get(sv, "StageVtx_x", np.nan, np.float32)[mask]
                         y = _get(sv, "StageVtx_y", np.nan, np.float32)[mask]
+                        z = _get(sv, "StageVtx_z", np.nan, np.float32)[mask]
                         chunks.append({
                             "svType":          np.ones(n, np.int8),
                             "category":        np.full(n, cat_int,            np.int8),
@@ -175,6 +178,7 @@ def _extract_svs(task: tuple) -> dict | None:
                             "dxySignif":       _get(sv, "StageVtx_dxySignif", np.nan, np.float32)[mask],
                             "mass":            _get(sv, "StageVtx_mass",      np.nan, np.float32)[mask],
                             "dxy":             np.sqrt(x**2 + y**2),
+                            "z":               z,
                             "evtIdx":          evt_idx[mask].astype(np.int64)
                                                if evt_idx is not None
                                                else np.full(n, -1, np.int64),
