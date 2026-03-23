@@ -82,7 +82,8 @@ _RECO_OBS = {
 }
 _HAD_RECO_OBS = {
     **_RECO_OBS,
-    "nTracks": {"label": "Number of tracks", "bins": list(range(2, 33)), "log_y": True},
+    "nTracks":        {"label": "Number of tracks",          "bins": list(range(2, 33)),                   "log_y": True},
+    "massOverNTracks": {"label": "mass / n_{tracks} (GeV)",  "bins": list(np.linspace(0, 5, 51)),          "log_y": True, "derived": "massOverNTracks"},
 }
 
 # Leptonic flavor configs: (dir_key, genFunnel_field, legend_label)
@@ -347,19 +348,29 @@ def _compute_file_stats(task: tuple) -> dict:
                         sel      = (stg_idx == sidx) & sig_had
                         sel_fake = (stg_idx == sidx) & ~sig_had
                         for obs_key, obs_cfg in _HAD_RECO_OBS.items():
-                            branch   = f"StageVtx_{obs_cfg.get('field', obs_key)}"
                             bins_obs = np.array(obs_cfg['bins'], dtype=float)
-                            if branch not in sv.fields:
-                                had_reco[(sk, obs_key)]  = None
-                                had_fake[(sk, obs_key)]  = None
+                            if obs_cfg.get('derived') == 'massOverNTracks':
+                                if ("StageVtx_mass"    not in sv.fields or
+                                        "StageVtx_nTracks" not in sv.fields):
+                                    had_reco[(sk, obs_key)] = None
+                                    had_fake[(sk, obs_key)] = None
+                                    continue
+                                mass    = ak.to_numpy(sv["StageVtx_mass"]).astype(float)
+                                nt      = ak.to_numpy(sv["StageVtx_nTracks"]).astype(int)
+                                vals_had = np.where(nt > 0, mass / np.where(nt > 0, nt, 1).astype(float), np.nan)
                             else:
-                                vals_had  = ak.to_numpy(sv[branch]).astype(float)
-                                had_reco[(sk, obs_key)] = (
-                                    _norm_hist(vals_had[sel],      bins_obs)
-                                    if np.any(sel) else None)
-                                had_fake[(sk, obs_key)] = (
-                                    _norm_hist(vals_had[sel_fake], bins_obs)
-                                    if np.any(sel_fake) else None)
+                                branch = f"StageVtx_{obs_cfg.get('field', obs_key)}"
+                                if branch not in sv.fields:
+                                    had_reco[(sk, obs_key)] = None
+                                    had_fake[(sk, obs_key)] = None
+                                    continue
+                                vals_had = ak.to_numpy(sv[branch]).astype(float)
+                            had_reco[(sk, obs_key)] = (
+                                _norm_hist(vals_had[sel],      bins_obs)
+                                if np.any(sel) else None)
+                            had_fake[(sk, obs_key)] = (
+                                _norm_hist(vals_had[sel_fake], bins_obs)
+                                if np.any(sel_fake) else None)
 
                     stats.update(has_had=True,
                                  had_eff_dxy=had_eff_dxy, had_eff_pt=had_eff_pt,
