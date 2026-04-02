@@ -18,6 +18,16 @@
 #   bash scripts/runSampleSet.sh --continue WORKSPACEDIR   # Resume using a specific workspace
 #   bash scripts/runSampleSet.sh --continue                # Resume, searching for workspaces
 #
+# Resubmit mode reloads a saved run's settings and starts fresh, with optional overrides:
+#   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR
+#   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR --track-collection mergedElectronTracks
+#   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR --track-collection lowPtElectronTracks --optional-flag lowPt
+#
+# Supported override flags for --resubmit:
+#   --track-collection X   Replace track/vertex collection
+#   --output-dir DIR       Write merged outputs to a different directory
+#   --optional-flag LABEL  Change the output filename label
+#
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,20 +37,52 @@ TEST_DIR="$PROJECT_ROOT/test"
 PARALLEL_SCRIPT="$SCRIPT_DIR/parallelRun.sh"
 TEMP_OUTPUT=""  # set interactively below
 
-# ── Continue mode flag ────────────────────────────────────────────────────────
+# ── Mode flags + override args ────────────────────────────────────────────────
 IS_CONTINUE=false
+IS_RESUBMIT=false
 CONTINUE_WORKSPACE=""
-if [[ "$1" == "--continue" ]]; then
-    IS_CONTINUE=true
-    if [[ -n "$2" ]]; then
-        # Resolve workspace path (relative → under project root)
-        if [[ "$2" == /* ]]; then
-            CONTINUE_WORKSPACE="$2"
-        else
-            CONTINUE_WORKSPACE="$PROJECT_ROOT/$2"
+OVERRIDE_TRACK_COLLECTION=""
+OVERRIDE_OUTPUT_DIR=""
+OVERRIDE_OPTIONAL_FLAG=""
+
+_resolve_workspace() {
+    local w="$1"
+    if [[ "$w" == /* ]]; then echo "$w"; else echo "$PROJECT_ROOT/$w"; fi
+}
+
+_mode="$1"
+shift || true
+
+case "$_mode" in
+    --continue)
+        IS_CONTINUE=true
+        if [[ -n "$1" && "$1" != --* ]]; then
+            CONTINUE_WORKSPACE="$(_resolve_workspace "$1")"
+            shift
         fi
-    fi
-fi
+        ;;
+    --resubmit)
+        IS_RESUBMIT=true
+        if [[ -n "$1" && "$1" != --* ]]; then
+            CONTINUE_WORKSPACE="$(_resolve_workspace "$1")"
+            shift
+        fi
+        # Parse override flags
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --track-collection)
+                    OVERRIDE_TRACK_COLLECTION="$2"; shift 2 ;;
+                --output-dir)
+                    OVERRIDE_OUTPUT_DIR="$2"; shift 2 ;;
+                --optional-flag)
+                    OVERRIDE_OPTIONAL_FLAG="$2"; shift 2 ;;
+                *)
+                    echo -e "\033[0;31mUnknown --resubmit override flag: $1\033[0m"
+                    exit 1 ;;
+            esac
+        done
+        ;;
+esac
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -258,6 +300,55 @@ if $IS_CONTINUE; then
     # If a workspace was specified, ensure TEMP_OUTPUT points to it
     # (guards against path changes between machines/sessions)
     [[ -n "$CONTINUE_WORKSPACE" ]] && TEMP_OUTPUT="$CONTINUE_WORKSPACE"
+
+    echo -e "  ${GREEN}Loaded: $CHOSEN_STATE${NC}"
+    echo ""
+
+elif $IS_RESUBMIT; then
+    # ── Resubmit mode: load saved state and apply override flags ─────────────
+    echo -e "${BOLD}Resubmit mode — loading saved run state...${NC}"
+    echo ""
+
+    if [[ -z "$CONTINUE_WORKSPACE" ]]; then
+        echo -e "${RED}Error: --resubmit requires a workspace directory.${NC}"
+        echo "  Usage: bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR [overrides...]"
+        exit 1
+    fi
+
+    CHOSEN_STATE="$CONTINUE_WORKSPACE/.runstate"
+    if [[ ! -f "$CHOSEN_STATE" ]]; then
+        echo -e "${RED}No state file found at $CHOSEN_STATE${NC}"
+        echo "  Check the workspace path or start a fresh run."
+        exit 1
+    fi
+
+    # Load state; COMPLETED_SAMPLES will be reset below for a fresh run
+    COMPLETED_SAMPLES=()
+    # shellcheck source=/dev/null
+    source "$CHOSEN_STATE"
+
+    TEMP_OUTPUT="$CONTINUE_WORKSPACE"
+
+    # Apply overrides
+    if [[ -n "$OVERRIDE_TRACK_COLLECTION" ]]; then
+        echo -e "  ${YELLOW}Override: track collection ${TRACK_COLLECTION} → ${OVERRIDE_TRACK_COLLECTION}${NC}"
+        TRACK_COLLECTION="$OVERRIDE_TRACK_COLLECTION"
+    fi
+    if [[ -n "$OVERRIDE_OUTPUT_DIR" ]]; then
+        if [[ "$OVERRIDE_OUTPUT_DIR" == /* ]]; then
+            OUTPUT_DIR="$OVERRIDE_OUTPUT_DIR"
+        else
+            OUTPUT_DIR="$PROJECT_ROOT/$OVERRIDE_OUTPUT_DIR"
+        fi
+        echo -e "  ${YELLOW}Override: output dir → ${OUTPUT_DIR}${NC}"
+    fi
+    if [[ -n "$OVERRIDE_OPTIONAL_FLAG" ]]; then
+        echo -e "  ${YELLOW}Override: optional flag '${OPTIONAL_FLAG}' → '${OVERRIDE_OPTIONAL_FLAG}'${NC}"
+        OPTIONAL_FLAG="$OVERRIDE_OPTIONAL_FLAG"
+    fi
+
+    # Always start fresh — no samples considered done
+    COMPLETED_SAMPLES=()
 
     echo -e "  ${GREEN}Loaded: $CHOSEN_STATE${NC}"
     echo ""
@@ -568,10 +659,10 @@ else
         echo -e "  ${CYAN}iDM sample: --mother-pdg-id 1000023 added automatically.${NC}"
     fi
 
-fi  # end if $IS_CONTINUE / else
+fi  # end if $IS_CONTINUE / elif $IS_RESUBMIT / else
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Summary (shared between fresh and continue modes)
+# Summary (shared between fresh, continue, and resubmit modes)
 # ═════════════════════════════════════════════════════════════════════════════
 N_TOTAL="${#SELECTED_FILES[@]}"
 
@@ -583,6 +674,9 @@ echo ""
 
 if $IS_CONTINUE; then
     echo -e "  ${YELLOW}${BOLD}Mode: CONTINUE (completed samples will be skipped)${NC}"
+    echo ""
+elif $IS_RESUBMIT; then
+    echo -e "  ${YELLOW}${BOLD}Mode: RESUBMIT (fresh run with overridden settings)${NC}"
     echo ""
 fi
 
@@ -629,7 +723,8 @@ if [[ "$CONFIRM" != "y" ]]; then
     exit 0
 fi
 
-# Save initial state (fresh run) or re-save to confirm the loaded path (continue)
+# Save state: always on a fresh run; on resubmit, save new state with overrides applied;
+# on continue, re-save to keep it up to date but don't print a separate notice.
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$TEMP_OUTPUT"
 save_state
