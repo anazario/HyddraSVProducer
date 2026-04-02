@@ -68,6 +68,19 @@ FILES_MASS60=(
     "TTALPto2Mu_MALP-60_ctau-1e3mm_AODSIM.txt"
 )
 
+# iDM dielectron samples (RunIISummer20UL18MiniAODv2)
+FILES_IDM_SOFT=(
+    "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-100_MiniAODSIM.txt"
+)
+
+FILES_IDM_HARD=(
+    "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-100_MiniAODSIM.txt"
+)
+
 # ── Track collection menus per format ─────────────────────────────────────────
 TRACK_COLLECTIONS_MINIAOD=(
     "sip2DMuonEnhanced"
@@ -81,6 +94,9 @@ TRACK_COLLECTIONS_MINIAOD=(
     "merged"
     "mergedWithEle"
     "mergedAll"
+    "gedElectronTracks"
+    "lowPtElectronTracks"
+    "mergedElectronTracks"
 )
 
 TRACK_COLLECTIONS_FASTSIM=(
@@ -251,30 +267,51 @@ else
     COMPLETED_SAMPLES=()
 
     # ── Step 1: Mass group ────────────────────────────────────────────────────
-    echo -e "${BOLD}Step 1: Select mass group${NC}"
-    echo "  1) MALP-2   (2 GeV  — 5 samples)"
-    echo "  2) MALP-60  (60 GeV — 5 samples)"
-    echo "  3) Both     (10 samples total)"
+    echo -e "${BOLD}Step 1: Select sample group${NC}"
+    echo "  ── TTALP (AOD/MiniAOD) ──────────────────────────"
+    echo "  1) TTALP MALP-2   (2 GeV  — 5 samples)"
+    echo "  2) TTALP MALP-60  (60 GeV — 5 samples)"
+    echo "  3) TTALP Both     (10 samples total)"
+    echo "  ── iDM dielectron (MiniAOD) ─────────────────────"
+    echo "  4) iDM Mchi-5p5  / dMchi-1p0  (soft electrons — ctau 1, 10, 100 mm)"
+    echo "  5) iDM Mchi-55p0 / dMchi-10p0 (hard electrons — ctau 1, 10, 100 mm)"
+    echo "  6) iDM Both      (6 samples total)"
     echo ""
 
+    IS_IDM=false
     MASS_CHOICE=""
     while [[ -z "$MASS_CHOICE" ]]; do
-        read -rp "$(echo -e "${CYAN}Mass group [1/2/3]: ${NC}")" MASS_CHOICE
+        read -rp "$(echo -e "${CYAN}Sample group [1-6]: ${NC}")" MASS_CHOICE
         case "$MASS_CHOICE" in
             1)
                 SELECTED_FILES=("${FILES_MASS2[@]}")
-                MASS_LABEL="MALP-2 (2 GeV)"
+                MASS_LABEL="TTALP MALP-2 (2 GeV)"
                 ;;
             2)
                 SELECTED_FILES=("${FILES_MASS60[@]}")
-                MASS_LABEL="MALP-60 (60 GeV)"
+                MASS_LABEL="TTALP MALP-60 (60 GeV)"
                 ;;
             3)
                 SELECTED_FILES=("${FILES_MASS2[@]}" "${FILES_MASS60[@]}")
-                MASS_LABEL="Both (2 GeV + 60 GeV)"
+                MASS_LABEL="TTALP Both (2 + 60 GeV)"
+                ;;
+            4)
+                SELECTED_FILES=("${FILES_IDM_SOFT[@]}")
+                MASS_LABEL="iDM Mchi-5p5 / dMchi-1p0 (soft)"
+                IS_IDM=true
+                ;;
+            5)
+                SELECTED_FILES=("${FILES_IDM_HARD[@]}")
+                MASS_LABEL="iDM Mchi-55p0 / dMchi-10p0 (hard)"
+                IS_IDM=true
+                ;;
+            6)
+                SELECTED_FILES=("${FILES_IDM_SOFT[@]}" "${FILES_IDM_HARD[@]}")
+                MASS_LABEL="iDM Both (soft + hard)"
+                IS_IDM=true
                 ;;
             *)
-                echo -e "${RED}  Please enter 1, 2, or 3.${NC}"
+                echo -e "${RED}  Please enter a number between 1 and 6.${NC}"
                 MASS_CHOICE=""
                 ;;
         esac
@@ -524,6 +561,12 @@ else
     echo ""
     read -rp "$(echo -e "${CYAN}Temp dir name [parallel_output]: ${NC}")" TEMP_DIR_INPUT
     TEMP_OUTPUT="$PROJECT_ROOT/${TEMP_DIR_INPUT:-parallel_output}"
+
+    # Auto-inject motherPdgId for iDM samples (χ₂ → χ₁ e⁺e⁻, pdgId 1000023)
+    if $IS_IDM; then
+        EXTRA_ARGS="$EXTRA_ARGS motherPdgId=1000023"
+        echo -e "  ${CYAN}iDM sample: motherPdgId=1000023 added automatically.${NC}"
+    fi
 
 fi  # end if $IS_CONTINUE / else
 
