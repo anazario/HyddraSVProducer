@@ -74,6 +74,13 @@ process.TFileService = cms.Service("TFileService",
 process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODTrackProducer_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODElectronTrackProducer_cfi")
 
+# Disable MVA ID cuts until EGammaPostRecoTools re-running is set up.
+# The labels are not embedded in standard MiniAOD production; leaving them
+# active causes isElectronIDAvailable() to return false and all electrons to
+# be silently rejected. Set back to the label strings once IDs are available.
+process.miniAODElectronTrackProducer.gedMVALabel   = cms.string("")
+process.miniAODElectronTrackProducer.lowPtMVALabel = cms.string("")
+
 # ── EXO producer + analyzer ───────────────────────────────────────────────────
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraEXO_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraEXOAnalyzer_cfi")
