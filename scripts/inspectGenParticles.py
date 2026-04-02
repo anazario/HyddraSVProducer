@@ -79,7 +79,10 @@ def main():
                         help='Gen particle collection label (default: prunedGenParticles)')
     args = parser.parse_args()
 
-    fn = args.input if args.input.startswith('file:') else f'file:{args.input}'
+    if args.input.startswith(('file:', 'root://')):
+        fn = args.input
+    else:
+        fn = f'file:{args.input}'
 
     events = Events(fn)
     handle = Handle('std::vector<reco::GenParticle>')
