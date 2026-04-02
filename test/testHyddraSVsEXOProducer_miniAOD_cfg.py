@@ -72,7 +72,6 @@ process.TFileService = cms.Service("TFileService",
 
 # ── Track producers ───────────────────────────────────────────────────────────
 process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODTrackProducer_cfi")
-process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODMuonEnhancedTracksProducer_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.miniAODElectronTrackProducer_cfi")
 
 # ── EXO producer + analyzer ───────────────────────────────────────────────────
@@ -115,14 +114,25 @@ process.hyddraEXO.tracks         = tag
 process.hyddraEXOAnalyzer.tracks = tag
 
 # ── Build path ────────────────────────────────────────────────────────────────
-# All producers always run; unused outputs are simply ignored.
-process.p = cms.Path(
-    process.miniAODTrackProducer +
-    process.miniAODMuonEnhancedTracks +
-    process.miniAODElectronTrackProducer +
-    process.hyddraEXO +
-    process.hyddraEXOAnalyzer
-)
+# Only load the producers actually needed for the chosen track collection.
+# miniAODMuonEnhancedTracks requires displacedGlobalMuons/displacedTracks which
+# are full-AOD collections not present in MiniAOD, so it is excluded here.
+
+NEEDS_PACKED_TRACKS = set(MINIAOD_MUON_TRACK_COLLECTIONS.keys())  # all need miniAODTrackProducer
+
+if options.trackCollection in ELECTRON_TRACK_COLLECTIONS:
+    process.p = cms.Path(
+        process.miniAODElectronTrackProducer +
+        process.hyddraEXO +
+        process.hyddraEXOAnalyzer
+    )
+else:
+    process.p = cms.Path(
+        process.miniAODTrackProducer +
+        process.miniAODElectronTrackProducer +
+        process.hyddraEXO +
+        process.hyddraEXOAnalyzer
+    )
 
 process.schedule = cms.Schedule(process.p)
 
