@@ -564,8 +564,8 @@ else
 
     # Auto-inject motherPdgId for iDM samples (χ₂ → χ₁ e⁺e⁻, pdgId 1000023)
     if $IS_IDM; then
-        EXTRA_ARGS="$EXTRA_ARGS motherPdgId=1000023"
-        echo -e "  ${CYAN}iDM sample: motherPdgId=1000023 added automatically.${NC}"
+        EXTRA_ARGS="$EXTRA_ARGS --mother-pdg-id 1000023"
+        echo -e "  ${CYAN}iDM sample: --mother-pdg-id 1000023 added automatically.${NC}"
     fi
 
 fi  # end if $IS_CONTINUE / else
