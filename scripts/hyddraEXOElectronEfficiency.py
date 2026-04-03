@@ -97,7 +97,7 @@ X_NAMES = {
 
 _FNAME_RE = re.compile(
     r'Mchi-([\dp]+)_dMchi-([\dp]+)_ctau-(\d+)'
-    r'.*?_(gedElectronTracks|lowPtElectronTracks|mergedElectronTracks)\.root$'
+    r'.*?_(gedElectronTracks|lowPtElectronTracks|mergedElectronTracks)(?:_[^.]+)?\.root$'
 )
 
 

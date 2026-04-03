@@ -19,7 +19,7 @@ miniAODElectronTrackProducer = cms.EDProducer("MiniAODElectronTrackProducer",
 
     # Low-pT electron MVA score (userFloat key after re-running 2020Nov28 module).
     # Standard key is "ID". Set to "" to disable.
-    lowPtMVALabel     = cms.string("ID"),
+    lowPtMVALabel     = cms.string(""),
     lowPtMVAThreshold = cms.double(-0.25),
 
     # Cross-cleaning: reject low-pT electrons within deltaR < 0.05 of a GED electron
