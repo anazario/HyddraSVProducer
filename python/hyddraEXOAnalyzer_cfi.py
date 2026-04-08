@@ -6,6 +6,7 @@ hyddraEXOAnalyzer = cms.EDAnalyzer("HyddraSVsEXOAnalyzer",
     pvCollection      = cms.InputTag("offlinePrimaryVertices"),
     tracks            = cms.InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     genParticles      = cms.InputTag("genParticles"),
+    genMET            = cms.InputTag("slimmedGenMETs"),
     hasGenInfo        = cms.bool(True),
     motherPdgId       = cms.int32(54),    # dark photon proxy; change per signal
     genDRCut          = cms.double(0.05), # gold/bronze track-to-gen matching threshold

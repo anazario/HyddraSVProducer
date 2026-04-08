@@ -30,6 +30,43 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# ── CMSSW environment check ───────────────────────────────────────────────────
+check_cmsenv() {
+    if [[ -n "$CMSSW_BASE" ]]; then
+        return 0
+    fi
+
+    # Walk up the directory tree from the script location to find a .SCRAM dir
+    local dir
+    dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cmssw_base=""
+    while [[ "$dir" != "/" ]]; do
+        if [[ -d "$dir/.SCRAM" ]]; then
+            cmssw_base="$dir"
+            break
+        fi
+        dir="$(dirname "$dir")"
+    done
+
+    if [[ -z "$cmssw_base" ]]; then
+        echo -e "${RED}Error: cmsenv has not been run and no CMSSW release area was found.${NC}"
+        echo "  cd to your CMSSW release directory and run: cmsenv"
+        exit 1
+    fi
+
+    if ! command -v scram &>/dev/null; then
+        echo -e "${RED}Error: cmsenv has not been run and 'scram' is not in PATH.${NC}"
+        echo "  Source the CMS software environment, then: cd $cmssw_base && cmsenv"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}[cmsenv] Auto-detected CMSSW area: $cmssw_base${NC}"
+    eval "$(cd "$cmssw_base" && scram runtime -sh)"
+    echo -e "${GREEN}[cmsenv] Environment ready (CMSSW_BASE=$CMSSW_BASE)${NC}"
+    echo ""
+}
+check_cmsenv
+
 print_usage() {
     echo "Usage: $0 <file_list.txt> [options]"
     echo ""
@@ -344,6 +381,11 @@ echo -e "${GREEN}Processing completed in ${ELAPSED}s${NC}"
 # Count successful outputs
 N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
 echo "  Successful outputs: $N_OUTPUTS / $N_FILES (${N_SKIPPED} from previous run)"
+
+if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -eq 0 ]]; then
+    echo -e "${RED}No output files produced — all jobs failed. Check logs in $LOG_DIR${NC}"
+    exit 1
+fi
 
 # Merge outputs
 if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -gt 0 ]]; then

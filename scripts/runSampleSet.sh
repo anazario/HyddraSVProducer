@@ -93,6 +93,43 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+# ── CMSSW environment check ───────────────────────────────────────────────────
+check_cmsenv() {
+    if [[ -n "$CMSSW_BASE" ]]; then
+        return 0
+    fi
+
+    # Walk up the directory tree from the script location to find a .SCRAM dir
+    local dir
+    dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cmssw_base=""
+    while [[ "$dir" != "/" ]]; do
+        if [[ -d "$dir/.SCRAM" ]]; then
+            cmssw_base="$dir"
+            break
+        fi
+        dir="$(dirname "$dir")"
+    done
+
+    if [[ -z "$cmssw_base" ]]; then
+        echo -e "${RED}Error: cmsenv has not been run and no CMSSW release area was found.${NC}"
+        echo "  cd to your CMSSW release directory and run: cmsenv"
+        exit 1
+    fi
+
+    if ! command -v scram &>/dev/null; then
+        echo -e "${RED}Error: cmsenv has not been run and 'scram' is not in PATH.${NC}"
+        echo "  Source the CMS software environment, then: cd $cmssw_base && cmsenv"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}[cmsenv] Auto-detected CMSSW area: $cmssw_base${NC}"
+    eval "$(cd "$cmssw_base" && scram runtime -sh)"
+    echo -e "${GREEN}[cmsenv] Environment ready (CMSSW_BASE=$CMSSW_BASE)${NC}"
+    echo ""
+}
+check_cmsenv
+
 # ── Sample file groups ────────────────────────────────────────────────────────
 FILES_MASS2=(
     "TTALPto2Mu_MALP-2_ctau-1e-5mm_AODSIM.txt"

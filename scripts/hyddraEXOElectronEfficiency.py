@@ -71,7 +71,14 @@ BRANCHES = [
     'HyddraGenSV_trk1Pt',
     'HyddraGenSV_trk2Pt',
     'HyddraGenSV_passSelection',
+    # Event-level branches for AN-style skim
+    'Event_genMET',
+    'nRecoElectrons',
 ]
+
+# AN gen-level filter thresholds (Table 7 of AN2023-091)
+AN_GEN_MET_CUT      = 80.   # GeV  (gen p_T^miss > 80 GeV gen filter)
+AN_MIN_RECO_ELECTRONS = 2   # reco electrons required (AN footnote 20)
 
 TREE_PATHS = ['Events', 'hyddraEXOAnalyzer/Events', 'tree']
 
@@ -123,8 +130,18 @@ def parse_filename(path):
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
-def load_and_analyze(path):
-    """Return efficiency arrays for all gen vertices in the file."""
+def load_and_analyze(path, an_skim=False):
+    """Return efficiency arrays for all gen vertices in the file.
+
+    If *an_skim* is True, apply the two event-level skims used in the AN
+    (AN2023-091, Sec. 7) before counting gen vertices in the denominator:
+      1. Gen-level MET > 80 GeV  (mirrors the generator-level p_T^miss filter
+         applied to the official signal samples, Table 7).
+      2. nRecoElectrons >= 2  (mirrors the "two or more reco electrons"
+         requirement described in footnote 20 of Sec. 7.2).
+    These raise the apparent efficiency by removing events that are
+    unlikely to be triggered on or to have any reconstruction activity.
+    """
     f = uproot.open(path)
     tree = None
     for tp in TREE_PATHS:
@@ -149,6 +166,13 @@ def load_and_analyze(path):
     gen_pass_gold_iso = []
 
     for ev in range(n_events):
+        # ── AN-style event skim ─────────────────────────────────────────────
+        if an_skim:
+            gen_met   = float(data['Event_genMET'][ev])   if 'Event_genMET'   in data else -1.
+            n_reco_e  = int  (data['nRecoElectrons'][ev]) if 'nRecoElectrons' in data else -1
+            if gen_met < AN_GEN_MET_CUT or n_reco_e < AN_MIN_RECO_ELECTRONS:
+                continue
+
         sv_gvIdx  = data['HyddraSV_genVtxIdx'][ev]
         sv_isGold = data['HyddraSV_isGold'][ev]
         sv_iso    = data['HyddraSV_passesIsolation'][ev]
@@ -326,6 +350,13 @@ def main():
     parser.add_argument('-o', '--output',
                         default='hyddraEXO_electron_efficiency.root',
                         help='Output ROOT file')
+    parser.add_argument('--an-skim', action='store_true',
+                        help='Apply AN-style event skims to the efficiency '
+                             'denominator: gen-MET > 80 GeV and '
+                             'nRecoElectrons >= 2 (see AN2023-091 Sec. 7 '
+                             'footnote 20 and Table 7). Requires files '
+                             'produced with the updated analyzer that stores '
+                             'Event_genMET and nRecoElectrons branches.')
     args = parser.parse_args()
 
     paths = (args.input if args.input
@@ -351,7 +382,7 @@ def main():
     for path, meta in sorted(file_meta.items()):
         mk, ct, coll = meta['mass_key'], meta['ctau'], meta['collection']
         print(f"  {mk}  ctau={ct:3d}  {COLL_SHORT[coll]:7s}  {os.path.basename(path)}")
-        result = load_and_analyze(path)
+        result = load_and_analyze(path, an_skim=args.an_skim)
         data.setdefault(mk, {}).setdefault(ct, {})[coll] = result
         mass_labels[mk] = meta['mass_label']
 
