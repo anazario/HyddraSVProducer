@@ -45,6 +45,7 @@
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/PatCandidates/interface/MET.h"
 
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
@@ -193,6 +194,7 @@ private:
   edm::EDGetTokenT<reco::VertexCollection>   pvToken_;
   edm::EDGetTokenT<reco::TrackCollection>    tracksToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
+  edm::EDGetTokenT<pat::METCollection>          metToken_;
 
   // Config
   bool   hasGenInfo_;
@@ -207,6 +209,8 @@ private:
   unsigned int run_, lumi_;
   unsigned long long event_;
   int   nRecoElectrons_;
+  // ── MET ────────────────────────────────────────────────────────────────────
+  float event_MET_;
 
   // ── HyddraSV branches (per SV) ────────────────────────────────────────────
   int nHyddraSV_;
@@ -282,6 +286,8 @@ HyddraSVsEXOAnalyzer::HyddraSVsEXOAnalyzer(const edm::ParameterSet& iConfig)
   if (hasGenInfo_)
     genToken_ = consumes<reco::GenParticleCollection>(
         iConfig.getParameter<edm::InputTag>("genParticles"));
+  metToken_ = consumes<pat::METCollection>(
+      iConfig.getParameter<edm::InputTag>("MET"));
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +301,8 @@ void HyddraSVsEXOAnalyzer::beginJob() {
   tree_->Branch("event", &event_);
 
   // Event-level quantities
-  tree_->Branch("nRecoElectrons", &nRecoElectrons_);
+  tree_->Branch("nRecoElectrons",      &nRecoElectrons_);
+  tree_->Branch("Event_MET",     &event_MET_);
 
   // SV count
   tree_->Branch("nHyddraSV", &nHyddraSV_);
@@ -401,6 +408,7 @@ void HyddraSVsEXOAnalyzer::beginJob() {
 
 // ---------------------------------------------------------------------------
 void HyddraSVsEXOAnalyzer::clearBranches() {
+  event_MET_ = -1.f;
   sv_x_.clear(); sv_y_.clear(); sv_z_.clear();
   sv_xErr_.clear(); sv_yErr_.clear(); sv_zErr_.clear();
   sv_dxy_.clear(); sv_dxyErr_.clear(); sv_dxySig_.clear();
@@ -560,6 +568,12 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
 
   // ── Event-level quantities (always filled, even on early return) ──────────
   nRecoElectrons_ = tracksHandle.isValid() ? static_cast<int>(tracksHandle->size()) : 0;
+
+  // ── MET ──────────────────────────────────────────────────────────────────
+  edm::Handle<pat::METCollection> metHandle;
+  iEvent.getByToken(metToken_, metHandle);
+  if (metHandle.isValid() && !metHandle->empty())
+    event_MET_ = metHandle->at(0).pt();
 
   if (!inclusiveHandle.isValid() || pvHandle->empty()) {
     tree_->Fill();
@@ -749,6 +763,8 @@ void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& desc
       edm::InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"));
   desc.add<edm::InputTag>("genParticles",
       edm::InputTag("genParticles"));
+  desc.add<edm::InputTag>("MET",
+      edm::InputTag("slimmedMETs"));
   desc.add<bool>("hasGenInfo",     true);
   desc.add<int> ("motherPdgId",   54);     // default: dark photon proxy
   desc.add<double>("genDRCut",    0.05);   // gold/bronze track matching threshold
