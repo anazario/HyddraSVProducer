@@ -148,16 +148,129 @@ FILES_MASS60=(
 )
 
 # iDM dielectron samples (RunIISummer20UL18MiniAODv2)
-FILES_IDM_SOFT=(
+FILES_IDM_Mchi5p25=(
+    "iDM_DarkPhotonToEE_Mchi-5p25_dMchi-0p5_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-5p25_dMchi-0p5_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi5p5=(
     "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-1_MiniAODSIM.txt"
     "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-10_MiniAODSIM.txt"
     "iDM_DarkPhotonToEE_Mchi-5p5_dMchi-1p0_ctau-100_MiniAODSIM.txt"
 )
-
-FILES_IDM_HARD=(
+FILES_IDM_Mchi10p5=(
+    "iDM_DarkPhotonToEE_Mchi-10p5_dMchi-1p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-10p5_dMchi-1p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi11p0=(
+    "iDM_DarkPhotonToEE_Mchi-11p0_dMchi-2p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-11p0_dMchi-2p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-11p0_dMchi-2p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi21p0=(
+    "iDM_DarkPhotonToEE_Mchi-21p0_dMchi-2p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-21p0_dMchi-2p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-21p0_dMchi-2p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi22p0=(
+    "iDM_DarkPhotonToEE_Mchi-22p0_dMchi-4p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-22p0_dMchi-4p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-22p0_dMchi-4p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi31p5=(
+    "iDM_DarkPhotonToEE_Mchi-31p5_dMchi-3p0_ctau-1_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi33p0=(
+    "iDM_DarkPhotonToEE_Mchi-33p0_dMchi-6p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-33p0_dMchi-6p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-33p0_dMchi-6p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi42p0=(
+    "iDM_DarkPhotonToEE_Mchi-42p0_dMchi-4p0_ctau-1_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi44p0=(
+    "iDM_DarkPhotonToEE_Mchi-44p0_dMchi-8p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-44p0_dMchi-8p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi52p5=(
+    "iDM_DarkPhotonToEE_Mchi-52p5_dMchi-5p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-52p5_dMchi-5p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-52p5_dMchi-5p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi55p0=(
     "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-1_MiniAODSIM.txt"
     "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-10_MiniAODSIM.txt"
     "iDM_DarkPhotonToEE_Mchi-55p0_dMchi-10p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi63p0=(
+    "iDM_DarkPhotonToEE_Mchi-63p0_dMchi-6p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-63p0_dMchi-6p0_ctau-10_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi66p0=(
+    "iDM_DarkPhotonToEE_Mchi-66p0_dMchi-12p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-66p0_dMchi-12p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-66p0_dMchi-12p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi73p5=(
+    "iDM_DarkPhotonToEE_Mchi-73p5_dMchi-7p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-73p5_dMchi-7p0_ctau-10_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi77p0=(
+    "iDM_DarkPhotonToEE_Mchi-77p0_dMchi-14p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-77p0_dMchi-14p0_ctau-10_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi84p0=(
+    "iDM_DarkPhotonToEE_Mchi-84p0_dMchi-8p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi88p0=(
+    "iDM_DarkPhotonToEE_Mchi-88p0_dMchi-16p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-88p0_dMchi-16p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-88p0_dMchi-16p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi94p5=(
+    "iDM_DarkPhotonToEE_Mchi-94p5_dMchi-9p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-94p5_dMchi-9p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-94p5_dMchi-9p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi99p0=(
+    "iDM_DarkPhotonToEE_Mchi-99p0_dMchi-18p0_ctau-1_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi105p0=(
+    "iDM_DarkPhotonToEE_Mchi-105p0_dMchi-10p0_ctau-1_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-105p0_dMchi-10p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-105p0_dMchi-10p0_ctau-100_MiniAODSIM.txt"
+)
+FILES_IDM_Mchi110p0=(
+    "iDM_DarkPhotonToEE_Mchi-110p0_dMchi-20p0_ctau-10_MiniAODSIM.txt"
+    "iDM_DarkPhotonToEE_Mchi-110p0_dMchi-20p0_ctau-100_MiniAODSIM.txt"
+)
+
+# Convenience aliases matching the old names
+FILES_IDM_SOFT=("${FILES_IDM_Mchi5p5[@]}")
+FILES_IDM_HARD=("${FILES_IDM_Mchi55p0[@]}")
+
+FILES_IDM_ALL=(
+    "${FILES_IDM_Mchi5p25[@]}"
+    "${FILES_IDM_Mchi5p5[@]}"
+    "${FILES_IDM_Mchi10p5[@]}"
+    "${FILES_IDM_Mchi11p0[@]}"
+    "${FILES_IDM_Mchi21p0[@]}"
+    "${FILES_IDM_Mchi22p0[@]}"
+    "${FILES_IDM_Mchi31p5[@]}"
+    "${FILES_IDM_Mchi33p0[@]}"
+    "${FILES_IDM_Mchi42p0[@]}"
+    "${FILES_IDM_Mchi44p0[@]}"
+    "${FILES_IDM_Mchi52p5[@]}"
+    "${FILES_IDM_Mchi55p0[@]}"
+    "${FILES_IDM_Mchi63p0[@]}"
+    "${FILES_IDM_Mchi66p0[@]}"
+    "${FILES_IDM_Mchi73p5[@]}"
+    "${FILES_IDM_Mchi77p0[@]}"
+    "${FILES_IDM_Mchi84p0[@]}"
+    "${FILES_IDM_Mchi88p0[@]}"
+    "${FILES_IDM_Mchi94p5[@]}"
+    "${FILES_IDM_Mchi99p0[@]}"
+    "${FILES_IDM_Mchi105p0[@]}"
+    "${FILES_IDM_Mchi110p0[@]}"
 )
 
 # ── Track collection menus per format ─────────────────────────────────────────
@@ -403,13 +516,14 @@ else
     echo "  ── iDM dielectron (MiniAOD) ─────────────────────"
     echo "  4) iDM Mchi-5p5  / dMchi-1p0  (soft electrons — ctau 1, 10, 100 mm)"
     echo "  5) iDM Mchi-55p0 / dMchi-10p0 (hard electrons — ctau 1, 10, 100 mm)"
-    echo "  6) iDM Both      (6 samples total)"
+    echo "  6) iDM Both      (soft + hard, 6 samples)"
+    echo "  7) iDM All       (all mass points, ${#FILES_IDM_ALL[@]} samples)"
     echo ""
 
     IS_IDM=false
     MASS_CHOICE=""
     while [[ -z "$MASS_CHOICE" ]]; do
-        read -rp "$(echo -e "${CYAN}Sample group [1-6]: ${NC}")" MASS_CHOICE
+        read -rp "$(echo -e "${CYAN}Sample group [1-7]: ${NC}")" MASS_CHOICE
         case "$MASS_CHOICE" in
             1)
                 SELECTED_FILES=("${FILES_MASS2[@]}")
@@ -438,8 +552,13 @@ else
                 MASS_LABEL="iDM Both (soft + hard)"
                 IS_IDM=true
                 ;;
+            7)
+                SELECTED_FILES=("${FILES_IDM_ALL[@]}")
+                MASS_LABEL="iDM All (${#FILES_IDM_ALL[@]} samples)"
+                IS_IDM=true
+                ;;
             *)
-                echo -e "${RED}  Please enter a number between 1 and 6.${NC}"
+                echo -e "${RED}  Please enter a number between 1 and 7.${NC}"
                 MASS_CHOICE=""
                 ;;
         esac

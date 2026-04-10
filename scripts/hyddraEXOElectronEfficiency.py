@@ -168,9 +168,7 @@ def load_and_analyze(path, an_skim=False):
     for ev in range(n_events):
         # ── AN-style event skim ─────────────────────────────────────────────
         if an_skim:
-            gen_met   = float(data['Event_genMET'][ev])   if 'Event_genMET'   in data else -1.
-            n_reco_e  = int  (data['nRecoElectrons'][ev]) if 'nRecoElectrons' in data else -1
-            if gen_met < AN_GEN_MET_CUT or n_reco_e < AN_MIN_RECO_ELECTRONS:
+            if 'nRecoElectrons' in data and int(data['nRecoElectrons'][ev]) < AN_MIN_RECO_ELECTRONS:
                 continue
 
         sv_gvIdx  = data['HyddraSV_genVtxIdx'][ev]

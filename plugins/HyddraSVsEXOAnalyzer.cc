@@ -46,10 +46,6 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 
-// MET
-#include "DataFormats/METReco/interface/GenMET.h"
-#include "DataFormats/METReco/interface/GenMETCollection.h"
-
 // Tracking tools
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
@@ -197,7 +193,6 @@ private:
   edm::EDGetTokenT<reco::VertexCollection>   pvToken_;
   edm::EDGetTokenT<reco::TrackCollection>    tracksToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
-  edm::EDGetTokenT<reco::GenMETCollection>      genMETToken_;
 
   // Config
   bool   hasGenInfo_;
@@ -211,7 +206,6 @@ private:
   // ── Event scalars ──────────────────────────────────────────────────────────
   unsigned int run_, lumi_;
   unsigned long long event_;
-  float event_genMET_;
   int   nRecoElectrons_;
 
   // ── HyddraSV branches (per SV) ────────────────────────────────────────────
@@ -288,8 +282,6 @@ HyddraSVsEXOAnalyzer::HyddraSVsEXOAnalyzer(const edm::ParameterSet& iConfig)
   if (hasGenInfo_)
     genToken_ = consumes<reco::GenParticleCollection>(
         iConfig.getParameter<edm::InputTag>("genParticles"));
-  genMETToken_ = mayConsume<reco::GenMETCollection>(
-      iConfig.getParameter<edm::InputTag>("genMET"));
 }
 
 // ---------------------------------------------------------------------------
@@ -303,7 +295,6 @@ void HyddraSVsEXOAnalyzer::beginJob() {
   tree_->Branch("event", &event_);
 
   // Event-level quantities
-  tree_->Branch("Event_genMET",   &event_genMET_);
   tree_->Branch("nRecoElectrons", &nRecoElectrons_);
 
   // SV count
@@ -570,12 +561,6 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
   // ── Event-level quantities (always filled, even on early return) ──────────
   nRecoElectrons_ = tracksHandle.isValid() ? static_cast<int>(tracksHandle->size()) : 0;
 
-  event_genMET_ = -1.f;
-  edm::Handle<reco::GenMETCollection> genMETHandle;
-  iEvent.getByToken(genMETToken_, genMETHandle);
-  if (genMETHandle.isValid() && !genMETHandle->empty())
-    event_genMET_ = genMETHandle->at(0).pt();
-
   if (!inclusiveHandle.isValid() || pvHandle->empty()) {
     tree_->Fill();
     return;
@@ -764,8 +749,6 @@ void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& desc
       edm::InputTag("muonEnhancedTracks", "sip2DMuonEnhancedTracks"));
   desc.add<edm::InputTag>("genParticles",
       edm::InputTag("genParticles"));
-  desc.add<edm::InputTag>("genMET",
-      edm::InputTag("slimmedGenMETs"));
   desc.add<bool>("hasGenInfo",     true);
   desc.add<int> ("motherPdgId",   54);     // default: dark photon proxy
   desc.add<double>("genDRCut",    0.05);   // gold/bronze track matching threshold
