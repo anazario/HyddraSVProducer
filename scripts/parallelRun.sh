@@ -155,6 +155,10 @@ while [[ $# -gt 0 ]]; do
             EXTRA_ARGS="$EXTRA_ARGS motherPdgId=$2"
             shift 2
             ;;
+        --gen-dr-cut)
+            EXTRA_ARGS="$EXTRA_ARGS genDRCut=$2"
+            shift 2
+            ;;
         --hyddra-preset)
             EXTRA_ARGS="$EXTRA_ARGS hyddraPreset=$2"
             shift 2

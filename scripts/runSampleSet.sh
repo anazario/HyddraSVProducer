@@ -27,6 +27,7 @@
 #   --track-collection X   Replace track/vertex collection
 #   --output-dir DIR       Write merged outputs to a different directory
 #   --optional-flag LABEL  Change the output filename label
+#   --gen-dr-cut VALUE     Set genDRCut for track-to-gen matching (e.g. 0.1)
 #
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ CONTINUE_WORKSPACE=""
 OVERRIDE_TRACK_COLLECTION=""
 OVERRIDE_OUTPUT_DIR=""
 OVERRIDE_OPTIONAL_FLAG=""
+OVERRIDE_GEN_DR_CUT=""
 
 _resolve_workspace() {
     local w="$1"
@@ -76,6 +78,8 @@ case "$_mode" in
                     OVERRIDE_OUTPUT_DIR="$2"; shift 2 ;;
                 --optional-flag)
                     OVERRIDE_OPTIONAL_FLAG="$2"; shift 2 ;;
+                --gen-dr-cut)
+                    OVERRIDE_GEN_DR_CUT="$2"; shift 2 ;;
                 *)
                     echo -e "\033[0;31mUnknown --resubmit override flag: $1\033[0m"
                     exit 1 ;;
@@ -495,6 +499,10 @@ elif $IS_RESUBMIT; then
     if [[ -n "$OVERRIDE_OPTIONAL_FLAG" ]]; then
         echo -e "  ${YELLOW}Override: optional flag '${OPTIONAL_FLAG}' → '${OVERRIDE_OPTIONAL_FLAG}'${NC}"
         OPTIONAL_FLAG="$OVERRIDE_OPTIONAL_FLAG"
+    fi
+    if [[ -n "$OVERRIDE_GEN_DR_CUT" ]]; then
+        echo -e "  ${YELLOW}Override: genDRCut → ${OVERRIDE_GEN_DR_CUT}${NC}"
+        EXTRA_ARGS="$EXTRA_ARGS --gen-dr-cut $OVERRIDE_GEN_DR_CUT"
     fi
 
     # Always start fresh — no samples considered done

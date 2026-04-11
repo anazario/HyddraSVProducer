@@ -21,6 +21,11 @@ options.register('trackCollection',
                  "lowPtElectronTracks, mergedElectronTracks (default). "
                  "Muon/packed options: sip2DMuonEnhanced, merged, mergedAll, pf, "
                  "lost, eleLost, promptMuonExtracted, displacedMuonExtracted.")
+options.register('genDRCut',
+                 0.05,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.float,
+                 "Max deltaR for gold/bronze track-to-gen matching (default: 0.05; AN uses 0.1)")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -84,6 +89,7 @@ process.hyddraEXOAnalyzer.pvCollection  = cms.InputTag("offlineSlimmedPrimaryVer
 process.hyddraEXOAnalyzer.genParticles  = cms.InputTag("prunedGenParticles")
 process.hyddraEXOAnalyzer.hasGenInfo    = cms.bool(options.hasGenInfo)
 process.hyddraEXOAnalyzer.motherPdgId   = cms.int32(options.motherPdgId)
+process.hyddraEXOAnalyzer.genDRCut      = cms.double(options.genDRCut)
 
 # ── Configure track collection ────────────────────────────────────────────────
 ELECTRON_TRACK_COLLECTIONS = {
