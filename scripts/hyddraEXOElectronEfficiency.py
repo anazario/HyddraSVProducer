@@ -73,10 +73,12 @@ BRANCHES = [
     'HyddraGenSV_passSelection',
     # Event-level branches for AN-style skim
     'nRecoElectrons',
+    'Event_MET',
 ]
 
 # AN gen-level filter thresholds (Table 7 of AN2023-091)
-AN_MIN_RECO_ELECTRONS = 2   # reco electrons required (AN footnote 20)
+AN_MIN_RECO_ELECTRONS = 2    # reco electrons required (AN footnote 20)
+AN_MET_CUT            = 200. # p_T^miss proxy for MET trigger (AN2023-091 Sec. 8.1)
 
 TREE_PATHS = ['Events', 'hyddraEXOAnalyzer/Events', 'tree']
 
@@ -167,6 +169,8 @@ def load_and_analyze(path, an_skim=False):
         # ── AN-style event skim ─────────────────────────────────────────────
         if an_skim:
             if 'nRecoElectrons' in data and int(data['nRecoElectrons'][ev]) < AN_MIN_RECO_ELECTRONS:
+                continue
+            if 'Event_MET' in data and float(data['Event_MET'][ev]) < AN_MET_CUT:
                 continue
 
         sv_gvIdx  = data['HyddraSV_genVtxIdx'][ev]
@@ -348,10 +352,12 @@ def main():
                         help='Output ROOT file')
     parser.add_argument('--an-skim', action='store_true',
                         help='Apply AN-style event skims to the efficiency '
-                             'denominator: nRecoElectrons >= 2 '
-                             '(see AN2023-091 Sec. 7 footnote 20). '
+                             'denominator: nRecoElectrons >= 2 and '
+                             'Event_MET >= 200 GeV '
+                             '(see AN2023-091 Sec. 7 footnote 20 and Sec. 8.1). '
                              'Requires files produced with the updated '
-                             'analyzer that stores the nRecoElectrons branch.')
+                             'analyzer that stores the nRecoElectrons and '
+                             'Event_MET branches.')
     args = parser.parse_args()
 
     paths = (args.input if args.input

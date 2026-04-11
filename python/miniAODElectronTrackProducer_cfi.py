@@ -17,9 +17,9 @@ miniAODElectronTrackProducer = cms.EDProducer("MiniAODElectronTrackProducer",
     # Set to "" to disable the ID cut while getting started, or for Run3.
     gedMVALabel = cms.string("mvaEleID-Fall17-noIso-V2-wp90"),
 
-    # Low-pT electron MVA score (userFloat key after re-running 2020Nov28 module).
-    # Standard key is "ID". Set to "" to disable.
-    lowPtMVALabel     = cms.string(""),
+    # Low-pT electron MVA score key (stored via electronID(), not userFloat()).
+    # Available keys on Run2 UL MiniAOD: "ID", "unbiased", "ptbiased". Set to "" to disable.
+    lowPtMVALabel     = cms.string("ID"),
     lowPtMVAThreshold = cms.double(-0.25),
 
     # Cross-cleaning: reject low-pT electrons within deltaR < 0.05 of a GED electron

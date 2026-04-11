@@ -193,11 +193,13 @@ private:
   edm::EDGetTokenT<std::vector<int>>         isoFlagsToken_;
   edm::EDGetTokenT<reco::VertexCollection>   pvToken_;
   edm::EDGetTokenT<reco::TrackCollection>    tracksToken_;
+  edm::EDGetTokenT<reco::TrackCollection>    gedTracksToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genToken_;
   edm::EDGetTokenT<pat::METCollection>          metToken_;
 
   // Config
   bool   hasGenInfo_;
+  bool   useGEDCategorization_ = false;
   int    motherPdgId_;
   float  genDRCut_;
   float  passSelDRCut_;
@@ -253,6 +255,8 @@ private:
   std::vector<int>   sv_genVtxIdx_, sv_nearestGenVtxIdx_;
   std::vector<float> sv_min3D_;
   std::vector<bool>  sv_isGold_, sv_isBronze_;
+  // 0=LowPt-LowPt, 1=GED-LowPt, 2=GED-GED; -1=categorization not configured
+  std::vector<int>   sv_nGEDTracks_;
 
   // ── HyddraGenSV branches (per gen vertex) ─────────────────────────────────
   int nHyddraGenSV_;
@@ -288,6 +292,11 @@ HyddraSVsEXOAnalyzer::HyddraSVsEXOAnalyzer(const edm::ParameterSet& iConfig)
         iConfig.getParameter<edm::InputTag>("genParticles"));
   metToken_ = consumes<pat::METCollection>(
       iConfig.getParameter<edm::InputTag>("MET"));
+  edm::InputTag gedTag = iConfig.getParameter<edm::InputTag>("gedTracks");
+  if (!gedTag.label().empty()) {
+    gedTracksToken_ = consumes<reco::TrackCollection>(gedTag);
+    useGEDCategorization_ = true;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +350,9 @@ void HyddraSVsEXOAnalyzer::beginJob() {
 
   // Isolation flag
   tree_->Branch("HyddraSV_passesIsolation", &sv_passesIsolation_);
+
+  // GED categorization (0=LowPt-LowPt, 1=GED-LowPt, 2=GED-GED, -1=not configured)
+  tree_->Branch("HyddraSV_nGEDTracks", &sv_nGEDTracks_);
 
   // Track 1
   tree_->Branch("HyddraSV_trk1Pt",         &sv_trk1Pt_);
@@ -429,6 +441,7 @@ void HyddraSVsEXOAnalyzer::clearBranches() {
   sv_trk1GenRelPtDiff_.clear(); sv_trk2GenRelPtDiff_.clear();
   sv_genVtxIdx_.clear(); sv_nearestGenVtxIdx_.clear(); sv_min3D_.clear();
   sv_isGold_.clear(); sv_isBronze_.clear();
+  sv_nGEDTracks_.clear();
   gv_x_.clear(); gv_y_.clear(); gv_z_.clear(); gv_dxy_.clear();
   gv_pt_.clear(); gv_eta_.clear(); gv_phi_.clear(); gv_mass_.clear();
   gv_trk1Pt_.clear(); gv_trk1Eta_.clear(); gv_trk1Phi_.clear(); gv_trk1PdgId_.clear();
@@ -575,6 +588,13 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
   if (metHandle.isValid() && !metHandle->empty())
     event_MET_ = metHandle->at(0).pt();
 
+  // ── GED track count (for merged-collection categorization) ───────────────
+  int nGED = -1;
+  if (useGEDCategorization_) {
+    auto gedHandle = iEvent.getHandle(gedTracksToken_);
+    if (gedHandle.isValid()) nGED = static_cast<int>(gedHandle->size());
+  }
+
   if (!inclusiveHandle.isValid() || pvHandle->empty()) {
     tree_->Fill();
     return;
@@ -645,6 +665,16 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     float dR = deltaR(t1.eta(), t1.phi(), t2.eta(), t2.phi());
     int   charge = t1.charge() + t2.charge();
 
+    // ── GED categorization ────────────────────────────────────────────────
+    // Count how many of the two tracks have an index below the GED boundary.
+    // Only meaningful when running on the merged collection (nGED >= 0).
+    int nGEDTracks = -1;
+    if (nGED >= 0) {
+      nGEDTracks = 0;
+      for (const auto& ref : trkRefs)
+        if (static_cast<int>(ref.key()) < nGED) ++nGEDTracks;
+    }
+
     // ── Per-track variables ──────────────────────────────────────────────
     // Track cosTheta: angle between individual track and vertex momentum
     float t1ct = (pt > 1e-9f || std::abs(pz) > 1e-9f) ?
@@ -673,6 +703,7 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     sv_cosTheta_.push_back(cosTheta); sv_decayAngle_.push_back(decayAngle);
     sv_dR_.push_back(dR); sv_beta_.push_back(beta);
     sv_passesIsolation_.push_back(passIso);
+    sv_nGEDTracks_.push_back(nGEDTracks);
     sv_trk1Pt_.push_back(t1.pt()); sv_trk1Eta_.push_back(t1.eta()); sv_trk1Phi_.push_back(t1.phi());
     sv_trk1Charge_.push_back(t1.charge());
     sv_trk1Dxy_.push_back(t1dxy); sv_trk1DxyErr_.push_back(t1dxyErr);
@@ -765,6 +796,10 @@ void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& desc
       edm::InputTag("genParticles"));
   desc.add<edm::InputTag>("MET",
       edm::InputTag("slimmedMETs"));
+  // Set to the GED track collection when running on mergedElectronTracks to
+  // enable per-SV categorization (GED-GED / GED-LowPt / LowPt-LowPt).
+  // Leave empty ("") for standalone GED or LowPt runs.
+  desc.add<edm::InputTag>("gedTracks", edm::InputTag(""));
   desc.add<bool>("hasGenInfo",     true);
   desc.add<int> ("motherPdgId",   54);     // default: dark photon proxy
   desc.add<double>("genDRCut",    0.05);   // gold/bronze track matching threshold

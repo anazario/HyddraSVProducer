@@ -113,6 +113,11 @@ tag = ALL_COLLECTIONS[options.trackCollection]
 process.hyddraEXO.tracks         = tag
 process.hyddraEXOAnalyzer.tracks = tag
 
+# Enable per-SV GED/LowPt categorization for merged-collection runs
+if options.trackCollection == 'mergedElectronTracks':
+    process.hyddraEXOAnalyzer.gedTracks = cms.InputTag(
+        "miniAODElectronTrackProducer", "gedElectronTracks")
+
 # ── Build path ────────────────────────────────────────────────────────────────
 # Only load the producers actually needed for the chosen track collection.
 # miniAODMuonEnhancedTracks requires displacedGlobalMuons/displacedTracks which

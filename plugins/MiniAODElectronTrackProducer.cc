@@ -119,8 +119,9 @@ bool MiniAODElectronTrackProducer::passLowPtSelection(const pat::Electron& ele) 
   if (applyHEMVeto_ && inHEMRegion(ele)) return false;
 
   if (!lowPtMVALabel_.empty()) {
-    if (!ele.hasUserFloat(lowPtMVALabel_) ||
-        ele.userFloat(lowPtMVALabel_) <= static_cast<float>(lowPtMVAThreshold_))
+    // Scores are stored via electronID(), not userFloat(), in Run2 UL MiniAOD
+    if (!ele.isElectronIDAvailable(lowPtMVALabel_) ||
+        ele.electronID(lowPtMVALabel_) <= static_cast<float>(lowPtMVAThreshold_))
       return false;
   }
   return true;
