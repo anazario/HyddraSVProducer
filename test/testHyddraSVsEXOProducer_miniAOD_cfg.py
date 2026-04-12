@@ -26,6 +26,11 @@ options.register('genDRCut',
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.float,
                  "Max deltaR for gold/bronze track-to-gen matching (default: 0.05; AN uses 0.1)")
+options.register('maxNormChi2',
+                 5.0,
+                 VarParsing.VarParsing.multiplicity.singleton,
+                 VarParsing.VarParsing.varType.float,
+                 "Max vertex chi2/ndof for HYDDRA SV reconstruction (default: 5.0; AN applies no cut)")
 options.register('inputFileList',
                  '',
                  VarParsing.VarParsing.multiplicity.singleton,
@@ -90,6 +95,7 @@ process.hyddraEXOAnalyzer.genParticles  = cms.InputTag("prunedGenParticles")
 process.hyddraEXOAnalyzer.hasGenInfo    = cms.bool(options.hasGenInfo)
 process.hyddraEXOAnalyzer.motherPdgId   = cms.int32(options.motherPdgId)
 process.hyddraEXOAnalyzer.genDRCut      = cms.double(options.genDRCut)
+process.hyddraEXO.leptonic.maxNormChi2  = cms.double(options.maxNormChi2)
 
 # ── Configure track collection ────────────────────────────────────────────────
 ELECTRON_TRACK_COLLECTIONS = {

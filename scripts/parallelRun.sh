@@ -159,6 +159,10 @@ while [[ $# -gt 0 ]]; do
             EXTRA_ARGS="$EXTRA_ARGS genDRCut=$2"
             shift 2
             ;;
+        --max-norm-chi2)
+            EXTRA_ARGS="$EXTRA_ARGS maxNormChi2=$2"
+            shift 2
+            ;;
         --hyddra-preset)
             EXTRA_ARGS="$EXTRA_ARGS hyddraPreset=$2"
             shift 2
