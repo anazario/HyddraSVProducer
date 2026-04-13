@@ -342,6 +342,7 @@ CONFIG="$2"
 OUTPUT_DIR="$3"
 EXTRA_ARGS="$4"
 
+CHUNK_FAILED=0
 while IFS= read -r INPUT_FILE; do
     [[ -z "$INPUT_FILE" ]] && continue
     BASENAME=$(basename "$INPUT_FILE" .root)
@@ -356,8 +357,10 @@ while IFS= read -r INPUT_FILE; do
         echo "[$(date '+%H:%M:%S')] Completed: $BASENAME"
     else
         echo "[$(date '+%H:%M:%S')] FAILED: $BASENAME (see $LOG_FILE)"
+        CHUNK_FAILED=1
     fi
 done < "$CHUNK_FILE"
+exit $CHUNK_FAILED
 SCRIPT_EOF
 chmod +x "$TEMP_SCRIPT"
 
@@ -379,15 +382,20 @@ rm -rf "$CHUNK_DIR"
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
 
+# Count successful outputs — more reliable than parallel's exit code, which may
+# return the last job's status rather than a non-zero aggregate.
+N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
+N_EXPECTED=$((N_TO_PROCESS + N_SKIPPED))
+if [[ $N_OUTPUTS -lt $N_EXPECTED ]]; then
+    PARALLEL_EXIT=1
+fi
+
 echo ""
 if [[ $PARALLEL_EXIT -ne 0 ]]; then
     echo -e "${RED}Some jobs failed. Check logs in $LOG_DIR${NC}"
 fi
 
 echo -e "${GREEN}Processing completed in ${ELAPSED}s${NC}"
-
-# Count successful outputs
-N_OUTPUTS=$(ls -1 "$OUTPUT_DIR"/*_ntuple.root 2>/dev/null | wc -l | tr -d ' ')
 echo "  Successful outputs: $N_OUTPUTS / $N_FILES (${N_SKIPPED} from previous run)"
 
 if [[ "$DO_MERGE" == true ]] && [[ $N_OUTPUTS -eq 0 ]]; then
@@ -416,3 +424,4 @@ fi
 
 echo ""
 echo -e "${GREEN}Done!${NC}"
+exit $PARALLEL_EXIT
