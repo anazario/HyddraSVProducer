@@ -488,14 +488,6 @@ if $IS_CONTINUE; then
                 [[ "$_cs" == *"$_pat"* ]] && { _matched=true; break; }
             done
             if $_matched; then
-                # Remove stale output file if it still exists (no-op if already gone)
-                _base=$(basename "$_cs" .txt)
-                if [[ -n "$OPTIONAL_FLAG" ]]; then
-                    _out="$OUTPUT_DIR/${_base}_${ANALYZER_NAME}_${TRACK_COLLECTION}_${OPTIONAL_FLAG}.root"
-                else
-                    _out="$OUTPUT_DIR/${_base}_${ANALYZER_NAME}_${TRACK_COLLECTION}.root"
-                fi
-                rm -f "$_out"
                 echo -e "  ${YELLOW}--force: unmarking $( basename "$_cs" )${NC}"
                 N_FORCED=$((N_FORCED + 1))
             else
