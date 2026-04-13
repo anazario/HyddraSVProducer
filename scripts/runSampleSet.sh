@@ -18,6 +18,12 @@
 #   bash scripts/runSampleSet.sh --continue WORKSPACEDIR   # Resume using a specific workspace
 #   bash scripts/runSampleSet.sh --continue                # Resume, searching for workspaces
 #
+# --force PATTERN [PATTERN ...] can be added to --continue to re-run specific
+# completed samples. Pass one or more space-separated substrings:
+#   bash scripts/runSampleSet.sh --continue WORKSPACEDIR --force dMchi10p0_ctau100
+#   bash scripts/runSampleSet.sh --continue WORKSPACEDIR --force Mchi55 Mchi200 ctau1000
+#   (each PATTERN is matched as a substring against each sample's file path)
+#
 # Resubmit mode reloads a saved run's settings and starts fresh, with optional overrides:
 #   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR
 #   bash scripts/runSampleSet.sh --resubmit WORKSPACEDIR --track-collection mergedElectronTracks
@@ -43,6 +49,7 @@ TEMP_OUTPUT=""  # set interactively below
 IS_CONTINUE=false
 IS_RESUBMIT=false
 CONTINUE_WORKSPACE=""
+FORCE_PATTERNS=()
 OVERRIDE_TRACK_COLLECTION=""
 OVERRIDE_OUTPUT_DIR=""
 OVERRIDE_OPTIONAL_FLAG=""
@@ -64,6 +71,18 @@ case "$_mode" in
             CONTINUE_WORKSPACE="$(_resolve_workspace "$1")"
             shift
         fi
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --force)
+                    shift
+                    while [[ $# -gt 0 && "$1" != --* ]]; do
+                        FORCE_PATTERNS+=("$1"); shift
+                    done ;;
+                *)
+                    echo -e "\033[0;31mUnknown --continue flag: $1\033[0m"
+                    exit 1 ;;
+            esac
+        done
         ;;
     --resubmit)
         IS_RESUBMIT=true
@@ -458,6 +477,36 @@ if $IS_CONTINUE; then
     # If a workspace was specified, ensure TEMP_OUTPUT points to it
     # (guards against path changes between machines/sessions)
     [[ -n "$CONTINUE_WORKSPACE" ]] && TEMP_OUTPUT="$CONTINUE_WORKSPACE"
+
+    # ── --force PATTERN: remove matching samples from COMPLETED_SAMPLES ───────
+    if [[ ${#FORCE_PATTERNS[@]} -gt 0 ]]; then
+        UPDATED_COMPLETED=()
+        N_FORCED=0
+        for _cs in "${COMPLETED_SAMPLES[@]}"; do
+            _matched=false
+            for _pat in "${FORCE_PATTERNS[@]}"; do
+                [[ "$_cs" == *"$_pat"* ]] && { _matched=true; break; }
+            done
+            if $_matched; then
+                # Remove stale output file if it still exists (no-op if already gone)
+                _base=$(basename "$_cs" .txt)
+                if [[ -n "$OPTIONAL_FLAG" ]]; then
+                    _out="$OUTPUT_DIR/${_base}_${ANALYZER_NAME}_${TRACK_COLLECTION}_${OPTIONAL_FLAG}.root"
+                else
+                    _out="$OUTPUT_DIR/${_base}_${ANALYZER_NAME}_${TRACK_COLLECTION}.root"
+                fi
+                rm -f "$_out"
+                echo -e "  ${YELLOW}--force: unmarking $( basename "$_cs" )${NC}"
+                N_FORCED=$((N_FORCED + 1))
+            else
+                UPDATED_COMPLETED+=("$_cs")
+            fi
+        done
+        COMPLETED_SAMPLES=("${UPDATED_COMPLETED[@]}")
+        echo ""
+        echo -e "  ${YELLOW}Forcing re-run of $N_FORCED sample(s)${NC}"
+        echo ""
+    fi
 
     echo -e "  ${GREEN}Loaded: $CHOSEN_STATE${NC}"
     echo ""
