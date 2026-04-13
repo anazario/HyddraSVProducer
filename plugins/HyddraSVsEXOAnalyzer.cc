@@ -5,9 +5,14 @@
 //
 // Description: EDAnalyzer for the EXONanoAOD HYDDRA prototype format.
 //
-//   Reads inclusiveVertices (Tier 0) and isolatedVertices (Tier 1) produced
-//   by HyddraSVsEXOProducer and writes a flat TTree with the agreed branch
-//   structure. All kinematic variables are stored without signal-dependent cuts.
+//   Reads vertex collections produced by HyddraSVsEXOProducer and writes a
+//   flat TTree. The base collection is selected via the `outputCollection`
+//   parameter ("seeds", "inclusive", or "isolated"). Two boolean flags are
+//   stored for every vertex:
+//     HyddraSV_passDisambiguation — survived tier-0 disambiguation
+//     HyddraSV_passIsolation      — survived the full isolated path (tier 1)
+//   When outputCollection="inclusive" passDisambiguation is trivially 1;
+//   when outputCollection="isolated" both flags are trivially 1.
 //
 //   Gen matching (MC only) implements a hybrid approach:
 //     - Gold:   both tracks match daughters of the same signal gen vertex (ΔR < genDRCut)
@@ -188,9 +193,15 @@ private:
                     const reco::GenParticleCollection& genParts,
                     const reco::TrackCollection& tracks) const;
 
-  // Tokens
+  // Tokens — vertex collections
+  edm::EDGetTokenT<reco::VertexCollection>   seedsToken_;
   edm::EDGetTokenT<reco::VertexCollection>   inclusiveToken_;
-  edm::EDGetTokenT<std::vector<int>>         isoFlagsToken_;
+  edm::EDGetTokenT<reco::VertexCollection>   isolatedToken_;
+  // Tokens — flag vectors
+  edm::EDGetTokenT<std::vector<int>>         disambFlagsToken_;   // parallel to seeds
+  edm::EDGetTokenT<std::vector<int>>         seedIsoFlagsToken_;  // parallel to seeds
+  edm::EDGetTokenT<std::vector<int>>         isoFlagsToken_;      // parallel to inclusive
+  // Tokens — other
   edm::EDGetTokenT<reco::VertexCollection>   pvToken_;
   edm::EDGetTokenT<reco::TrackCollection>    tracksToken_;
   edm::EDGetTokenT<reco::TrackCollection>    gedTracksToken_;
@@ -198,6 +209,7 @@ private:
   edm::EDGetTokenT<pat::METCollection>          metToken_;
 
   // Config
+  std::string outputCollection_;   // "seeds", "inclusive", or "isolated"
   bool   hasGenInfo_;
   bool   useGEDCategorization_ = false;
   int    motherPdgId_;
@@ -231,8 +243,9 @@ private:
   std::vector<float> sv_decayAngle_;  // CM-frame decay angle (neg. track convention)
   std::vector<float> sv_dR_;          // ΔR between the two tracks
   std::vector<float> sv_beta_;        // p / sqrt(p² + m²) = p/E
-  // Working point flag
-  std::vector<bool>  sv_passesIsolation_;
+  // Pipeline stage flags
+  std::vector<bool>  sv_passDisambiguation_;
+  std::vector<bool>  sv_passIsolation_;
   // Track 1 (leading pT)
   std::vector<float> sv_trk1Pt_, sv_trk1Eta_, sv_trk1Phi_;
   std::vector<int>   sv_trk1Charge_;
@@ -273,14 +286,23 @@ private:
 
 // ---------------------------------------------------------------------------
 HyddraSVsEXOAnalyzer::HyddraSVsEXOAnalyzer(const edm::ParameterSet& iConfig)
-    : inclusiveToken_(consumes<reco::VertexCollection>(
+    : seedsToken_(consumes<reco::VertexCollection>(
+          iConfig.getParameter<edm::InputTag>("seedVertices")))
+    , inclusiveToken_(consumes<reco::VertexCollection>(
           iConfig.getParameter<edm::InputTag>("inclusiveVertices")))
+    , isolatedToken_(consumes<reco::VertexCollection>(
+          iConfig.getParameter<edm::InputTag>("isolatedVertices")))
+    , disambFlagsToken_(consumes<std::vector<int>>(
+          iConfig.getParameter<edm::InputTag>("disambiguationFlags")))
+    , seedIsoFlagsToken_(consumes<std::vector<int>>(
+          iConfig.getParameter<edm::InputTag>("seedIsolationFlags")))
     , isoFlagsToken_(consumes<std::vector<int>>(
           iConfig.getParameter<edm::InputTag>("isolationFlags")))
     , pvToken_(consumes<reco::VertexCollection>(
           iConfig.getParameter<edm::InputTag>("pvCollection")))
     , tracksToken_(consumes<reco::TrackCollection>(
           iConfig.getParameter<edm::InputTag>("tracks")))
+    , outputCollection_(iConfig.getParameter<std::string>("outputCollection"))
     , hasGenInfo_(iConfig.getParameter<bool>("hasGenInfo"))
     , motherPdgId_(iConfig.getParameter<int>("motherPdgId"))
     , genDRCut_(iConfig.getParameter<double>("genDRCut"))
@@ -348,8 +370,9 @@ void HyddraSVsEXOAnalyzer::beginJob() {
   tree_->Branch("HyddraSV_dR",   &sv_dR_);
   tree_->Branch("HyddraSV_beta", &sv_beta_);
 
-  // Isolation flag
-  tree_->Branch("HyddraSV_passesIsolation", &sv_passesIsolation_);
+  // Pipeline stage flags
+  tree_->Branch("HyddraSV_passDisambiguation", &sv_passDisambiguation_);
+  tree_->Branch("HyddraSV_passIsolation",      &sv_passIsolation_);
 
   // GED categorization (0=LowPt-LowPt, 1=GED-LowPt, 2=GED-GED, -1=not configured)
   tree_->Branch("HyddraSV_nGEDTracks", &sv_nGEDTracks_);
@@ -428,7 +451,8 @@ void HyddraSVsEXOAnalyzer::clearBranches() {
   sv_pt_.clear(); sv_eta_.clear(); sv_phi_.clear(); sv_mass_.clear(); sv_p_.clear();
   sv_charge_.clear();
   sv_cosTheta_.clear(); sv_decayAngle_.clear(); sv_dR_.clear(); sv_beta_.clear();
-  sv_passesIsolation_.clear();
+  sv_passDisambiguation_.clear();
+  sv_passIsolation_.clear();
   sv_trk1Pt_.clear(); sv_trk1Eta_.clear(); sv_trk1Phi_.clear(); sv_trk1Charge_.clear();
   sv_trk1Dxy_.clear(); sv_trk1DxyErr_.clear(); sv_trk1DxySig_.clear();
   sv_trk1Dz_.clear(); sv_trk1DzErr_.clear(); sv_trk1NormChi2_.clear();
@@ -574,10 +598,14 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
   event_ = iEvent.id().event();
 
   // ── Inputs ──────────────────────────────────────────────────────────────
-  auto inclusiveHandle = iEvent.getHandle(inclusiveToken_);
-  auto isoFlagsHandle  = iEvent.getHandle(isoFlagsToken_);
-  auto pvHandle        = iEvent.getHandle(pvToken_);
-  auto tracksHandle    = iEvent.getHandle(tracksToken_);
+  auto seedsHandle        = iEvent.getHandle(seedsToken_);
+  auto inclusiveHandle    = iEvent.getHandle(inclusiveToken_);
+  auto isolatedHandle     = iEvent.getHandle(isolatedToken_);
+  auto disambFlagsHandle  = iEvent.getHandle(disambFlagsToken_);
+  auto seedIsoFlagsHandle = iEvent.getHandle(seedIsoFlagsToken_);
+  auto isoFlagsHandle     = iEvent.getHandle(isoFlagsToken_);
+  auto pvHandle           = iEvent.getHandle(pvToken_);
+  auto tracksHandle       = iEvent.getHandle(tracksToken_);
 
   // ── Event-level quantities (always filled, even on early return) ──────────
   nRecoElectrons_ = tracksHandle.isValid() ? static_cast<int>(tracksHandle->size()) : 0;
@@ -595,7 +623,31 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     if (gedHandle.isValid()) nGED = static_cast<int>(gedHandle->size());
   }
 
-  if (!inclusiveHandle.isValid() || pvHandle->empty()) {
+  // ── Select base collection and flag arrays ────────────────────────────────
+  // "seeds"    : all 2-track seed fits; both flags from producer
+  // "inclusive": tier-0 (seeds->disambiguation); passDisambiguation trivially 1
+  // "isolated" : tier-1 (seeds->merge->disambiguate); both flags trivially 1
+  const reco::VertexCollection* svColl     = nullptr;
+  const std::vector<int>*       disambFlags = nullptr;  // parallel to svColl
+  const std::vector<int>*       isoFlags    = nullptr;  // parallel to svColl
+  bool constPassDisamb = false;
+  bool constPassIso    = false;
+
+  if (outputCollection_ == "seeds") {
+    svColl      = seedsHandle.isValid()        ? seedsHandle.product()        : nullptr;
+    disambFlags = disambFlagsHandle.isValid()  ? disambFlagsHandle.product()  : nullptr;
+    isoFlags    = seedIsoFlagsHandle.isValid() ? seedIsoFlagsHandle.product() : nullptr;
+  } else if (outputCollection_ == "inclusive") {
+    svColl      = inclusiveHandle.isValid() ? inclusiveHandle.product() : nullptr;
+    isoFlags    = isoFlagsHandle.isValid()  ? isoFlagsHandle.product()  : nullptr;
+    constPassDisamb = true;
+  } else {  // "isolated"
+    svColl          = isolatedHandle.isValid() ? isolatedHandle.product() : nullptr;
+    constPassDisamb = true;
+    constPassIso    = true;
+  }
+
+  if (!svColl || pvHandle->empty()) {
     tree_->Fill();
     return;
   }
@@ -624,7 +676,7 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
 
   // ── Fill HyddraSV branches ───────────────────────────────────────────────
   int svIdx = 0;
-  for (const auto& sv : *inclusiveHandle) {
+  for (const auto& sv : *svColl) {
     // Collect tracks from vertex, sort by pT descending
     std::vector<reco::TrackRef> trkRefs;
     for (auto it = sv.tracks_begin(); it != sv.tracks_end(); ++it)
@@ -636,9 +688,13 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     const reco::Track& t1 = *trkRefs[0];
     const reco::Track& t2 = *trkRefs[1];
 
-    // ── Isolation flag (from producer-computed flags, parallel to inclusiveVertices) ──
-    bool passIso = (isoFlagsHandle.isValid() && svIdx < (int)isoFlagsHandle->size())
-                   ? (*isoFlagsHandle)[svIdx] != 0 : false;
+    // ── Pipeline stage flags ───────────────────────────────────────────────
+    bool passDisamb = constPassDisamb ? true
+                      : (disambFlags && svIdx < (int)disambFlags->size()
+                         ? (*disambFlags)[svIdx] != 0 : false);
+    bool passIso    = constPassIso    ? true
+                      : (isoFlags && svIdx < (int)isoFlags->size()
+                         ? (*isoFlags)[svIdx] != 0 : false);
 
     // ── 4-momentum (massless track sum) ───────────────────────────────────
     float px = t1.px() + t2.px();
@@ -702,7 +758,8 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
     sv_charge_.push_back(charge);
     sv_cosTheta_.push_back(cosTheta); sv_decayAngle_.push_back(decayAngle);
     sv_dR_.push_back(dR); sv_beta_.push_back(beta);
-    sv_passesIsolation_.push_back(passIso);
+    sv_passDisambiguation_.push_back(passDisamb);
+    sv_passIsolation_.push_back(passIso);
     sv_nGEDTracks_.push_back(nGEDTracks);
     sv_trk1Pt_.push_back(t1.pt()); sv_trk1Eta_.push_back(t1.eta()); sv_trk1Phi_.push_back(t1.phi());
     sv_trk1Charge_.push_back(t1.charge());
@@ -784,10 +841,23 @@ void HyddraSVsEXOAnalyzer::analyze(const edm::Event& iEvent,
 // ---------------------------------------------------------------------------
 void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
+  // Base collection to iterate: "seeds", "inclusive", or "isolated"
+  desc.add<std::string>("outputCollection", "inclusive");
+  // Vertex collections
+  desc.add<edm::InputTag>("seedVertices",
+      edm::InputTag("hyddraEXO", "seedVertices"));
   desc.add<edm::InputTag>("inclusiveVertices",
       edm::InputTag("hyddraEXO", "inclusiveVertices"));
+  desc.add<edm::InputTag>("isolatedVertices",
+      edm::InputTag("hyddraEXO", "isolatedVertices"));
+  // Flag vectors
+  desc.add<edm::InputTag>("disambiguationFlags",
+      edm::InputTag("hyddraEXO", "disambiguationFlags"));
+  desc.add<edm::InputTag>("seedIsolationFlags",
+      edm::InputTag("hyddraEXO", "seedIsolationFlags"));
   desc.add<edm::InputTag>("isolationFlags",
       edm::InputTag("hyddraEXO", "isolationFlags"));
+  // Other inputs
   desc.add<edm::InputTag>("pvCollection",
       edm::InputTag("offlinePrimaryVertices"));
   desc.add<edm::InputTag>("tracks",
@@ -800,10 +870,10 @@ void HyddraSVsEXOAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& desc
   // enable per-SV categorization (GED-GED / GED-LowPt / LowPt-LowPt).
   // Leave empty ("") for standalone GED or LowPt runs.
   desc.add<edm::InputTag>("gedTracks", edm::InputTag(""));
-  desc.add<bool>("hasGenInfo",     true);
-  desc.add<int> ("motherPdgId",   54);     // default: dark photon proxy
-  desc.add<double>("genDRCut",    0.05);   // gold/bronze track matching threshold
-  desc.add<double>("passSelDRCut",0.02);   // passSelection (acceptance) threshold
+  desc.add<bool>("hasGenInfo",        true);
+  desc.add<int> ("motherPdgId",       54);    // default: dark photon proxy
+  desc.add<double>("genDRCut",        0.05);  // gold/bronze track matching threshold
+  desc.add<double>("passSelDRCut",    0.02);  // passSelection (acceptance) threshold
   descriptions.addDefault(desc);
 }
 

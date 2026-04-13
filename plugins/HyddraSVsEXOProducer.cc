@@ -68,6 +68,9 @@ HyddraSVsEXOProducer::HyddraSVsEXOProducer(const edm::ParameterSet& iConfig) :
   ttBuilderToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
   leptonic_(iConfig.getParameter<edm::ParameterSet>("leptonic"))
 {
+  produces<reco::VertexCollection>("seedVertices");
+  produces<std::vector<int>>("disambiguationFlags");
+  produces<std::vector<int>>("seedIsolationFlags");
   produces<reco::VertexCollection>("inclusiveVertices");
   produces<reco::VertexCollection>("isolatedVertices");
   produces<std::vector<int>>("isolationFlags");
@@ -95,9 +98,12 @@ void HyddraSVsEXOProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
 
   leptonic_.run_forked(trackRefs, ttBuilder, pv);
 
-  iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.vertices()),         "inclusiveVertices");
-  iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.isolatedVertices()), "isolatedVertices");
-  iEvent.put(std::make_unique<std::vector<int>>(leptonic_.computeIsolationFlags()),  "isolationFlags");
+  iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.seedVertices()),          "seedVertices");
+  iEvent.put(std::make_unique<std::vector<int>>(leptonic_.computeDisambiguationFlags()), "disambiguationFlags");
+  iEvent.put(std::make_unique<std::vector<int>>(leptonic_.computeSeedIsolationFlags()),  "seedIsolationFlags");
+  iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.vertices()),              "inclusiveVertices");
+  iEvent.put(std::make_unique<reco::VertexCollection>(leptonic_.isolatedVertices()),      "isolatedVertices");
+  iEvent.put(std::make_unique<std::vector<int>>(leptonic_.computeIsolationFlags()),       "isolationFlags");
 }
 
 void HyddraSVsEXOProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {

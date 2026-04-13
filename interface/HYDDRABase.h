@@ -143,15 +143,34 @@ class HYDDRABase : public TrackVertexSetCollection {
     return snaps;
   }
 
-  // Accessor for Tier 1 (isolated) vertices from the forked pipeline.
+  // Accessors for each stage of the forked pipeline.
+  reco::VertexCollection seedVertices()     const { return seeds_.vertices(); }
   reco::VertexCollection isolatedVertices() const { return tier1_.vertices(); }
 
-  // Returns a flag vector parallel to vertices() (tier0_): 1 if the
-  // corresponding inclusive vertex also appears in tier1_, 0 otherwise.
-  // Skips invalid sets to stay in sync with vertices().
+  // Flag vector parallel to vertices() (tier0_): 1 if the inclusive vertex
+  // also appears in tier1_ (survived the full isolated path), 0 otherwise.
   std::vector<int> computeIsolationFlags() const {
     std::vector<int> flags;
     for (const auto& v : tier0_)
+      if (v.isValid())
+        flags.push_back(tier1_.contains(v) ? 1 : 0);
+    return flags;
+  }
+
+  // Flag vectors parallel to seedVertices():
+  //   computeDisambiguationFlags()[i] = 1 if seeds_[i] survived tier-0 disambiguation
+  //   computeSeedIsolationFlags()[i]  = 1 if seeds_[i] survived the full isolated path
+  std::vector<int> computeDisambiguationFlags() const {
+    std::vector<int> flags;
+    for (const auto& v : seeds_)
+      if (v.isValid())
+        flags.push_back(tier0_.contains(v) ? 1 : 0);
+    return flags;
+  }
+
+  std::vector<int> computeSeedIsolationFlags() const {
+    std::vector<int> flags;
+    for (const auto& v : seeds_)
       if (v.isValid())
         flags.push_back(tier1_.contains(v) ? 1 : 0);
     return flags;

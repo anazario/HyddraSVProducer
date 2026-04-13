@@ -89,13 +89,18 @@ process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraEXO_cfi")
 process.load("KUCMSNtupleizer.HyddraSVProducer.hyddraEXOAnalyzer_cfi")
 
 # Override full-AOD defaults to MiniAOD collections
-process.hyddraEXO.pvCollection          = cms.InputTag("offlineSlimmedPrimaryVertices")
-process.hyddraEXOAnalyzer.pvCollection  = cms.InputTag("offlineSlimmedPrimaryVertices")
-process.hyddraEXOAnalyzer.genParticles  = cms.InputTag("prunedGenParticles")
-process.hyddraEXOAnalyzer.hasGenInfo    = cms.bool(options.hasGenInfo)
-process.hyddraEXOAnalyzer.motherPdgId   = cms.int32(options.motherPdgId)
-process.hyddraEXOAnalyzer.genDRCut      = cms.double(options.genDRCut)
-process.hyddraEXO.leptonic.maxNormChi2  = cms.double(options.maxNormChi2)
+process.hyddraEXO.pvCollection              = cms.InputTag("offlineSlimmedPrimaryVertices")
+process.hyddraEXOAnalyzer.pvCollection      = cms.InputTag("offlineSlimmedPrimaryVertices")
+process.hyddraEXOAnalyzer.genParticles      = cms.InputTag("prunedGenParticles")
+process.hyddraEXOAnalyzer.hasGenInfo        = cms.bool(options.hasGenInfo)
+process.hyddraEXOAnalyzer.motherPdgId       = cms.int32(options.motherPdgId)
+process.hyddraEXOAnalyzer.genDRCut          = cms.double(options.genDRCut)
+process.hyddraEXO.leptonic.maxNormChi2      = cms.double(options.maxNormChi2)
+# Wire new seed-based collections
+process.hyddraEXOAnalyzer.seedVertices      = cms.InputTag("hyddraEXO", "seedVertices")
+process.hyddraEXOAnalyzer.isolatedVertices  = cms.InputTag("hyddraEXO", "isolatedVertices")
+process.hyddraEXOAnalyzer.disambiguationFlags = cms.InputTag("hyddraEXO", "disambiguationFlags")
+process.hyddraEXOAnalyzer.seedIsolationFlags  = cms.InputTag("hyddraEXO", "seedIsolationFlags")
 
 # ── Configure track collection ────────────────────────────────────────────────
 ELECTRON_TRACK_COLLECTIONS = {
