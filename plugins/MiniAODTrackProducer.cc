@@ -35,6 +35,8 @@
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/PatCandidates/interface/Muon.h"
+#include "DataFormats/PatCandidates/interface/Electron.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
@@ -71,6 +73,7 @@ private:
   edm::EDGetTokenT<pat::PackedCandidateCollection> eleLostTracksToken_;
   edm::EDGetTokenT<std::vector<pat::Muon>> muonsToken_;
   edm::EDGetTokenT<std::vector<pat::Muon>> displacedMuonsToken_;
+  edm::EDGetTokenT<std::vector<pat::Electron>> gedElectronsToken_;
   edm::EDGetTokenT<reco::VertexCollection> pvToken_;
   edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> ttBuilderToken_;
 
@@ -92,6 +95,8 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
           iConfig.getParameter<edm::InputTag>("muons"))),
       displacedMuonsToken_(consumes<std::vector<pat::Muon>>(
           iConfig.getParameter<edm::InputTag>("displacedMuons"))),
+      gedElectronsToken_(consumes<std::vector<pat::Electron>>(
+          iConfig.getParameter<edm::InputTag>("gedElectrons"))),
       pvToken_(consumes<reco::VertexCollection>(
           iConfig.getParameter<edm::InputTag>("pvCollection"))),
       ttBuilderToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
@@ -113,6 +118,9 @@ MiniAODTrackProducer::MiniAODTrackProducer(const edm::ParameterSet& iConfig)
   // Muon global tracks
   produces<reco::TrackCollection>("muonGlobalTracks");
   produces<reco::TrackCollection>("displacedMuonGlobalTracks");
+  produces<reco::TrackCollection>("muonTracks");
+  // GED electron tracks
+  produces<reco::TrackCollection>("gedElectronTracks");
 }
 
 void MiniAODTrackProducer::extractTracks(
@@ -234,6 +242,8 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   auto mergedTracksAll = std::make_unique<reco::TrackCollection>();
   auto muonGlobalTracks = std::make_unique<reco::TrackCollection>();
   auto displacedMuonGlobalTracks = std::make_unique<reco::TrackCollection>();
+  auto muonTracks = std::make_unique<reco::TrackCollection>();
+  auto gedElectronTracks = std::make_unique<reco::TrackCollection>();
 
   // Extract tracks from packed candidates
   if (pfCandidatesHandle.isValid()) {
@@ -251,10 +261,26 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   // Extract global tracks from muons
   if (muonsHandle.isValid()) {
     extractMuonTracks(*muonsHandle, *muonGlobalTracks);
+    for (const auto& mu : *muonsHandle) {
+      reco::TrackRef tref;
+      if      (mu.isGlobalMuon()  && mu.globalTrack().isNonnull()) tref = mu.globalTrack();
+      else if (mu.isTrackerMuon() && mu.innerTrack().isNonnull())  tref = mu.innerTrack();
+      else if (mu.tunePMuonBestTrack().isNonnull())                tref = mu.tunePMuonBestTrack();
+      if (tref.isNonnull()) muonTracks->push_back(*tref);
+    }
   }
 
   if (displacedMuonsHandle.isValid()) {
     extractMuonTracks(*displacedMuonsHandle, *displacedMuonGlobalTracks);
+  }
+
+  edm::Handle<std::vector<pat::Electron>> gedElectronsHandle;
+  iEvent.getByToken(gedElectronsToken_, gedElectronsHandle);
+  if (gedElectronsHandle.isValid()) {
+    for (const auto& ele : *gedElectronsHandle) {
+      if (ele.gsfTrack().isNonnull())
+        gedElectronTracks->push_back(reco::Track(*ele.gsfTrack()));
+    }
   }
 
   // Build PF electron reference tracks for deduplication (same quality cuts as extractTracks)
@@ -313,6 +339,8 @@ void MiniAODTrackProducer::produce(edm::Event& iEvent, const edm::EventSetup& iS
   iEvent.put(std::move(mergedTracksAll), "mergedAll");
   iEvent.put(std::move(muonGlobalTracks), "muonGlobalTracks");
   iEvent.put(std::move(displacedMuonGlobalTracks), "displacedMuonGlobalTracks");
+  iEvent.put(std::move(muonTracks), "muonTracks");
+  iEvent.put(std::move(gedElectronTracks), "gedElectronTracks");
 }
 
 void MiniAODTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -324,6 +352,7 @@ void MiniAODTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& desc
   desc.add<edm::InputTag>("eleLostTracks", edm::InputTag("lostTracks", "eleTracks"));
   desc.add<edm::InputTag>("muons", edm::InputTag("slimmedMuons"));
   desc.add<edm::InputTag>("displacedMuons", edm::InputTag("slimmedDisplacedMuons"));
+  desc.add<edm::InputTag>("gedElectrons", edm::InputTag("slimmedElectrons"));
   desc.add<edm::InputTag>("pvCollection", edm::InputTag("offlineSlimmedPrimaryVertices"));
 
   // Cut configuration
