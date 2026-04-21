@@ -110,6 +110,7 @@ ELECTRON_TRACK_COLLECTIONS = {
 }
 
 MINIAOD_MUON_TRACK_COLLECTIONS = {
+    'gedElectronTracksNoID':   cms.InputTag("miniAODTrackProducer", "gedElectronTracks"),
     'sip2DMuonEnhanced':       cms.InputTag("miniAODMuonEnhancedTracks", "sip2DMuonEnhancedTracks"),
     'merged':                  cms.InputTag("miniAODTrackProducer", "merged"),
     'mergedAll':               cms.InputTag("miniAODTrackProducer", "mergedAll"),
